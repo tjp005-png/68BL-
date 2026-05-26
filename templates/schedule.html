@@ -509,8 +509,8 @@
     
     <script>
         let isDragging = false;
-        let lastDateUpdate = {{ last_updated | default(0) }};
-        let lastGlobalUpdate = {{ global_updated | default(0) }};
+        let lastDateUpdate = null;
+        let lastGlobalUpdate = null;
 
         // Capacity Limit Check on Page Load
         const currentTotalLoads = {{ total_loads | default(0) }};
@@ -662,6 +662,11 @@
             if (isDragging) return;
             fetch(`/api/check_schedule_updates?date={{ selected_date }}`)
                 .then(res => res.json()).then(data => {
+                    if (lastDateUpdate === null || lastGlobalUpdate === null) {
+                        lastDateUpdate = data.date_updated;
+                        lastGlobalUpdate = data.global_updated;
+                        return;
+                    }
                     if (data.date_updated > lastDateUpdate || data.global_updated > lastGlobalUpdate) {
                         lastDateUpdate = data.date_updated;
                         lastGlobalUpdate = data.global_updated;
@@ -671,7 +676,7 @@
                         }
                     }
                 }).catch(() => {});
-        }, 10000);
+        }, 30000);
 
         // 8. Auto-Sync Master Profiles (Background Sync)
         setInterval(() => {

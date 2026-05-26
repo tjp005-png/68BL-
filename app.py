@@ -920,8 +920,13 @@ def schedule_portal():
         prof_status = str(load.get('profile_status') or '').strip().upper()
         special_handling = str(load.get('special_handling') or '').strip().upper()
         
+        # CNIA profiles with NONE expiration dates do not trigger LAS
+        is_asbestos_trigger = is_asbestos
+        if is_asbestos_trigger and clean_exp in ['nodate', '', 'blank', 'none', 'nan', 'nat', 'null', 'na', 'tbd', '0', 'false']:
+            is_asbestos_trigger = False
+
         # 0. Failsafe: Written LAS or Asbestos triggers LAS automatically
-        if 'LAS' in special_handling or 'LAS' in str(notes).upper() or is_asbestos:
+        if 'LAS' in special_handling or 'LAS' in str(notes).upper() or is_asbestos_trigger:
             is_las = True
         # 1. No Date Check
         elif clean_exp in ['nodate', '', 'blank']:
@@ -1232,7 +1237,15 @@ def reset_schedule_sort():
                             if pd.notna(exp_date) and exp_date < datetime.now(): is_las = True
                         except: pass
 
-                if is_asbestos or profile_num == 'BLCBPNONEB':
+                # CNIA profiles with NONE expiration dates do not trigger LAS
+                is_asbestos_trigger = is_asbestos
+                if is_asbestos_trigger and clean_exp in ['nodate', '', 'blank', 'none', 'nan', 'nat', 'null', 'na', 'tbd', '0', 'false']:
+                    is_asbestos_trigger = False
+
+                if is_asbestos_trigger:
+                    is_las = True
+
+                if profile_num == 'BLCBPNONEB':
                     is_las = False
 
                 t['is_las'] = is_las
@@ -1714,4 +1727,4 @@ def final_code():
     return redirect(url_for('waste_acceptance'))        
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)

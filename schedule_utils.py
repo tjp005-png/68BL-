@@ -23,7 +23,13 @@ def calculate_las_status(load):
 
     # 2. IMMEDIATE TRIGGERS: Explicitly written LAS or Asbestos (CNIA)
     is_asbestos = ('CNIA' in win_code) or ('CNIA' in profile_num)
-    if 'LAS' in special_handling or 'LAS' in notes or is_asbestos:
+    
+    # Exemption: CNIA profiles with NONE/No Date expiration dates do not trigger LAS
+    is_asbestos_trigger = is_asbestos
+    if is_asbestos_trigger and clean_exp in ['nodate', '', 'blank', 'none', 'nan', 'nat', 'null', 'na', 'tbd', '0', 'false']:
+        is_asbestos_trigger = False
+
+    if 'LAS' in special_handling or 'LAS' in notes or is_asbestos_trigger:
         return True # <--- CNIA now safely returns True and stops here!
 
     # 3. No Date Check
