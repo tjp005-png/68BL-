@@ -1087,21 +1087,25 @@ def add_schedule():
         except:
             final_dates = [start_date_str]
 
+    series_id = None
+    if len(final_dates) > 1:
+        series_id = uuid.uuid4().hex
+
     with closing(get_db_connection()) as conn:
         for date_str in final_dates:
             generator_val = request.form.get('generator') or request.form.get('customer_name') or ''
             conn.execute('''
                 INSERT INTO daily_schedule (
                     schedule_date, start_time, end_time, profile_number, load_count, 
-                    customer_name, generator, waste_type, sales_order, routing_code, scheduler_initials, special_notes, voc_level, order_index, is_pinned
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
+                    customer_name, generator, waste_type, sales_order, routing_code, scheduler_initials, special_notes, voc_level, order_index, is_pinned, series_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)
             ''', (
                 date_str, 'TBD', 'TBD', 
                 request.form.get('profile_number'), int(request.form.get('load_count', 1)),
                 generator_val, generator_val, request.form.get('waste_type', 'WASTE PICKUP'),
                 request.form.get('sales_order'), request.form.get('routing_code'),
                 request.form.get('scheduler_initials'), request.form.get('special_notes'),
-                request.form.get('voc_level', 0)
+                request.form.get('voc_level', 0), series_id
             ))
         conn.commit()
         

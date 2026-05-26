@@ -168,34 +168,57 @@
 
             <div class="col-md-9 ps-4">
                 <div class="card shadow-sm border-0 mb-4 bg-white d-print-none">
-                    <div class="card-body p-3 d-flex justify-content-between align-items-center">
-                        <form action="/schedule" method="GET" class="d-flex align-items-center m-0">
-                            <h5 class="mb-0 fw-bold text-dark me-3">Viewing:</h5>
-                            <input type="date" class="form-control border-primary fw-bold" name="date" value="{{ selected_date }}" onchange="this.form.submit()" style="max-width: 180px;">
-                        </form>
-                        <div class="input-group mx-3" style="max-width: 350px;">
-                            <span class="input-group-text bg-white border-primary">🌍</span>
-                            <input type="text" id="globalScheduleSearch" class="form-control border-primary shadow-sm fw-bold" placeholder="Global Search...">
+                    <div class="card-body p-3">
+                        <!-- Top Row: Date Selection, Global Search, and Breakout Statistics -->
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 pb-3 mb-3 border-bottom">
+                            <form action="/schedule" method="GET" class="d-flex align-items-center m-0">
+                                <h5 class="mb-0 fw-bold text-dark me-3">Viewing:</h5>
+                                <input type="date" class="form-control border-primary fw-bold" name="date" value="{{ selected_date }}" onchange="this.form.submit()" style="max-width: 180px;">
+                            </form>
+                            
+                            <div class="input-group" style="max-width: 400px; flex-grow: 1;">
+                                <span class="input-group-text bg-white border-primary">🌍</span>
+                                <input type="text" id="globalScheduleSearch" class="form-control border-primary shadow-sm fw-bold" placeholder="Global Search...">
+                            </div>
+
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="badge bg-primary text-white px-3 py-2 shadow-sm rounded-pill" style="cursor: default;" title="Unit 37 (All except CNOS, CCS, and Drum loads)">
+                                    <span class="small fw-semibold text-uppercase">Unit 37:</span> <span id="count-unit37" class="fw-bold fs-6 ms-1">0</span>
+                                </div>
+                                <div class="badge bg-warning text-dark px-3 py-2 shadow-sm rounded-pill" style="cursor: default;" title="Unit 31 (All CNOS loads)">
+                                    <span class="small fw-semibold text-dark text-uppercase">Unit 31:</span> <span id="count-unit31" class="fw-bold fs-6 ms-1">0</span>
+                                </div>
+                                <div class="badge bg-success text-white px-3 py-2 shadow-sm rounded-pill" style="cursor: default;" title="STU / Drum Loads (CCS and Drum loads)">
+                                    <span class="small fw-semibold text-uppercase">STU/Drum Loads:</span> <span id="count-stu" class="fw-bold fs-6 ms-1">0</span>
+                                </div>
+                                <div class="badge bg-dark text-white px-3 py-2 shadow-sm rounded-pill" style="cursor: default;" title="Total Scheduled Loads">
+                                    <span class="small fw-semibold text-light text-uppercase">Total:</span> <span id="count-total" class="fw-bold fs-6 ms-1">{{ total_loads }}</span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="d-flex align-items-center">
-                            
-                            <form action="/clear_all_pins" method="POST" class="m-0 me-2 d-print-none">
-                                <input type="hidden" name="schedule_date" value="{{ selected_date }}">
-                                <button type="submit" class="btn btn-outline-danger fw-bold shadow-sm" onclick="return confirm('Are you sure you want to unpin all trucks for today?');">❌ Clear Pins</button>
-                            </form>
 
-                            <button onclick="autoSortSchedule('{{ selected_date }}')" class="btn btn-outline-primary fw-bold shadow-sm m-0 me-2">🔄 Auto-Sort</button>
+                        <!-- Bottom Row: Action Buttons Toolbar -->
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                            <div class="d-flex flex-wrap gap-2">
+                                <form action="/clear_all_pins" method="POST" class="m-0 d-print-none">
+                                    <input type="hidden" name="schedule_date" value="{{ selected_date }}">
+                                    <button type="submit" class="btn btn-outline-danger fw-bold shadow-sm" onclick="return confirm('Are you sure you want to unpin all trucks for today?');">❌ Clear Pins</button>
+                                </form>
 
-                            <form action="/refresh_schedule_data" method="POST" class="m-0 me-2">
-                                <input type="hidden" name="schedule_date" value="{{ selected_date }}">
-                                <button type="submit" class="btn btn-outline-info fw-bold shadow-sm" title="Pulls the latest VOC and Generator data from Master Profiles">
-                                    🔄 Sync Profiles
-                                </button>
-                            </form>
+                                <button onclick="autoSortSchedule('{{ selected_date }}')" class="btn btn-outline-primary fw-bold shadow-sm">🔄 Auto-Sort</button>
+
+                                <form action="/refresh_schedule_data" method="POST" class="m-0">
+                                    <input type="hidden" name="schedule_date" value="{{ selected_date }}">
+                                    <button type="submit" class="btn btn-outline-info fw-bold shadow-sm" title="Pulls the latest VOC and Generator data from Master Profiles">
+                                        🔄 Sync Profiles
+                                    </button>
+                                </form>
+                            </div>
                             
-                            <button class="btn btn-outline-success fw-bold me-2 shadow-sm" onclick="draftEmail()">✉️ Email</button>
-                            <button class="btn btn-outline-secondary fw-bold me-3 shadow-sm" onclick="window.print()">🖨️ Print</button>
-                            <h4 class="mb-0 text-muted fw-bold">Total: <span class="text-success">{{ total_loads }}</span></h4>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-success fw-bold shadow-sm" onclick="draftEmail()">✉️ Email</button>
+                                <button class="btn btn-outline-secondary fw-bold shadow-sm" onclick="window.print()">🖨️ Print</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -333,6 +356,17 @@
                                 <tbody class="bg-light">
                                     {% for load in blcb_loads %}
                                     <tr data-id="{{ load.id }}" 
+                                        data-series="{{ load.series_id or '' }}"
+                                        data-date="{{ load.schedule_date }}"
+                                        data-profile="{{ load.profile_number }}"
+                                        data-generator="{{ load.generator }}"
+                                        data-waste="{{ load.waste_type }}"
+                                        data-sales="{{ load.sales_order }}"
+                                        data-count="{{ load.load_count }}"
+                                        data-win="{{ load.routing_code }}"
+                                        data-voc="{{ load.voc_level }}"
+                                        data-initials="{{ load.scheduler_initials }}"
+                                        data-notes="{{ load.special_notes }}"
                                         onclick="populateEditModal(this);"
                                         style="cursor: pointer;"
                                         class="clickable-row border-bottom text-muted">
@@ -445,9 +479,11 @@
                             <div class="col-6"><label class="fw-bold small">Initials</label><input type="text" class="form-control text-uppercase" id="edit_initials" name="scheduler_initials" required></div>
                         </div>
                         <div class="mb-3"><label class="fw-bold small">Notes</label><textarea class="form-control" id="edit_notes" name="special_notes" rows="2"></textarea></div>
-                        <div id="seriesCheckboxWrapper" class="form-check p-2 bg-light border rounded d-none mb-3">
-                            <input class="form-check-input" type="checkbox" name="apply_to_series" id="applyToSeriesCheckbox">
-                            <label class="form-check-label fw-bold" for="applyToSeriesCheckbox">🔄 Apply notes to entire sequence?</label>
+                        <div id="seriesCheckboxWrapper" class="p-3 bg-light border rounded d-none mb-3">
+                            <div class="form-check mb-0">
+                                <input class="form-check-input" type="checkbox" name="apply_to_series" id="applyToSeriesCheckbox" style="cursor: pointer;">
+                                <label class="form-check-label fw-bold ms-2" for="applyToSeriesCheckbox" style="cursor: pointer;">🔄 Apply changes to entire sequence?</label>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -501,6 +537,14 @@
                 <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
             </div>
         </div>
+        <div id="lastWorkDayToast" class="toast text-bg-danger border-0 shadow-lg mb-2" role="alert" data-bs-autohide="false">
+            <div class="d-flex">
+                <div class="toast-body fw-bold text-white">
+                    ⚠️ WARNING: <span id="toast-lwd-date">Today</span> is the last work day of the month. Please do not schedule CCS or drum loads.
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -512,6 +556,30 @@
         let lastDateUpdate = null;
         let lastGlobalUpdate = null;
 
+        // Helper: Check if a date is the last work day of the month (Mon-Fri)
+        function isLastWorkDayOfMonth(dateString) {
+            if (!dateString) return false;
+            let parts = dateString.split('-');
+            if (parts.length !== 3) return false;
+            let year = parseInt(parts[0], 10);
+            let month = parseInt(parts[1], 10) - 1;
+            let day = parseInt(parts[2], 10);
+            
+            let date = new Date(year, month, day);
+            let lastDay = new Date(year, month + 1, 0);
+            
+            let dayOfWeek = lastDay.getDay();
+            if (dayOfWeek === 0) { // Sunday -> Friday
+                lastDay.setDate(lastDay.getDate() - 2);
+            } else if (dayOfWeek === 6) { // Saturday -> Friday
+                lastDay.setDate(lastDay.getDate() - 1);
+            }
+            
+            return date.getFullYear() === lastDay.getFullYear() &&
+                   date.getMonth() === lastDay.getMonth() &&
+                   date.getDate() === lastDay.getDate();
+        }
+
         // Capacity Limit Check on Page Load
         const currentTotalLoads = {{ total_loads | default(0) }};
         if (currentTotalLoads > 170) {
@@ -522,12 +590,117 @@
             }
         }
 
+        // Last Work Day of the Month Check on Page Load (Viewed Date)
+        const viewedDateStr = "{{ selected_date }}";
+        if (isLastWorkDayOfMonth(viewedDateStr)) {
+            const lwdToastEl = document.getElementById('lastWorkDayToast');
+            if (lwdToastEl) {
+                document.getElementById('toast-lwd-date').innerText = viewedDateStr;
+                bootstrap.Toast.getOrCreateInstance(lwdToastEl).show();
+            }
+        }
+
+        // Form Warning logic for Last Work Day of Month
+        function checkLastWorkDayWarning() {
+            let datesVal = document.getElementById('multiDateSelector').value || '';
+            let profileVal = (document.getElementById('profile_number').value || '').toUpperCase();
+            let winVal = (document.getElementById('routing_code').value || '').toUpperCase();
+            
+            let dates = datesVal.split(',').map(d => d.trim()).filter(Boolean);
+            let hasCCSOrDrum = profileVal.includes('CCS') || winVal.includes('CCS') || profileVal.includes('DRUM') || winVal.includes('DRUM');
+            
+            let lwdDates = dates.filter(isLastWorkDayOfMonth);
+            
+            const lwdToastEl = document.getElementById('lastWorkDayToast');
+            if (lwdToastEl) {
+                let toastInstance = bootstrap.Toast.getOrCreateInstance(lwdToastEl);
+                if (hasCCSOrDrum && lwdDates.length > 0) {
+                    document.getElementById('toast-lwd-date').innerText = lwdDates.join(', ');
+                    toastInstance.show();
+                } else {
+                    // Only hide if the currently viewed date isn't also a last work day
+                    const viewedDateStr = "{{ selected_date }}";
+                    if (!isLastWorkDayOfMonth(viewedDateStr)) {
+                        toastInstance.hide();
+                    }
+                }
+            }
+        }
+
+        function checkEditLastWorkDayWarning() {
+            let dateVal = document.getElementById('edit_date').value || '';
+            let profileVal = (document.getElementById('edit_profile').value || '').toUpperCase();
+            let winVal = (document.getElementById('edit_win').value || '').toUpperCase();
+            
+            let hasCCSOrDrum = profileVal.includes('CCS') || winVal.includes('CCS') || profileVal.includes('DRUM') || winVal.includes('DRUM');
+            let isLWD = isLastWorkDayOfMonth(dateVal);
+            
+            const lwdToastEl = document.getElementById('lastWorkDayToast');
+            if (lwdToastEl) {
+                let toastInstance = bootstrap.Toast.getOrCreateInstance(lwdToastEl);
+                if (hasCCSOrDrum && isLWD) {
+                    document.getElementById('toast-lwd-date').innerText = dateVal;
+                    toastInstance.show();
+                } else {
+                    // Only hide if the currently viewed date isn't also a last work day
+                    const viewedDateStr = "{{ selected_date }}";
+                    if (!isLastWorkDayOfMonth(viewedDateStr)) {
+                        toastInstance.hide();
+                    }
+                }
+            }
+        }
+
+        function updateTruckCounts() {
+            let u37 = 0;
+            let u31 = 0;
+            let stu = 0;
+            let total = 0;
+
+            document.querySelectorAll('tr[data-id]').forEach(row => {
+                if (row.closest('#searchResultsBody')) return;
+
+                let count = parseInt(row.getAttribute('data-count')) || 0;
+                let profile = (row.getAttribute('data-profile') || '').toUpperCase();
+                let win = (row.getAttribute('data-win') || '').toUpperCase();
+
+                let isSTU = profile.includes('CCS') || win.includes('CCS') || profile.includes('DRUM') || win.includes('DRUM');
+                let isU31 = !isSTU && (profile.includes('CNOS') || win.includes('CNOS'));
+
+                if (isSTU) {
+                    stu += count;
+                } else if (isU31) {
+                    u31 += count;
+                } else {
+                    u37 += count;
+                }
+                total += count;
+            });
+
+            const elU37 = document.getElementById('count-unit37');
+            const elU31 = document.getElementById('count-unit31');
+            const elStu = document.getElementById('count-stu');
+            const elTotal = document.getElementById('count-total');
+
+            if (elU37) elU37.innerText = u37;
+            if (elU31) elU31.innerText = u31;
+            if (elStu) elStu.innerText = stu;
+            if (elTotal) elTotal.innerText = total;
+        }
+
+        // Run calculation on load
+        document.addEventListener('DOMContentLoaded', updateTruckCounts);
+        updateTruckCounts(); // Immediate run as well
+
         // 1. Initialize Flatpickr (Multi-Date Calendar)
         flatpickr("#multiDateSelector", {
             mode: "multiple",
             dateFormat: "Y-m-d",
             defaultDate: "{{ selected_date }}",
-            minDate: "today"
+            minDate: "today",
+            onChange: function(selectedDates, dateStr, instance) {
+                checkLastWorkDayWarning();
+            }
         });
 
         // 2. Initialize TomSelect (Profile Dropdown)
@@ -539,13 +712,17 @@
                     .then(res => res.json()).then(json => callback(json)).catch(()=>callback());
             },
             onChange: function(val) {
-                if(!val) return;
+                if(!val) {
+                    checkLastWorkDayWarning();
+                    return;
+                }
                 fetch(`/api/get_profile_details/${encodeURIComponent(val.trim())}`)
                     .then(res => res.json()).then(data => {
                         if(!data.error) {
                             document.getElementById('generator').value = data.generator || '';
                             document.getElementById('routing_code').value = data.win_code || '';
                             document.getElementById('voc_level').value = data.voc_percentage || '0';
+                            checkLastWorkDayWarning();
                         }
                     });
             }
@@ -622,6 +799,18 @@
             let newTotal = currentTotalLoads + requestedLoads;
 
             function proceedWithAdd() {
+                let profileVal = (document.getElementById('profile_number').value || '').toUpperCase();
+                let winVal = (document.getElementById('routing_code').value || '').toUpperCase();
+                let dates = selectedDatesRaw.split(',').map(d => d.trim()).filter(Boolean);
+                let hasCCSOrDrum = profileVal.includes('CCS') || winVal.includes('CCS') || profileVal.includes('DRUM') || winVal.includes('DRUM');
+                let lwdDates = dates.filter(isLastWorkDayOfMonth);
+                
+                if (hasCCSOrDrum && lwdDates.length > 0) {
+                    if (!confirm(`⚠️ LAST WORK DAY OF THE MONTH WARNING!\n\nYou are attempting to schedule a CCS/Drum load on the last work day of the month (${lwdDates.join(', ')}).\n\nPlease avoid scheduling CCS or drum loads on these days.\n\nDo you still want to proceed?`)) {
+                        return;
+                    }
+                }
+
                 let payload = {
                     selected_dates: selectedDatesRaw,
                     profile_number: document.getElementById('profile_number').value
@@ -706,7 +895,12 @@
             document.getElementById('deleteForm').action = '/delete_schedule/' + row.getAttribute('data-id');
             document.getElementById('delete_date').value = row.getAttribute('data-date');
             bootstrap.Modal.getOrCreateInstance(document.getElementById('editModal')).show();
+            checkEditLastWorkDayWarning();
         }
+
+        // Attach listeners for Edit Modal fields
+        document.getElementById('edit_date').addEventListener('change', checkEditLastWorkDayWarning);
+        document.getElementById('edit_profile').addEventListener('input', checkEditLastWorkDayWarning);
 
         // 10. Utility Functions
         function draftEmail() {
@@ -743,6 +937,18 @@
 
         // 11. Edit Modal Capacity Check Interceptor
         document.getElementById('editForm').addEventListener('submit', function(e) {
+            let dateVal = document.getElementById('edit_date').value || '';
+            let profileVal = (document.getElementById('edit_profile').value || '').toUpperCase();
+            let winVal = (document.getElementById('edit_win').value || '').toUpperCase();
+            let hasCCSOrDrum = profileVal.includes('CCS') || winVal.includes('CCS') || profileVal.includes('DRUM') || winVal.includes('DRUM');
+            
+            if (hasCCSOrDrum && isLastWorkDayOfMonth(dateVal)) {
+                if (!confirm(`⚠️ LAST WORK DAY WARNING!\n\nYou are editing/scheduling a CCS/Drum load on the last work day of the month (${dateVal}).\n\nPlease avoid scheduling CCS or drum loads on these days.\n\nDo you still want to save changes?`)) {
+                    e.preventDefault();
+                    return;
+                }
+            }
+
             let countInput = document.getElementById('edit_count');
             if (countInput) {
                 let newLoads = parseInt(countInput.value) || 0;
@@ -756,6 +962,35 @@
                     if (!confirm(`⚠️ CAPACITY WARNING!\n\nUpdating this load to ${newLoads} will put the total scheduled truck count at ${currentTotalLoads + difference}, which exceeds the daily limit of 170.\n\nPlease contact Waste Acceptance for approval.\n\nDo you still want to save changes?`)) {
                         e.preventDefault();
                     }
+                }
+            }
+        });
+
+        // 12. Delete Form Series Deletion Check
+        document.getElementById('deleteForm').addEventListener('submit', function(e) {
+            if (!confirm("Are you sure you want to delete this scheduled load?")) {
+                e.preventDefault();
+                return;
+            }
+
+            let actionUrl = this.action;
+            let rowId = actionUrl.split('/').pop();
+            let rowEl = document.querySelector(`tr[data-id="${rowId}"]`);
+            let sid = rowEl ? rowEl.getAttribute('data-series') : '';
+
+            // Clean up any previously appended hidden inputs for apply_to_series
+            let existingInput = this.querySelector('input[name="apply_to_series"]');
+            if (existingInput) {
+                existingInput.remove();
+            }
+
+            if (sid && sid !== 'None' && sid !== '') {
+                if (confirm("This load is part of a sequence.\n\nDo you want to delete the ENTIRE sequence?\n\n- Click OK to delete all loads in this sequence.\n- Click Cancel to delete THIS load only.")) {
+                    let input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'apply_to_series';
+                    input.value = 'on';
+                    this.appendChild(input);
                 }
             }
         });
