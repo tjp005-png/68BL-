@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Reports</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .clickable-row:hover { background-color: #f1f3f5 !important; transition: background-color 0.2s ease; }
+        .shadow-inner { box-shadow: inset 0 3px 5px rgba(0,0,0,0.05); }
+        
+        /* Smooth pulsing animation for the LIVE badge */
+        @keyframes pulse-opacity {
+            0% { opacity: 1; }
+            50% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
+        .live-badge { animation: pulse-opacity 2.5s infinite ease-in-out; }
+
+        /* High urgency pulse for missing grid */
+        @keyframes pulse-animation {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .pulse { animation: pulse-animation 2s infinite; }
+        
+        /* 🖨️ SLEEK LANDSCAPE PRINT STYLES */
+        @media print {
+            /* Lock to landscape, force minimum printer margins, and inject page numbers */
+            @page { 
+                size: landscape; 
+                margin: 0.15in; 
+                @bottom-right {
+                    content: "Page " counter(page) " of " counter(pages);
+                    font-family: sans-serif;
+                    font-size: 9pt;
+                }
+            }
+            
+            /* Force strict white backgrounds to kill any gray tints */
+            body, .table-print, .table-print tr, .table-print td, .table-print th { 
+                background-color: white !important; 
+                background: none !important; 
+            }
+            
+            body { font-family: sans-serif; }
+            .card { border: none !important; box-shadow: none !important; }
+            .d-print-none { display: none !important; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            
+            .table-print {
+                width: 100% !important;
+                border-collapse: collapse !important;
+                margin-top: 10px;
+            }
+            .table-print thead { display: table-header-group; }
+            
+            /* The tfoot will automatically repeat at the bottom of every printed page! */
+            .table-print tfoot { display: table-footer-group; }
+            
+            .table-print th {
+                color: black !important;
+                border-bottom: 2px solid black !important;
+                padding: 6px 4px !important;
+                font-size: 11pt !important;
+                text-align: center;
+                font-weight: bold;
+            }
+            .table-print td {
+                border-bottom: 1px dashed #ccc !important; /* Sleek dashed lines */
+                padding: 10px 4px !important; /* Tall enough to write, tight enough to fit */
+                font-size: 10pt !important;
+                color: black !important;
+                vertical-align: middle;
+            }
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+    <div class="container mt-4">
+        <div class="card shadow mb-4 d-print-none">
+            <div class="card-header text-white d-flex justify-content-between align-items-center" style="background-color: #970000; border-bottom: 4px solid #5a0000;">
+                <div class="d-flex align-items-center">
+                    <img src="{{ url_for('static', filename='CLH_BIG.png') }}" alt="Clean Harbors Logo" style="height: 45px; margin-right: 15px; background-color: white; padding: 4px; border-radius: 5px;">
+                    <h2 class="mb-0 fw-bold">📊 DAILY REPORTS</h2>
+                </div>
+                <div>
+                    <a href="/" class="btn btn-light fw-bold shadow-sm text-dark me-2">⬅️ Hub</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0 mb-4 bg-white d-print-none">
+            <div class="card-body p-3 d-flex justify-content-between align-items-center">
+                <form action="/reports" method="GET" class="d-flex align-items-center m-0">
+                    <h5 class="mb-0 fw-bold text-dark me-3">Viewing Report For:</h5>
+                    <input type="date" class="form-control border-primary fw-bold" name="date" value="{{ selected_date }}" onchange="this.form.submit()" style="max-width: 200px;">
+                    
+                    {% if selected_date == today_str %}
+                        <span class="badge rounded-pill bg-success ms-3 shadow-sm live-badge px-3 py-2" title="This board automatically updates every 60 seconds.">🟢 LIVE DASHBOARD</span>
+                    {% endif %}
+                </form>
+                
+                <div class="d-flex align-items-center">
+                    <a href="/export?date={{ selected_date }}" class="btn btn-outline-success fw-bold shadow-sm me-2">📥 Export Excel</a>
+                    <button class="btn btn-outline-secondary fw-bold shadow-sm" onclick="window.print()">🖨️ Print Ticket Log</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4 d-print-none">
+    <div class="card-header text-white" style="background-color: #00126b;">
+        <h4 class="mb-0 fw-bold">Performance Summary</h4>
+    </div>
+    <div class="card-body bg-white text-center">
+        <div class="row">
+            <div class="col-3 border-end">
+                <h6 class="text-muted fw-bold text-uppercase">Scheduled Loads</h6>
+                <h2 class="fw-bold text-primary">{{ grand_totals.grand_scheduled }}</h2>
+            </div>
+            <div class="col-3 border-end">
+                <h6 class="text-muted fw-bold text-uppercase">Total Trucks Received</h6>
+                <h2 class="fw-bold text-success">{{ grand_totals.grand_trucks }}</h2>
+            </div>
+            <div class="col-3 border-end">
+                <h6 class="text-muted fw-bold text-uppercase">Unit 35 Tonnage</h6>
+                <h2 class="fw-bold text-dark">{{ "%.2f"|format(grand_totals.grand_tons) }} <span class="fs-6 text-muted">tons</span></h2>
+            </div>
+            <div class="col-3">
+                <h6 class="text-muted fw-bold text-uppercase">Unit 35 Avg VOC</h6>
+                <h2 class="fw-bold text-danger">{{ "%.2f"|format(grand_totals.grand_avg_voc_ppm) }} <span class="fs-6 text-muted">ppm</span></h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+        <div class="card shadow-sm mt-4 mb-5 d-print-none">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold">Variance by Profile & Detailed Logs</h5>
+                <span class="badge bg-light text-dark small shadow-sm">CLICK A ROW TO VIEW TRUCKS</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead style="background-color: #f8f9fa;">
+                        <tr>
+                            <th class="ps-4">Profile Number</th>
+                            <th class="text-center">Scheduled</th>
+                            <th class="text-center">Actual Received</th>
+                            <th class="text-center">Variance (+/-)</th>
+                            <th class="text-end">Tonnage Processed</th>
+                            <th class="text-end pe-4">Est. VOC (ppm)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white">
+                        {% for row in report_data %}
+                        {% set prof = row.profile_number %}
+                        {% set trucks = trucks_by_profile.get(prof, []) %}
+                        
+                        {% set ns = namespace(has_grid_issue=false) %}
+                        {% for t in trucks %}
+                            {% set wmu = t.cell_location | string | trim %}
+                            {% set grid = t.grid_location | string | trim | upper %}
+                            {% if wmu != '31' and (not grid or grid == 'TBD' or grid == 'NONE') %}
+                                {% set ns.has_grid_issue = true %}
+                            {% endif %}
+                        {% endfor %}
+                        
+                        <tr data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}" class="clickable-row border-bottom {% if ns.has_grid_issue %}table-danger{% endif %}" style="cursor: pointer;">
+                            <td class="fw-bold text-primary ps-3">
+                                {% if trucks|length > 0 %}
+                                    <span class="text-muted small me-2">🔽</span>
+                                {% else %}
+                                    <span class="text-muted small me-2" style="opacity:0.3;">➖</span>
+                                {% endif %}
+                                {{ prof }}
+                            </td>
+                            <td class="text-center text-muted fw-bold">{{ row.scheduled }}</td>
+                            <td class="text-center fw-bold">{{ row.total_trucks }}</td>
+                            <td class="text-center fw-bold">
+                                {% if row.variance < 0 %}
+                                    <span class="text-danger">{{ row.variance }}</span>
+                                {% elif row.variance > 0 %}
+                                    <span class="text-success">+{{ row.variance }}</span>
+                                {% else %}
+                                    <span class="text-muted">0</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end fw-bold">{{ "%.2f"|format(row.total_tons) }} tons</td>
+                            <td class="text-end text-muted pe-4">{{ "%.2f"|format(row.avg_voc_ppm) }}</td>
+                        </tr>
+
+                        {% if trucks|length > 0 %}
+                        <tr id="collapse-{{ loop.index }}" class="collapse bg-light d-print-none">
+                            <td colspan="6" class="p-0 border-0">
+                                <div class="p-3 ps-5 shadow-inner" style="border-left: 5px solid #00126b;">
+                                    <table class="table table-sm table-hover align-middle bg-white border shadow-sm mb-0">
+                                        <thead style="background-color: #e9ecef; font-size: 0.85rem;">
+                                            <tr>
+                                                <th class="ps-3">Load #</th>
+                                                <th>Manifest #</th>
+                                                <th>SO #</th>
+                                                <th>Generator</th>
+                                                <th>Gross (lbs)</th>
+                                                <th>Tare (lbs)</th>
+                                                <th>Net (tons)</th>
+                                                <th>Status</th>
+                                                <th class="pe-3">WMU / Grid</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for truck in trucks %}
+                                            
+                                            {% set wmu = truck.cell_location | string | trim %}
+                                            {% set grid = truck.grid_location | string | trim | upper %}
+                                            {% set grid_issue = wmu != '31' and (not grid or grid == 'TBD' or grid == 'NONE') %}
+                                            
+                                            <tr class="clickable-row border-bottom {% if grid_issue %}table-danger{% endif %}" style="cursor: pointer;"
+                                                data-id="{{ truck.id }}"
+                                                data-date="{{ selected_date }}"
+                                                data-profile="{{ truck.profile_number }}"
+                                                data-manifest="{{ truck.manifest_number }}"
+                                                data-load="{{ truck.load_number }}"
+                                                data-gross="{{ truck.gross_weight }}"
+                                                data-tare="{{ truck.exit_weight }}"
+                                                data-wmu="{{ truck.cell_location }}"
+                                                data-grid="{{ truck.grid_location }}"
+                                                data-timein="{{ truck.time_in }}"
+                                                data-timeout="{{ truck.time_out }}"
+                                                onclick="populateEditTruckModal(this)">
+                                                
+                                                <td class="fw-bold ps-3">{{ truck.load_number }}</td>
+                                                <td>{{ truck.manifest_number }}</td>
+                                                <td class="text-muted fw-bold">{{ truck.sales_order or '' }}</td>
+                                                <td class="text-truncate text-muted" style="max-width: 200px;" title="{{ truck.generator }}">{{ truck.generator }}</td>
+                                                <td>{{ "{:,.0f}".format(truck.gross_weight) if truck.gross_weight else '-' }}</td>
+                                                <td>{{ "{:,.0f}".format(truck.exit_weight) if truck.exit_weight else '-' }}</td>
+                                                <td class="fw-bold text-dark">{{ "%.2f"|format(truck.net_weight) if truck.net_weight else '-' }}</td>
+                                                <td>
+                                                    {% if truck.test_status == 'COMPLETED' %}
+                                                        <span class="badge bg-success">COMPLETED</span>
+                                                    {% elif truck.test_status == 'WEIGHED IN' %}
+                                                        <span class="badge bg-warning text-dark">ON SITE</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">{{ truck.test_status }}</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="pe-3">
+                                                    <span class="fw-bold">{{ truck.cell_location or 'TBD' }}</span>
+                                                    
+                                                    {% if wmu == '31' %}
+                                                        <span class="text-muted small ms-1">/ N/A</span>
+                                                    {% elif grid_issue %}
+                                                        <br><span class="badge bg-danger pulse shadow-sm mt-1" style="font-size: 0.65rem;">⚠️ NO GRID</span>
+                                                    {% else %}
+                                                        <span class="text-muted small ms-1">/ {{ truck.grid_location }}</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
+
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="d-none d-print-block mt-2">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid black; padding-bottom: 10px; margin-bottom: 15px;">
+                <img src="{{ url_for('static', filename='CLH_BIG.png') }}" style="height: 55px;" alt="Clean Harbors">
+                <div style="text-align: right; color: black;">
+                    <h2 style="margin: 0; font-weight: bold; font-size: 16pt;">WEIGHT TICKET LOG</h2>
+                    <h5 style="margin: 0; padding-top: 5px;">Date: <strong>{{ selected_date }}</strong></h5>
+                    <h5 style="margin: 0;">Total Received: <strong>{{ grand_totals.grand_trucks }}</strong></h5>
+                </div>
+            </div>
+
+            <table class="table-print">
+                <thead>
+                    <tr>
+                        <th style="width: 5%;">Load</th>
+                        <th style="width: 12%;">Manifest #</th>
+                        <th style="width: 12%;">Profile</th>
+                        <th style="width: 10%;">SO #</th>
+                        <th style="width: 25%; text-align: left;">Generator</th>
+                        <th style="width: 8%;">Net (lbs)</th>
+                        <th style="width: 12%;">Cell / Grid</th>
+                        <th style="width: 10%;">Time In</th>
+                        <th style="width: 10%;">Time Out</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for truck in all_trucks %}
+                    {% set is_void = truck.profile_number == 'VOID / NOT ISSUED' %}
+                    {% set wmu = truck.cell_location | string | trim %}
+                    {% set grid = truck.grid_location | string | trim | upper %}
+                    
+                    {% if is_void %}
+                    <tr>
+                        <td class="text-center fw-bold fs-6" style="color: #999 !important;">{{ truck.load_number }}</td>
+                        <td class="text-center" style="color: #999 !important;">---</td>
+                        <td class="text-center fw-bold">VOID / NOT ISSUED</td>
+                        <td class="text-center"></td>
+                        <td class="text-truncate text-muted" style="max-width: 250px; text-align: left; font-style: italic;">{{ truck.generator }}</td>
+                        <td class="text-center" style="color: #999 !important;">---</td>
+                        <td class="text-center" style="color: #999 !important;">---</td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                    
+                    {% else %}
+                    <tr>
+                        <td class="text-center fw-bold fs-6">{{ truck.load_number }}</td>
+                        <td class="text-center">{{ truck.manifest_number }}</td>
+                        <td class="text-center fw-bold">{{ truck.profile_number }}</td>
+                        <td class="text-center text-muted fw-bold">{{ truck.sales_order or '' }}</td>
+                        <td class="text-truncate" style="max-width: 250px; text-align: left;">{{ truck.generator }}</td>
+                        
+                        <td class="text-center fw-bold">
+                            {% if truck.gross_weight and truck.exit_weight %}
+                                {{ "{:,.0f}".format(truck.gross_weight - truck.exit_weight) }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        
+                        <td class="text-center">
+                            {{ truck.cell_location or 'TBD' }} / {% if wmu == '31' %}N/A{% else %}{{ grid or 'TBD' }}{% endif %}
+                        </td>
+                        
+                        <td class="text-center">{{ truck.time_in or '' }}</td>
+                        <td class="text-center">{{ truck.time_out or '' }}</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+                <tfoot class="d-none d-print-table-footer-group">
+                    <tr>
+                        <td colspan="9" style="border: none !important; text-align: right; padding-top: 15px; font-size: 10pt; font-weight: bold; color: #555 !important;">
+                            Weight Ticket Log &nbsp; | &nbsp; {{ selected_date }}
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+    </div>
+
+    <div class="modal fade d-print-none" id="editTruckModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header text-white" style="background-color: #00126b;">
+                    <h5 class="modal-title fw-bold">✏️ Edit Truck Log</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                
+                <div class="modal-body pb-0">
+                    <form id="editTruckForm" method="POST">
+                        <input type="hidden" id="edit_truck_date" name="date_received">
+                        
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold mb-0">Profile #</label>
+                            <input type="text" class="form-control border-secondary fw-bold text-primary" id="edit_truck_profile" name="profile_number" required>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-0">Manifest #</label>
+                                <input type="text" class="form-control border-secondary" id="edit_truck_manifest" name="manifest_number" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-0">Load #</label>
+                                <input type="text" class="form-control border-secondary fw-bold" id="edit_truck_load" name="load_number" required>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-0">Gross Weight</label>
+                                <input type="number" step="0.01" class="form-control border-secondary" id="edit_truck_gross" name="gross_weight" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-0">Tare Weight (Optional)</label>
+                                <input type="number" step="0.01" class="form-control border-secondary" id="edit_truck_tare" name="exit_weight">
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-0">Cell (WMU)</label>
+                                <input type="text" class="form-control border-secondary" id="edit_truck_wmu" name="cell_location">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-0">Grid Location</label>
+                                <input type="text" class="form-control border-secondary" id="edit_truck_grid" name="grid_location">
+                            </div>
+                        </div>
+
+                        <div class="row mb-4">
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-0">Time In</label>
+                                <input type="text" class="form-control border-secondary bg-light" id="edit_truck_time_in" name="time_in" placeholder="e.g. 08:30">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-0">Time Out</label>
+                                <input type="text" class="form-control border-secondary bg-light" id="edit_truck_time_out" name="time_out" placeholder="e.g. 14:15">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                
+                <div class="modal-footer bg-light d-flex justify-content-between">
+                    <div>
+                        <form id="deleteTruckForm" method="POST" class="m-0">
+                            <input type="hidden" name="date_received" id="delete_truck_date">
+                            <button type="submit" class="btn btn-outline-danger fw-bold rounded-pill px-3" style="font-size: 0.85rem;" onclick="return confirm('Are you sure you want to permanently delete this truck log? This will remove it from all daily reports.');">Delete</button>
+                        </form>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" form="editTruckForm" class="btn text-white fw-bold" style="background-color: #970000;">Save Changes</button>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        function populateEditTruckModal(row) {
+            let id = row.getAttribute('data-id');
+            let date = row.getAttribute('data-date');
+            
+            // Set Form Actions
+            document.getElementById('editTruckForm').action = '/edit_truck/' + id;
+            document.getElementById('deleteTruckForm').action = '/delete_truck/' + id;
+            
+            // Set Dates
+            document.getElementById('edit_truck_date').value = date;
+            document.getElementById('delete_truck_date').value = date;
+            
+            // Populate Fields
+            document.getElementById('edit_truck_profile').value = row.getAttribute('data-profile');
+            document.getElementById('edit_truck_manifest').value = row.getAttribute('data-manifest') !== 'None' ? row.getAttribute('data-manifest') : '';
+            document.getElementById('edit_truck_load').value = row.getAttribute('data-load') !== 'None' ? row.getAttribute('data-load') : '';
+            
+            let gross = row.getAttribute('data-gross');
+            document.getElementById('edit_truck_gross').value = (gross && gross !== 'None') ? parseFloat(gross) : '';
+            
+            let tare = row.getAttribute('data-tare');
+            document.getElementById('edit_truck_tare').value = (tare && tare !== 'None') ? parseFloat(tare) : '';
+            
+            let wmu = row.getAttribute('data-wmu');
+            document.getElementById('edit_truck_wmu').value = (wmu && wmu !== 'None') ? wmu : '';
+
+            let grid = row.getAttribute('data-grid');
+            document.getElementById('edit_truck_grid').value = (grid && grid !== 'None') ? grid : '';
+
+            let timeIn = row.getAttribute('data-timein');
+            document.getElementById('edit_truck_time_in').value = (timeIn && timeIn !== 'None') ? timeIn : '';
+
+            let timeOut = row.getAttribute('data-timeout');
+            document.getElementById('edit_truck_time_out').value = (timeOut && timeOut !== 'None') ? timeOut : '';
+
+            // Show Modal
+            const editModal = new bootstrap.Modal(document.getElementById('editTruckModal'));
+            editModal.show();
+        }
+
+        // --- 🟢 LIVE AUTO-REFRESH LOGIC (ONLY IF VIEWING TODAY) ---
+        {% if selected_date == today_str %}
+            setInterval(function() {
+                // Safety Check: Is the Bootstrap modal currently open?
+                // If the body has 'modal-open', the user is editing something. Do not refresh!
+                if (!document.body.classList.contains('modal-open')) {
+                    window.location.reload(); 
+                }
+            }, 60000); 
+        {% endif %}
+    </script>
+</body>
+</html>

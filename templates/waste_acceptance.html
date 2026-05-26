@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waste Acceptance Staging</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .ch-red-bg { background-color: #970000 !important; color: white; }
+    </style>
+</head>
+<body class="bg-light">
+
+    <div class="container-fluid mt-4 px-5">
+        
+        <div class="card shadow mb-4 border-0">
+            <div class="card-header text-white d-flex justify-content-between align-items-center ch-red-bg" style="border-bottom: 4px solid #5a0000;">
+                <div class="d-flex align-items-center">
+                    <img src="{{ url_for('static', filename='CLH_BIG.png') }}" alt="Clean Harbors Logo" style="height: 45px; margin-right: 15px; background-color: white; padding: 4px; border-radius: 5px;">
+                    <h2 class="mb-0 fw-bold">📋 WASTE ACCEPTANCE / FINAL CODING</h2>
+                </div>
+                <div>
+                    <a href="/" class="btn btn-light fw-bold shadow-sm text-dark">⬅️ Hub</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="alert alert-secondary shadow-sm mb-4 border-0">
+            <h5 class="fw-bold mb-1">Staging Queue Instructions:</h5>
+            <p class="mb-0 text-muted">These manifests have completed lab results. Review the data, enter the findings into the corporate WIN portal, and click <strong>"Final Code"</strong> to push the physical drums into Active STU Inventory.</p>
+        </div>
+
+        {% if not staging_data %}
+            <div class="alert alert-success text-center shadow-sm fs-4 fw-bold py-5 mt-4 border-0">
+                🎉 No manifests pending Waste Acceptance!
+            </div>
+        {% endif %}
+
+        <div class="row g-4">
+            {% for item in staging_data %}
+            <div class="col-12">
+                <div class="card shadow-sm border-secondary">
+                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-3">
+                        <h4 class="mb-0 fw-bold">Manifest: {{ item.lab_result.manifest }} | Profile: {{ item.lab_result.profile }}</h4>
+                        <span class="badge bg-light text-dark fs-6">{{ item.drum_count }} Drums Pending</span>
+                    </div>
+                    
+                    <div class="card-body row m-0 p-0">
+                        <div class="col-md-5 p-4 border-end" style="background-color: #f8f9fa;">
+                            <h5 class="fw-bold text-primary mb-3">🧪 Lab Findings</h5>
+                            <ul class="list-group list-group-flush shadow-sm mb-4">
+                                <li class="list-group-item d-flex justify-content-between"><strong>Sampled Drum:</strong> <span>{{ item.lab_result.drum_id }}</span></li>
+                                <li class="list-group-item d-flex justify-content-between"><strong>pH Result:</strong> <span class="fw-bold">{{ item.lab_result.ph_result }}</span></li>
+                                <li class="list-group-item d-flex justify-content-between"><strong>VOC (ppm):</strong> <span class="fw-bold">{{ item.lab_result.voc_result }}</span></li>
+                                <li class="list-group-item d-flex justify-content-between"><strong>Flashpoint:</strong> <span>{{ item.lab_result.flashpoint or 'N/A' }}</span></li>
+                                <li class="list-group-item d-flex justify-content-between"><strong>Cyanide / Sulfide:</strong> <span>{{ item.lab_result.cyanide or '-' }} / {{ item.lab_result.sulfide or '-' }}</span></li>
+                                <li class="list-group-item d-flex justify-content-between"><strong>Oxidizer:</strong> <span>{{ item.lab_result.oxidation or '-' }}</span></li>
+                                <li class="list-group-item"><strong>Chemist Notes:</strong> <br><span class="text-muted fst-italic">{{ item.lab_result.notes or 'No notes provided.' }}</span></li>
+                            </ul>
+                            
+                            <form action="/final_code" method="POST">
+                                <input type="hidden" name="lab_id" value="{{ item.lab_result.id }}">
+                                <input type="hidden" name="manifest" value="{{ item.lab_result.manifest }}">
+                                <input type="hidden" name="profile" value="{{ item.lab_result.profile }}">
+                                <input type="hidden" name="ph_val" value="{{ item.lab_result.ph_result }}">
+                                <input type="hidden" name="voc_val" value="{{ item.lab_result.voc_result }}">
+                                
+                                <button type="submit" class="btn btn-success fw-bold w-100 py-3 shadow-sm fs-5" onclick="return confirm('Confirm data has been entered into the corporate WIN portal? This will push all {{ item.drum_count }} drums into active inventory.');">
+                                    ✅ DATA ENTERED - FINAL CODE DRUMS
+                                </button>
+                            </form>
+                        </div>
+
+                        <div class="col-md-7 p-4">
+                            <h5 class="fw-bold text-dark mb-3">🛢️ Physical Drums Affected</h5>
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-sm table-striped border">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th>Drum ID</th>
+                                            <th>Current Status</th>
+                                            <th>Weight</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for drum in item.related_drums %}
+                                        <tr>
+                                            <td class="fw-bold text-monospace">{{ drum.track_no }}</td>
+                                            <td><span class="badge bg-warning text-dark">{{ drum.process_type }}</span></td>
+                                            <td>{{ drum.weight }} lbs</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+</body>
+</html>

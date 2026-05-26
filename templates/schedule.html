@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Scheduling Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        /* Drag and Drop Visuals */
+        .drag-handle { cursor: grab; font-size: 1.2rem; color: #6c757d; }
+        .drag-handle:active { cursor: grabbing; color: #000; }
+        .sortable-ghost { opacity: 0.4; background-color: #f8f9fa; }
+        
+        .table-fixed-layout { table-layout: auto; }
+        .wrap-text { white-space: normal !important; word-break: break-word; }
+        .clickable-row:hover > td { background-color: #f1f3f5 !important; transition: background-color 0.2s ease; }
+
+        /* 📌 PINNED ROW STYLING (Forced into the table cells to override Bootstrap) */
+        .pinned-row > td { 
+            background-color: #dbeafe !important; 
+        }
+
+        /* 🖨️ HIGH-DENSITY PRINT STYLES */
+        @media print {
+            @page { size: portrait; margin: 0.5in; }
+            body { background-color: white !important; color: black !important; font-size: 10pt !important; }
+            
+            /* Hide UI Elements */
+            .d-print-none, .col-md-3 { display: none !important; }
+            .col-md-9, .container-fluid { width: 100% !important; max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+            .card { border: none !important; box-shadow: none !important; }
+            
+            /* KILL SCROLLING AND STICKY HEADERS FOR PRINTING */
+            .table-responsive { max-height: none !important; overflow: visible !important; height: auto !important; }
+            .sticky-top { position: static !important; top: auto !important; }
+            
+            /* Clean Print Header */
+            body::before {
+                content: "DAILY SCHEDULE: {{ selected_date }} (TOTAL TRUCKS: {{ total_loads }})";
+                display: block; text-align: center; font-size: 14pt; font-weight: bold;
+                margin-bottom: 15px; border-bottom: 2px solid black; padding-bottom: 5px;
+            }
+
+            /* Table Formatting for Print */
+            .table { width: 100% !important; border-collapse: collapse !important; table-layout: auto !important; }
+            .table thead th { 
+                background-color: transparent !important; 
+                color: black !important; 
+                border-bottom: 2px solid black !important; 
+                padding: 4px !important;
+                font-size: 9pt !important;
+            }
+            .table tbody tr { page-break-inside: avoid; }
+            
+            /* Strip the blue pin color for printing to save ink */
+            .pinned-row > td { background-color: transparent !important; }
+
+            .table tbody td { 
+                padding: 4px !important; 
+                border-bottom: 1px solid #ccc !important; 
+                color: black !important; 
+                font-size: 9pt !important;
+                vertical-align: top !important;
+            }
+
+            /* Keep badges legible in B&W */
+            .badge {
+                background-color: transparent !important;
+                color: black !important;
+                border: 1px solid black !important;
+                padding: 2px 4px !important;
+                font-size: 8pt !important;
+            }
+
+            /* Hide pending SOs from security printout */
+            .so-pending-row { display: none !important; }
+
+            /* Nest Requestor Print Display Rules */
+            .print-nested-requestor { display: block !important; font-size: 8.5pt; color: #444 !important; font-weight: normal !important; margin-top: 2px; }
+            .print-nested-requestor::before { content: "Req: "; font-weight: bold; }
+            
+            /* Print Badge Visibility Override */
+            .print-badge { display: inline-block !important; }
+        }
+
+        /* Screen defaults for print elements */
+        .print-nested-requestor { display: none; }
+        .print-badge { display: none; }
+    </style>
+</head>
+<body class="bg-light">
+
+    <div class="container-fluid mt-4 px-5">
+        
+        <div class="card shadow mb-4 d-print-none">
+            <div class="card-header text-white d-flex justify-content-between align-items-center" style="background-color: #970000; border-bottom: 4px solid #5a0000;">
+                <div class="d-flex align-items-center">
+                    <img src="{{ url_for('static', filename='CLH_BIG.png') }}" alt="Logo" style="height: 45px; margin-right: 15px; background-color: white; padding: 4px; border-radius: 5px;">
+                    <h2 class="mb-0 fw-bold">🗓️ DAILY SCHEDULING PORTAL</h2>
+                </div>
+                <div>
+                    <a href="/" class="btn btn-light fw-bold shadow-sm text-dark me-2">⬅️ Hub</a>
+                    <a href="/receiving" class="btn btn-dark fw-bold shadow-sm">🚚 Truck Receiving</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-3 border-end pe-4 d-print-none">
+                <div class="card shadow-sm border-0 mb-4 bg-white">
+                    <div class="card-body p-3">
+                        <form id="addScheduleForm" action="/add_schedule" method="POST">
+                            
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Select Dates</label>
+                                <input type="text" id="multiDateSelector" name="selected_dates" class="form-control border-secondary fw-bold bg-white" placeholder="Click to select days..." required readonly>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Profile #</label>
+                                <select id="profile_number" name="profile_number" placeholder="Search Master Profiles..." required></select>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-1">Loads</label>
+                                    <input type="number" class="form-control border-secondary px-2" name="load_count" value="1" min="1" required>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-1">VOC</label>
+                                    <input type="text" class="form-control border-secondary px-2 bg-light" id="voc_level" name="voc_level" readonly tabindex="-1">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Generator</label>
+                                <input type="text" class="form-control border-secondary bg-light" id="generator" name="generator" required readonly tabindex="-1">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Requestor</label>
+                                <input type="text" class="form-control border-secondary" name="waste_type">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Sales Order</label>
+                                <input type="text" class="form-control border-secondary" name="sales_order">
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-1">WIN Code</label>
+                                    <input type="text" class="form-control border-secondary bg-light" id="routing_code" name="routing_code" readonly tabindex="-1">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-1">Initials</label>
+                                    <input type="text" class="form-control border-secondary text-uppercase" name="scheduler_initials" required>
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label text-muted small fw-bold mb-1">Special Notes / Flags</label>
+                                <textarea class="form-control border-secondary" id="special_notes" name="special_notes" rows="2"></textarea>
+                            </div>
+                            <button type="submit" class="btn text-white w-100 fw-bold shadow-sm py-2" style="background-color: #3860b2;">Add to Schedule</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-9 ps-4">
+                <div class="card shadow-sm border-0 mb-4 bg-white d-print-none">
+                    <div class="card-body p-3 d-flex justify-content-between align-items-center">
+                        <form action="/schedule" method="GET" class="d-flex align-items-center m-0">
+                            <h5 class="mb-0 fw-bold text-dark me-3">Viewing:</h5>
+                            <input type="date" class="form-control border-primary fw-bold" name="date" value="{{ selected_date }}" onchange="this.form.submit()" style="max-width: 180px;">
+                        </form>
+                        <div class="input-group mx-3" style="max-width: 350px;">
+                            <span class="input-group-text bg-white border-primary">🌍</span>
+                            <input type="text" id="globalScheduleSearch" class="form-control border-primary shadow-sm fw-bold" placeholder="Global Search...">
+                        </div>
+                        <div class="d-flex align-items-center">
+                            
+                            <form action="/clear_all_pins" method="POST" class="m-0 me-2 d-print-none">
+                                <input type="hidden" name="schedule_date" value="{{ selected_date }}">
+                                <button type="submit" class="btn btn-outline-danger fw-bold shadow-sm" onclick="return confirm('Are you sure you want to unpin all trucks for today?');">❌ Clear Pins</button>
+                            </form>
+
+                            <button onclick="autoSortSchedule('{{ selected_date }}')" class="btn btn-outline-primary fw-bold shadow-sm m-0 me-2">🔄 Auto-Sort</button>
+
+                            <form action="/refresh_schedule_data" method="POST" class="m-0 me-2">
+                                <input type="hidden" name="schedule_date" value="{{ selected_date }}">
+                                <button type="submit" class="btn btn-outline-info fw-bold shadow-sm" title="Pulls the latest VOC and Generator data from Master Profiles">
+                                    🔄 Sync Profiles
+                                </button>
+                            </form>
+                            
+                            <button class="btn btn-outline-success fw-bold me-2 shadow-sm" onclick="draftEmail()">✉️ Email</button>
+                            <button class="btn btn-outline-secondary fw-bold me-3 shadow-sm" onclick="window.print()">🖨️ Print</button>
+                            <h4 class="mb-0 text-muted fw-bold">Total: <span class="text-success">{{ total_loads }}</span></h4>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-0 mb-4">
+                    
+                    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center p-3 d-print-none">
+                        <span class="badge bg-light text-dark border shadow-sm px-3 py-2 fs-6">📌 CLICK PIN TO LOCK ROW</span>
+                        <div class="input-group" style="max-width: 300px;">
+                            <span class="input-group-text bg-light border-secondary border-end-0">🔍</span>
+                            <input type="text" id="tableSearch" class="form-control border-secondary border-start-0 bg-light" placeholder="Filter today's loads...">
+                        </div>
+                    </div>
+
+                    <div class="table-responsive" style="max-height: 750px; overflow-y: auto;">
+                        <table class="table align-middle mb-0 table-fixed-layout" id="scheduleTable">
+                            <thead class="sticky-top" style="background-color: #00126b; color: white;">
+                                <tr>
+                                    <th class="d-print-none" style="width: 45px;"></th>
+                                    <th class="text-center" style="width: 65px;">Loads</th>
+                                    <th style="width: 120px;">Profile</th>
+                                    <th style="min-width: 200px;">Generator</th>
+                                    <th class="d-print-none" style="min-width: 130px;">Requestor</th>
+                                    <th style="min-width: 100px;">SO #</th>
+                                    <th class="d-print-none" style="width: 90px;">WIN</th>
+                                    <th style="width: 60px;">VOC</th>
+                                    <th class="d-print-none" style="width: 60px;">Init</th>
+                                    <th>Notes / Flags</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sortable-schedule" class="bg-white">
+                                {% for load in daily_loads %}
+                                <tr data-id="{{ load.id }}" 
+                                    data-series="{{ load.series_id or '' }}"
+                                    data-date="{{ load.schedule_date }}"
+                                    data-profile="{{ load.profile_number }}"
+                                    data-generator="{{ load.generator }}"
+                                    data-waste="{{ load.waste_type }}"
+                                    data-sales="{{ load.sales_order }}"
+                                    data-count="{{ load.load_count }}"
+                                    data-win="{{ load.routing_code }}"
+                                    data-voc="{{ load.voc_level }}"
+                                    data-initials="{{ load.scheduler_initials }}"
+                                    data-notes="{{ load.special_notes }}"
+                                    onclick="if(!event.target.classList.contains('pin-btn') && !event.target.classList.contains('drag-handle')) populateEditModal(this);"
+                                    class="clickable-row border-bottom 
+                                           {% if load.is_pinned == 1 %}pinned-row{% endif %} 
+                                           {% if load.is_unscheduled == 1 %}table-warning{% endif %}
+                                           {% if load.sales_order|upper|replace(' ', '') == 'SOPENDING' %}so-pending-row{% endif %}">
+                                    
+                                    <td class="text-center d-print-none">
+                                        <div class="drag-handle mb-1" title="Drag to reorder">☰</div>
+                                        <div class="pin-btn" onclick="togglePin({{ load.id }}, '{{ load.schedule_date }}', event)" 
+                                             style="cursor: pointer; font-size: 1.1rem; opacity: {{ '1' if load.is_pinned == 1 else '0.2' }}; transition: opacity 0.2s;" 
+                                             title="{{ 'Unpin Load' if load.is_pinned == 1 else 'Pin to Top' }}">
+                                            📌
+                                        </div>
+                                    </td>
+                                    
+                                    <td class="fw-bold fs-5 text-center">{{ load.load_count }}</td>
+                                    <td class="fw-bold text-primary">{{ load.profile_number }}</td>
+                                    <td class="fw-bold wrap-text">
+                                        {{ load.generator }}
+                                        {% if load.waste_type %}
+                                            <div class="print-nested-requestor">{{ load.waste_type }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-muted d-print-none">{{ load.waste_type }}</td>
+                                    
+                                    <td class="fw-bold" style="white-space: normal; word-break: normal;">
+                                        {% if load.sales_order|upper|replace(' ', '') == 'SOPENDING' %}
+                                            <span class="badge bg-danger text-white shadow-sm" title="Requires SO Verification at Gate">SOPENDING</span>
+                                        {% else %}
+                                            {{ load.sales_order }}
+                                        {% endif %}
+                                    </td>
+                                    
+                                    <td class="text-muted d-print-none">{{ load.routing_code }}</td>
+                                    
+                                    <td>
+                                        {% if load.voc_level and load.voc_level != 'TBD' and load.voc_level | float >= 50 %}
+                                            <span class="badge bg-danger shadow-sm">{{ load.voc_level }}</span>
+                                        {% else %}
+                                            <span class="text-muted fw-bold">{{ load.voc_level }}</span>
+                                        {% endif %}
+                                    </td>
+                                    
+                                    <td class="text-muted d-print-none">{{ load.scheduler_initials }}</td>
+                                    
+                                    <td>
+                                        <div class="d-flex flex-wrap gap-1 mb-1">
+                                            {% if load.is_las %}<span class="badge bg-danger shadow-sm">LAS</span>{% endif %}
+                                            
+                                            {# Dynamic layout logic matching specific targeted WIN patterns #}
+                                            {% if 'CNIA' in load.routing_code|upper or 'CNIA' in load.profile_number|upper %}
+                                                <span class="badge bg-secondary text-dark shadow-sm print-badge">CNIA</span>
+                                            {% endif %}
+                                            {% if 'CNOS' in load.routing_code|upper or 'CNOS' in load.profile_number|upper %}
+                                                <span class="badge bg-secondary text-dark shadow-sm print-badge">CNOS</span>
+                                            {% endif %}
+                                            {% if 'CSS' in load.routing_code|upper or 'CSS' in load.profile_number|upper %}
+                                                <span class="badge bg-secondary text-dark shadow-sm print-badge">CSS</span>
+                                            {% endif %}
+                                            {% if 'CNON' in load.routing_code|upper or 'CNON' in load.profile_number|upper %}
+                                                <span class="badge bg-secondary text-dark shadow-sm print-badge">CNON</span>
+                                            {% endif %}
+
+                                            {% if load.is_unscheduled %}<span class="badge bg-warning text-dark shadow-sm">UNSCHEDULED</span>{% endif %}
+                                        </div>
+                                        {% if load.clean_notes %}<span class="text-muted small fst-italic wrap-text">{{ load.clean_notes }}</span>{% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        
+                        {% if blcb_loads %}
+                        <div class="mt-4 border-top border-dark pt-3 px-3">
+                            <h6 class="fw-bold text-dark mb-2">🔄 Intercompany Transfers (BLCBPNONEB)</h6>
+                            <table class="table align-middle mb-0 table-fixed-layout border-bottom">
+                                <thead class="sticky-top" style="background-color: #00126b; color: white;">
+                                    <tr>
+                                        <th class="d-print-none" style="width: 45px;"></th>
+                                        <th class="text-center" style="width: 65px;">Loads</th>
+                                        <th style="width: 120px;">Profile</th>
+                                        <th style="min-width: 200px;">Generator</th>
+                                        <th class="d-print-none" style="min-width: 130px;">Requestor</th>
+                                        <th style="min-width: 100px;">SO #</th>
+                                        <th class="d-print-none" style="width: 90px;">WIN</th>
+                                        <th style="width: 60px;">VOC</th>
+                                        <th class="d-print-none" style="width: 60px;">Init</th>
+                                        <th>Notes / Flags</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-light">
+                                    {% for load in blcb_loads %}
+                                    <tr data-id="{{ load.id }}" 
+                                        onclick="populateEditModal(this);"
+                                        style="cursor: pointer;"
+                                        class="clickable-row border-bottom text-muted">
+                                        <td class="text-center d-print-none"></td>
+                                        <td class="fw-bold fs-6 text-center">{{ load.load_count }}</td>
+                                        <td class="fw-bold text-dark">{{ load.profile_number }}</td>
+                                        <td class="fw-bold wrap-text">
+                                            {{ load.generator }}
+                                            {% if load.waste_type %}
+                                                <div class="print-nested-requestor">{{ load.waste_type }}</div>
+                                            {% endif %}
+                                        </td>
+                                        <td class="wrap-text d-print-none">{{ load.waste_type }}</td>
+                                        
+                                        <td style="white-space: normal; word-break: normal;">
+                                            {% if load.sales_order|upper|replace(' ', '') == 'SOPENDING' %}
+                                                <span class="badge bg-danger text-white shadow-sm" title="Requires SO Verification at Gate">SOPENDING</span>
+                                            {% else %}
+                                                {{ load.sales_order }}
+                                            {% endif %}
+                                        </td>
+                                        
+                                        <td class="fw-bold d-print-none">{{ load.routing_code }}</td>
+                                        
+                                        <td>
+                                            {% if load.voc_level and load.voc_level != 'TBD' and load.voc_level | float >= 50 %}
+                                                <span class="badge bg-danger shadow-sm">{{ load.voc_level }}</span>
+                                            {% else %}
+                                                {{ load.voc_level }}
+                                            {% endif %}
+                                        </td>
+                                        
+                                        <td class="fw-bold d-print-none">{{ load.scheduler_initials }}</td>
+                                        
+                                        <td>
+                                            <div class="d-flex flex-wrap gap-1 mb-1">
+                                                {% if 'CNIA' in load.routing_code|upper or 'CNIA' in load.profile_number|upper %}
+                                                    <span class="badge bg-secondary text-dark shadow-sm print-badge">CNIA</span>
+                                                {% endif %}
+                                                {% if 'CNOS' in load.routing_code|upper or 'CNOS' in load.profile_number|upper %}
+                                                    <span class="badge bg-secondary text-dark shadow-sm print-badge">CNOS</span>
+                                                {% endif %}
+                                                {% if 'CSS' in load.routing_code|upper or 'CSS' in load.profile_number|upper %}
+                                                    <span class="badge bg-secondary text-dark shadow-sm print-badge">CSS</span>
+                                                {% endif %}
+                                                {% if 'CNON' in load.routing_code|upper or 'CNON' in load.profile_number|upper %}
+                                                    <span class="badge bg-secondary text-dark shadow-sm print-badge">CNON</span>
+                                                {% endif %}
+                                            </div>
+                                            {% if load.clean_notes %}<span class="small fst-italic wrap-text">{{ load.clean_notes }}</span><br>{% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% endif %}
+                    </div> 
+                </div> 
+                
+                <div class="d-none d-print-block mt-4 shadow-sm" style="font-size: 10pt; border: 2px solid black; padding: 12px; background-color: white; page-break-inside: avoid;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                        <div>
+                            <strong>LANDFILL</strong> = CBP, CNIA (ASBESTOS), CBPR<br>
+                            <strong>STU</strong> = CCS, CCSF, CCSM<br>
+                            <strong>WMU 31</strong> = CNOS-PND<br>
+                            <strong>CNON</strong> = NORM – SEE WVI
+                        </div>
+                        <div style="text-align: right;">
+                            <strong style="font-size: 11pt; border-bottom: 1px solid black;">TRUCK TYPE CUTOFF TIMES</strong><br>
+                            <strong>LAS</strong> – 2:00 &nbsp;&nbsp;&nbsp;&nbsp; <strong>BINS</strong> – 3:00 DOUBLE / 4:00 SINGLE<br>
+                            <strong>SPECIAL HANDLING</strong> – 3:30 &nbsp;&nbsp;&nbsp;&nbsp; <strong>LIQUID LOADS</strong> – 4:30
+                        </div>
+                    </div>
+                    <div style="text-align: center; border-top: 2px solid black; padding-top: 8px; font-weight: bold; font-size: 11pt;">
+                        ASBESTOS/NOA = DO NOT SAMPLE – LOAD CONTAINS ASBESTOS; USE WATER SPRAYS IN LANDFILL
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade d-print-none" id="editModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header text-white" style="background-color: #00126b;">
+                    <h5 class="modal-title fw-bold">✏️ Edit Load</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editForm" method="POST">
+                        <div class="mb-3">
+                            <label class="fw-bold small">Schedule Date</label>
+                            <input type="date" class="form-control" id="edit_date" name="schedule_date" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="fw-bold small">Profile #</label>
+                            <input type="text" class="form-control" id="edit_profile" name="profile_number" required>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-6"><label class="fw-bold small">Loads</label><input type="number" class="form-control" id="edit_count" name="load_count" required></div>
+                            <div class="col-6"><label class="fw-bold small">VOC</label><input type="text" class="form-control bg-light" id="edit_voc" name="voc_level" readonly></div>
+                        </div>
+                        <div class="mb-2"><label class="fw-bold small">Generator</label><input type="text" class="form-control bg-light" id="edit_generator" name="generator" readonly></div>
+                        <div class="mb-2"><label class="fw-bold small">Requestor</label><input type="text" class="form-control" id="edit_waste" name="waste_type"></div>
+                        <div class="mb-2"><label class="fw-bold small">Sales Order</label><input type="text" class="form-control" id="edit_sales" name="sales_order"></div>
+                        <div class="row mb-2">
+                            <div class="col-6"><label class="fw-bold small">WIN Code</label><input type="text" class="form-control bg-light" id="edit_win" name="routing_code" readonly></div>
+                            <div class="col-6"><label class="fw-bold small">Initials</label><input type="text" class="form-control text-uppercase" id="edit_initials" name="scheduler_initials" required></div>
+                        </div>
+                        <div class="mb-3"><label class="fw-bold small">Notes</label><textarea class="form-control" id="edit_notes" name="special_notes" rows="2"></textarea></div>
+                        <div id="seriesCheckboxWrapper" class="form-check p-2 bg-light border rounded d-none mb-3">
+                            <input class="form-check-input" type="checkbox" name="apply_to_series" id="applyToSeriesCheckbox">
+                            <label class="form-check-label fw-bold" for="applyToSeriesCheckbox">🔄 Apply notes to entire sequence?</label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer d-flex justify-content-between">
+                    <div class="d-flex gap-2">
+                        <form id="unscheduledForm" method="POST"><input type="hidden" name="schedule_date" id="unscheduled_date"><button type="submit" class="btn btn-warning btn-sm fw-bold">Toggle Unscheduled</button></form>
+                        <form id="deleteForm" method="POST"><input type="hidden" name="schedule_date" id="delete_date"><button type="submit" class="btn btn-outline-danger btn-sm fw-bold">Delete</button></form>
+                    </div>
+                    <div>
+                        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" form="editForm" class="btn btn-primary btn-sm fw-bold">Save Changes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade d-print-none" id="scheduleSearchModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header text-white" style="background-color: #00126b;">
+                    <h5 class="modal-title fw-bold">🌍 Global Search Results</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="bg-light">
+                                <tr><th class="ps-3">Date</th><th>Profile</th><th>SO #</th><th>Generator</th><th class="text-center">Loads</th></tr>
+                            </thead>
+                            <tbody id="searchResultsBody" class="bg-white"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="limitToast" class="toast text-bg-danger border-0 shadow-lg mb-2" role="alert" data-bs-autohide="false">
+            <div class="d-flex">
+                <div class="toast-body fw-bold text-white">
+                    ⚠️ WARNING: Total scheduled truck count (<span id="toast-limit-count">0</span>) exceeds the daily limit of 170. Please contact Waste Acceptance for approval.
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+        <div id="updateToast" class="toast text-bg-warning border-0 shadow-lg" role="alert">
+            <div class="d-flex">
+                <div class="toast-body fw-bold">⚠️ Schedule updated! <a href="javascript:window.location.reload()" class="text-dark">Refresh now.</a></div>
+                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.js"></script>
+    
+    <script>
+        let isDragging = false;
+        let lastDateUpdate = {{ last_updated | default(0) }};
+        let lastGlobalUpdate = {{ global_updated | default(0) }};
+
+        // Capacity Limit Check on Page Load
+        const currentTotalLoads = {{ total_loads | default(0) }};
+        if (currentTotalLoads > 170) {
+            const limitToastEl = document.getElementById('limitToast');
+            if (limitToastEl) {
+                document.getElementById('toast-limit-count').innerText = currentTotalLoads;
+                bootstrap.Toast.getOrCreateInstance(limitToastEl).show();
+            }
+        }
+
+        // 1. Initialize Flatpickr (Multi-Date Calendar)
+        flatpickr("#multiDateSelector", {
+            mode: "multiple",
+            dateFormat: "Y-m-d",
+            defaultDate: "{{ selected_date }}",
+            minDate: "today"
+        });
+
+        // 2. Initialize TomSelect (Profile Dropdown)
+        new TomSelect("#profile_number", {
+            valueField: 'value', labelField: 'text', searchField: 'text', create: false, maxOptions: 50,
+            load: function(query, callback) {
+                if (!query.length) return callback();
+                fetch('/api/search_profiles?q=' + encodeURIComponent(query.trim()))
+                    .then(res => res.json()).then(json => callback(json)).catch(()=>callback());
+            },
+            onChange: function(val) {
+                if(!val) return;
+                fetch(`/api/get_profile_details/${encodeURIComponent(val.trim())}`)
+                    .then(res => res.json()).then(data => {
+                        if(!data.error) {
+                            document.getElementById('generator').value = data.generator || '';
+                            document.getElementById('routing_code').value = data.win_code || '';
+                            document.getElementById('voc_level').value = data.voc_percentage || '0';
+                        }
+                    });
+            }
+        });
+
+        // 3. Sortable Logic
+        const tbodySort = document.getElementById('sortable-schedule');
+        if(tbodySort) {
+            new Sortable(tbodySort, {
+                animation: 150, handle: '.drag-handle', ghostClass: 'sortable-ghost',
+                onStart: () => { isDragging = true; },
+                onEnd: function () {
+                    const rows = tbodySort.querySelectorAll('tr.clickable-row');
+                    let orderData = [];
+                    rows.forEach((row, idx) => {
+                        const id = row.getAttribute('data-id');
+                        if(id) orderData.push({ id: id, order: idx });
+                    });
+                    fetch(`/update_schedule_order?date={{ selected_date }}`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ order: orderData })
+                    }).then(res => res.json()).then(data => {
+                        lastDateUpdate = data.new_date_timestamp;
+                        lastGlobalUpdate = data.new_global_timestamp;
+                        isDragging = false;
+                    }).catch(() => { isDragging = false; });
+                }
+            });
+        }
+
+        // 4. Table Filter
+        document.getElementById('tableSearch').addEventListener('keyup', function() {
+            let filter = this.value.toLowerCase();
+            document.querySelectorAll('#sortable-schedule tr.clickable-row').forEach(row => {
+                row.style.display = row.innerText.toLowerCase().includes(filter) ? '' : 'none';
+            });
+        });
+
+        // 5. Global Search
+        const gs = document.getElementById('globalScheduleSearch');
+        if(gs) {
+            gs.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    let q = this.value.trim(); if(!q) return;
+                    fetch('/api/search_schedule?q=' + encodeURIComponent(q))
+                        .then(res => res.json()).then(data => {
+                            let b = document.getElementById('searchResultsBody'); b.innerHTML = '';
+                            if(!data.length) b.innerHTML = '<tr><td colspan="5" class="text-center py-3">No results</td></tr>';
+                            else data.forEach(r => {
+                                let tr = document.createElement('tr'); tr.className = 'clickable-row'; tr.style.cursor = 'pointer';
+                                tr.onclick = () => window.location.href = `/schedule?date=${r.schedule_date}&highlight=${encodeURIComponent(q)}`;
+                                tr.innerHTML = `<td class="ps-3 fw-bold">${r.schedule_date}</td><td>${r.profile_number}</td><td>${r.sales_order || ''}</td><td>${r.generator}</td><td class="text-center">${r.load_count}</td>`;
+                                b.appendChild(tr);
+                            });
+                            new bootstrap.Modal(document.getElementById('scheduleSearchModal')).show();
+                        });
+                }
+            });
+        }
+
+        // 6. DUPLICATE CHECK INTERCEPTOR & CAPACITY LIMIT INTERCEPTOR
+        document.getElementById('addScheduleForm').addEventListener('submit', function(e) {
+            e.preventDefault(); 
+            
+            let form = this;
+            let selectedDatesRaw = document.getElementById('multiDateSelector').value;
+            
+            if(!selectedDatesRaw) {
+                alert("Please select at least one date from the calendar.");
+                return;
+            }
+
+            let requestedLoads = parseInt(form.querySelector('input[name="load_count"]').value) || 1;
+            let newTotal = currentTotalLoads + requestedLoads;
+
+            function proceedWithAdd() {
+                let payload = {
+                    selected_dates: selectedDatesRaw,
+                    profile_number: document.getElementById('profile_number').value
+                };
+                
+                fetch('/api/check_schedule_duplicate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.duplicate) {
+                        if (confirm(`⚠️ DUPLICATE DETECTED!\n\nProfile ${payload.profile_number} is already on the schedule for ${data.date}.\n\n(Tip: You might just want to increase the Load Count instead).\n\nDo you want to add this as a separate row anyway?`)) {
+                            form.submit(); 
+                        }
+                    } else {
+                        form.submit(); 
+                    }
+                })
+                .catch(err => {
+                    console.error("Duplicate Check Error:", err);
+                    form.submit(); // Failsafe: submit anyway if network issue
+                });
+            }
+
+            if (newTotal > 170) {
+                if (confirm(`⚠️ CAPACITY WARNING!\n\nAdding ${requestedLoads} loads will put the total scheduled truck count at ${newTotal}, which exceeds the daily limit of 170.\n\nPlease contact Waste Acceptance for approval.\n\nDo you still want to proceed with scheduling?`)) {
+                    proceedWithAdd();
+                }
+            } else {
+                proceedWithAdd();
+            }
+        });
+
+        // 7. Multi-user Ping & non-disruptive Toast Notification
+        setInterval(() => {
+            if (isDragging) return;
+            fetch(`/api/check_schedule_updates?date={{ selected_date }}`)
+                .then(res => res.json()).then(data => {
+                    if (data.date_updated > lastDateUpdate || data.global_updated > lastGlobalUpdate) {
+                        lastDateUpdate = data.date_updated;
+                        lastGlobalUpdate = data.global_updated;
+                        const toastEl = document.getElementById('updateToast');
+                        if (toastEl) {
+                            bootstrap.Toast.getOrCreateInstance(toastEl).show();
+                        }
+                    }
+                }).catch(() => {});
+        }, 10000);
+
+        // 8. Auto-Sync Master Profiles (Background Sync)
+        setInterval(() => {
+            if (isDragging) return; 
+            let formData = new FormData();
+            formData.append('schedule_date', '{{ selected_date }}');
+            fetch('/api/auto_sync_profiles', { method: 'POST', body: formData });
+        }, 300000);
+
+        // 9. Edit Modal Population
+        function populateEditModal(row) {
+            document.getElementById('editForm').action = '/edit_schedule/' + row.getAttribute('data-id');
+            document.getElementById('edit_date').value = row.getAttribute('data-date');
+            document.getElementById('edit_profile').value = row.getAttribute('data-profile');
+            document.getElementById('edit_generator').value = row.getAttribute('data-generator');
+            document.getElementById('edit_waste').value = row.getAttribute('data-waste');
+            document.getElementById('edit_sales').value = row.getAttribute('data-sales');
+            document.getElementById('edit_count').value = row.getAttribute('data-count');
+            document.getElementById('edit_win').value = row.getAttribute('data-win');
+            document.getElementById('edit_voc').value = row.getAttribute('data-voc');
+            document.getElementById('edit_initials').value = row.getAttribute('data-initials');
+            document.getElementById('edit_notes').value = row.getAttribute('data-notes');
+            let sid = row.getAttribute('data-series');
+            document.getElementById('seriesCheckboxWrapper').classList.toggle('d-none', !sid || sid === 'None');
+            document.getElementById('unscheduledForm').action = '/toggle_unscheduled/' + row.getAttribute('data-id');
+            document.getElementById('unscheduled_date').value = row.getAttribute('data-date');
+            document.getElementById('deleteForm').action = '/delete_schedule/' + row.getAttribute('data-id');
+            document.getElementById('delete_date').value = row.getAttribute('data-date');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('editModal')).show();
+        }
+
+        // 10. Utility Functions
+        function draftEmail() {
+            let body = "Schedule for {{ selected_date }}:\n\n";
+            document.querySelectorAll('#sortable-schedule tr.clickable-row').forEach(row => {
+                if(row.style.display !== 'none') {
+                    let cells = row.querySelectorAll('td');
+                    body += `${cells[1].innerText} Loads: ${cells[2].innerText} - ${cells[3].innerText}\n`;
+                }
+            });
+            window.location.href = `mailto:?subject=Schedule {{ selected_date }}&body=${encodeURIComponent(body)}`;
+        }
+
+        function togglePin(id, date, event) {
+            event.stopPropagation(); 
+            fetch(`/toggle_pin/${id}?date=${date}`, { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if(data.status === 'success') window.location.reload(); 
+                });
+        }
+
+        function autoSortSchedule(dateStr) {
+            fetch('/reset_schedule_sort', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ schedule_date: dateStr })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.status === 'success') window.location.reload(); 
+            });
+        }
+
+        // 11. Edit Modal Capacity Check Interceptor
+        document.getElementById('editForm').addEventListener('submit', function(e) {
+            let countInput = document.getElementById('edit_count');
+            if (countInput) {
+                let newLoads = parseInt(countInput.value) || 0;
+                let actionUrl = this.action;
+                let rowId = actionUrl.split('/').pop();
+                let rowEl = document.querySelector(`tr[data-id="${rowId}"]`);
+                let oldLoads = rowEl ? parseInt(rowEl.getAttribute('data-count')) || 0 : 0;
+                
+                let difference = newLoads - oldLoads;
+                if (difference > 0 && (currentTotalLoads + difference) > 170) {
+                    if (!confirm(`⚠️ CAPACITY WARNING!\n\nUpdating this load to ${newLoads} will put the total scheduled truck count at ${currentTotalLoads + difference}, which exceeds the daily limit of 170.\n\nPlease contact Waste Acceptance for approval.\n\nDo you still want to save changes?`)) {
+                        e.preventDefault();
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
