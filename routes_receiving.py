@@ -3,6 +3,8 @@ from datetime import date, datetime
 from contextlib import closing
 import re
 from database import get_db_connection
+from shared_state import socketio
+
 
 receiving_bp = Blueprint('receiving_bp', __name__)
 
@@ -165,6 +167,7 @@ def submit_truck():
             VALUES (?, ?, ?, ?, ?, ?, 'WEIGHED IN', ?, ?, ?)
         ''', (truck_id, profile_number, manifest_number, load_number, gross_weight, test_assigned, received_date, sales_order, time_in))
         conn.commit()
+        socketio.emit('truck_update', {'date': received_date})
         
     return redirect(url_for('receiving_bp.home'))
 
@@ -189,8 +192,9 @@ def checkout_truck():
     manifest_units = request.form.get('manifest_units', 'Pounds')
 
     with closing(get_db_connection()) as conn:
-        truck = conn.execute('SELECT gross_weight FROM truck_logs WHERE id = ?', (log_id,)).fetchone()
+        truck = conn.execute('SELECT gross_weight, date_received FROM truck_logs WHERE id = ?', (log_id,)).fetchone()
         gross_weight = float(truck['gross_weight']) if truck and truck['gross_weight'] else 0.0
+        received_date = truck['date_received'] if truck else date.today().isoformat()
         
         # Keeps your critical weight validation!
         if exit_weight >= gross_weight and exit_weight > 0: 
@@ -206,14 +210,18 @@ def checkout_truck():
             WHERE id = ?
         ''', (exit_weight, net_weight_tons, cell_location, grid_location, manifest_weight, manifest_units, extra_fees, time_out, log_id))
         conn.commit()
+        socketio.emit('truck_update', {'date': received_date})
         
     return redirect(url_for('receiving_bp.home'))
 
 @receiving_bp.route('/reject_truck', methods=['POST'])
 def reject_truck():
     with closing(get_db_connection()) as conn:
+        truck = conn.execute('SELECT date_received FROM truck_logs WHERE id = ?', (request.form.get('log_id'),)).fetchone()
+        received_date = truck['date_received'] if truck else date.today().isoformat()
         conn.execute("UPDATE truck_logs SET exit_weight = NULL, net_weight = 0, test_status = 'REJECTED', rejection_reason = ? WHERE id = ?", (request.form.get('rejection_reason').strip(), request.form.get('log_id')))
         conn.commit()
+        socketio.emit('truck_update', {'date': received_date})
     return redirect(url_for('receiving_bp.home'))
 
 @receiving_bp.route('/edit_truck/<int:log_id>', methods=['POST'])
@@ -232,12 +240,15 @@ def edit_truck(log_id):
     with closing(get_db_connection()) as conn:
         if source == 'receiving':
             # --- ACTIVE TRUCK EDIT (RECEIVING SCREEN) ---
+            truck = conn.execute('SELECT date_received FROM truck_logs WHERE id = ?', (log_id,)).fetchone()
+            received_date = truck['date_received'] if truck else date.today().isoformat()
             conn.execute('''
                 UPDATE truck_logs 
                 SET manifest_number = ?, load_number = ?, profile_number = ?, gross_weight = ?, time_in = ?
                 WHERE id = ?
             ''', (manifest_number, load_number, profile_number, gross_weight, time_in, log_id))
             conn.commit()
+            socketio.emit('truck_update', {'date': received_date})
             return redirect(url_for('receiving_bp.home'))
             
         else:
@@ -283,6 +294,7 @@ def edit_truck(log_id):
                   specific_gravity, measured_ph, measured_flashpoint, 
                   measured_sulfides, measured_cyanide, measured_free_liquids, log_id))
             conn.commit()
+            socketio.emit('truck_update', {'date': date_received})
             return redirect(url_for('reports_bp.reports', date=date_received))
 
 @receiving_bp.route('/delete_truck/<int:log_id>', methods=['POST'])
@@ -291,4 +303,5 @@ def delete_truck(log_id):
     with closing(get_db_connection()) as conn:
         conn.execute('DELETE FROM truck_logs WHERE id = ?', (log_id,))
         conn.commit()
+        socketio.emit('truck_update', {'date': date_received})
     return redirect(url_for('reports_bp.reports', date=date_received))

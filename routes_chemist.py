@@ -6,6 +6,8 @@ import os
 import pandas as pd
 from collections import defaultdict
 from database import get_db_connection
+from shared_state import socketio
+
 
 chemist_bp = Blueprint('chemist_bp', __name__)
 
@@ -278,6 +280,9 @@ def update_lab():
         measured_ph = None
         
     with closing(get_db_connection()) as conn:
+        truck = conn.execute('SELECT date_received FROM truck_logs WHERE id = ?', (log_id,)).fetchone()
+        received_date = truck['date_received'] if truck else date.today().isoformat()
+        
         conn.execute('''
             UPDATE truck_logs 
             SET lab_results = ?, 
@@ -292,6 +297,7 @@ def update_lab():
         ''', (lab_results, specific_gravity, measured_ph, measured_flashpoint, 
               measured_sulfides, measured_cyanide, measured_free_liquids, log_id))
         conn.commit()
+        socketio.emit('lab_update', {'date': received_date})
     return redirect(url_for('chemist_bp.chemist_dashboard'))
 
 @chemist_bp.route('/chemist/drums')
@@ -341,6 +347,7 @@ def update_drum_lab():
             ''', (status, ph_result, voc_result, flashpoint, cyanide, sulfide, oxidation, notes, d_id))
                     
         conn.commit()
+        socketio.emit('drum_update', {'job_id': job_id})
     return redirect(url_for('chemist_bp.chemist_drums'))
 
 @chemist_bp.route('/final_code', methods=['POST'])
@@ -360,5 +367,6 @@ def final_code():
         
         conn.execute("UPDATE drum_lab_queue SET status = 'FINAL CODED' WHERE id = ?", (lab_id,))
         conn.commit()
+        socketio.emit('drum_update', {'manifest': manifest, 'profile': profile})
         
     return redirect(url_for('approvals_bp.waste_acceptance'))

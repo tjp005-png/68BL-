@@ -10,8 +10,11 @@ from routes_reports import reports_bp
 from routes_schedule import schedule_bp
 from routes_stu import stu_bp
 from routes_approvals import approvals_bp
+from shared_state import socketio
 
 app = Flask(__name__)
+socketio.init_app(app)
+
 
 # Register Blueprints
 app.register_blueprint(receiving_bp)
@@ -206,4 +209,5 @@ def portal_hub():
     return render_template('index.html')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5001, debug=True)
+

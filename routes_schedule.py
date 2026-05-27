@@ -12,8 +12,9 @@ from schedule_utils import calculate_las_status, clean_display_notes
 # Create the Blueprint
 schedule_bp = Blueprint('schedule_bp', __name__)
 
-# Import shared multi-user sync tracker
-from shared_state import SCHEDULE_UPDATES
+# Import shared multi-user sync tracker and socketio
+from shared_state import SCHEDULE_UPDATES, socketio
+
 
 
 # ---------------------------------------------------------
@@ -104,6 +105,7 @@ def update_schedule_order():
         
     if date_str:
         SCHEDULE_UPDATES[date_str] = new_timestamp
+        socketio.emit('schedule_update', {'date': date_str})
     SCHEDULE_UPDATES['GLOBAL'] = new_timestamp
         
     return jsonify({
@@ -124,7 +126,9 @@ def toggle_pin(schedule_id):
             conn.execute('UPDATE daily_schedule SET is_pinned = ? WHERE id = ?', (new_status, schedule_id))
             conn.commit()
 
-    if date_str: SCHEDULE_UPDATES[date_str] = time.time()
+    if date_str:
+        SCHEDULE_UPDATES[date_str] = time.time()
+        socketio.emit('schedule_update', {'date': date_str})
     SCHEDULE_UPDATES['GLOBAL'] = time.time()
     return jsonify({'status': 'success'})
 
@@ -140,6 +144,7 @@ def clear_all_pins():
             
         SCHEDULE_UPDATES[date_str] = time.time()
         SCHEDULE_UPDATES['GLOBAL'] = time.time()
+        socketio.emit('schedule_update', {'date': date_str})
         
     return redirect(url_for('schedule_bp.schedule_portal', date=date_str))
 
@@ -186,6 +191,10 @@ def add_schedule():
                 request.form.get('scheduler_initials'), request.form.get('special_notes'),
                 request.form.get('voc_level', 0)
             ))
+        for date_str in final_dates:
+            SCHEDULE_UPDATES[date_str] = time.time()
+            socketio.emit('schedule_update', {'date': date_str})
+        SCHEDULE_UPDATES['GLOBAL'] = time.time()
         conn.commit()
         
     return redirect(url_for('schedule_bp.schedule_portal', date=start_date_str))
@@ -211,6 +220,7 @@ def delete_schedule(schedule_id):
         
     if schedule_date:
         SCHEDULE_UPDATES[schedule_date] = time.time()
+        socketio.emit('schedule_update', {'date': schedule_date})
         
     return redirect(url_for('schedule_bp.schedule_portal', date=schedule_date))
 
@@ -260,8 +270,10 @@ def edit_schedule(id):
             
         SCHEDULE_UPDATES['GLOBAL'] = time.time()
         SCHEDULE_UPDATES[new_date] = time.time()
+        socketio.emit('schedule_update', {'date': new_date})
         if new_date != fallback_date:
             SCHEDULE_UPDATES[fallback_date] = time.time() 
+            socketio.emit('schedule_update', {'date': fallback_date})
             
         conn.commit()
 
@@ -329,6 +341,7 @@ def reset_schedule_sort():
         
         SCHEDULE_UPDATES[date_str] = time.time()
         SCHEDULE_UPDATES['GLOBAL'] = time.time()
+        socketio.emit('schedule_update', {'date': date_str})
         
     # If the request came from our new Javascript button, send JSON back
     if request.is_json:
@@ -352,6 +365,7 @@ def toggle_unscheduled(id):
 
     if date_str:
         SCHEDULE_UPDATES[date_str] = time.time()
+        socketio.emit('schedule_update', {'date': date_str})
     SCHEDULE_UPDATES['GLOBAL'] = time.time()
 
     return redirect(url_for('schedule_bp.schedule_portal', date=date_str))
@@ -437,6 +451,7 @@ def refresh_schedule_data():
         # 5. Push the visual update to all connected users
         SCHEDULE_UPDATES[date_str] = time.time()
         SCHEDULE_UPDATES['GLOBAL'] = time.time()
+        socketio.emit('schedule_update', {'date': date_str})
         
     return redirect(url_for('schedule_bp.schedule_portal', date=date_str))
 
