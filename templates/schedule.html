@@ -29,7 +29,7 @@
             body { background-color: white !important; color: black !important; font-size: 10pt !important; }
             
             /* Hide UI Elements */
-            .d-print-none, .col-md-3 { display: none !important; }
+            .d-print-none, .col-md-3, .toast-container, .toast { display: none !important; }
             .col-md-9, .container-fluid { width: 100% !important; max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
             .card { border: none !important; box-shadow: none !important; }
             
@@ -522,7 +522,7 @@
         </div>
     </div>
 
-    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div class="toast-container position-fixed bottom-0 end-0 p-3 d-print-none">
         <div id="limitToast" class="toast text-bg-danger border-0 shadow-lg mb-2" role="alert" data-bs-autohide="false">
             <div class="d-flex">
                 <div class="toast-body fw-bold text-white">
