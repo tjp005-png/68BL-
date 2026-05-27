@@ -228,9 +228,11 @@ def chemist_dashboard():
             SELECT tl.*, 
                    w.ph_min, w.ph_max, w.sulfides, w.cyanide, w.free_liquids, w.flashpoint, w.voc_ppm,
                    w.treatment_information, w.notes_revisions, w.physical_description, w.handling_instruction,
-                   w.generator_name, w.waste_name, w.approved_date, w.expiration_date, w.is_synced
+                   w.generator_name, w.waste_name, w.approved_date, w.expiration_date, w.is_synced,
+                   p.win_code
             FROM truck_logs tl
             LEFT JOIN profile_wvi w ON TRIM(UPPER(tl.profile_number)) = TRIM(UPPER(w.profile))
+            LEFT JOIN profiles p ON TRIM(UPPER(tl.profile_number)) = TRIM(UPPER(p.profile_number))
             WHERE (tl.test_assigned LIKE '%FINGERPRINT%' OR tl.test_assigned LIKE '%VOC TEST%') 
               AND tl.test_status = 'WEIGHED IN'
         ''').fetchall()
