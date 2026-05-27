@@ -151,27 +151,8 @@ def clear_all_pins():
 
 @schedule_bp.route('/add_schedule', methods=['POST'])
 def add_schedule():
-    start_date_str = request.form.get('schedule_date')     
-    
-    # 1. Handle the Multi-Day Repeating Checkboxes
-    repeat_weeks = int(request.form.get('repeat_weeks', 1))
-    repeat_days = request.form.getlist('repeat_days') # e.g., ['0', '1'] for Mon/Tue
-    
-    final_dates = []
-    if repeat_days and start_date_str:
-        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
-        # Find the Monday of the starting week
-        monday = start_date - timedelta(days=start_date.weekday())
-        
-        for week in range(repeat_weeks):
-            for day_offset in repeat_days:
-                target_date = monday + timedelta(weeks=week, days=int(day_offset))
-                # Only add if it occurs on or after the selected start date
-                if target_date >= start_date:
-                    final_dates.append(target_date.strftime('%Y-%m-%d'))
-    else:
-        # Standard Single Day
-        final_dates = [start_date_str]
+    selected_dates_raw = request.form.get('selected_dates', '')     
+    final_dates = [d.strip() for d in selected_dates_raw.split(',') if d.strip()]
 
     if not final_dates:
         return redirect(url_for('schedule_bp.schedule_portal'))
@@ -186,7 +167,7 @@ def add_schedule():
             ''', (
                 date_str, 'TBD', 'TBD', 
                 request.form.get('profile_number'), int(request.form.get('load_count', 1)),
-                request.form.get('generator'), request.form.get('waste_type', 'WASTE PICKUP'), # <-- FIXED: Now correctly pulls 'generator'
+                request.form.get('generator'), request.form.get('waste_type', 'WASTE PICKUP'),
                 request.form.get('sales_order'), request.form.get('routing_code'),
                 request.form.get('scheduler_initials'), request.form.get('special_notes'),
                 request.form.get('voc_level', 0)
@@ -197,7 +178,8 @@ def add_schedule():
         SCHEDULE_UPDATES['GLOBAL'] = time.time()
         conn.commit()
         
-    return redirect(url_for('schedule_bp.schedule_portal', date=start_date_str))
+    redirect_date = final_dates[0] if final_dates else date.today().isoformat()
+    return redirect(url_for('schedule_bp.schedule_portal', date=redirect_date))
 
 
 @schedule_bp.route('/delete_schedule/<int:schedule_id>', methods=['POST'])

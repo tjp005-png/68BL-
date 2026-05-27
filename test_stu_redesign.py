@@ -214,5 +214,32 @@ class TestSTURedesignFlow(unittest.TestCase):
         self.assertIn('D80L', pc_services)
         self.assertIn('D80L', pc_app)
 
+    def test_add_schedule_dates(self):
+        """Test that scheduling a profile via /add_schedule correctly parses dates and inserts them"""
+        res = self.client.post('/add_schedule', data={
+            'selected_dates': '2026-05-30, 2026-05-31',
+            'profile_number': 'P-STU-TEST',
+            'load_count': '2',
+            'generator': 'Test Generator',
+            'waste_type': 'WASTE PICKUP',
+            'sales_order': 'SO-1234',
+            'routing_code': 'BL',
+            'scheduler_initials': 'TS',
+            'special_notes': 'Testing schedule addition',
+            'voc_level': '10'
+        })
+        self.assertEqual(res.status_code, 302) # Redirects to schedule portal
+
+        # Verify DB entries
+        conn = original_connect(TEST_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT * FROM daily_schedule WHERE profile_number = 'P-STU-TEST' ORDER BY schedule_date ASC").fetchall()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]['schedule_date'], '2026-05-30')
+        self.assertEqual(rows[1]['schedule_date'], '2026-05-31')
+        self.assertEqual(rows[0]['sales_order'], 'SO-1234')
+        self.assertEqual(rows[0]['generator'], 'Test Generator')
+        conn.close()
+
 if __name__ == '__main__':
     unittest.main()
