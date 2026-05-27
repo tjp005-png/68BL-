@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inbound Drum Sampling</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+    <div class="container mt-4">
+        
+        <div class="card shadow mb-4">
+            <div class="card-header text-white d-flex justify-content-between align-items-center" style="background-color: #970000; border-bottom: 4px solid #5a0000;">
+                <div class="d-flex align-items-center">
+                    <img src="{{ url_for('static', filename='CLH_BIG.png') }}" alt="Clean Harbors Logo" style="height: 45px; margin-right: 15px; background-color: white; padding: 4px; border-radius: 5px;">
+                    <h2 class="mb-0 fw-bold">🔬 INBOUND DRUM SAMPLING</h2>
+                </div>
+                <div>
+                    <a href="/stu/inventory" class="btn btn-outline-light fw-bold shadow-sm me-2">📦 Go to Inventory</a>
+                    <a href="/" class="btn btn-light fw-bold shadow-sm text-dark">⬅️ Hub</a>
+                </div>
+            </div>
+        </div>
+
+        {% if not drums %}
+        <div class="row justify-content-center mt-5">
+            <div class="col-md-6">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-dark text-white text-center">
+                        <h5 class="mb-0 fw-bold">Upload Manifest PDF</h5>
+                    </div>
+                    <div class="card-body p-4 text-center">
+                        <p class="text-muted mb-4">Upload the PDF containing the BL labels to parse the drums and prepare the sampling packet.</p>
+                        
+                        <form action="/stu/sampling" method="POST" enctype="multipart/form-data">
+                            <input class="form-control mb-4 border-primary" type="file" name="label_pdf" accept=".pdf" required>
+                            <button type="submit" class="btn text-white fw-bold w-100 py-2 fs-5" style="background-color: #3860b2;">Parse Labels & Preview</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold">Review & Filter Parsed Drums</h5>
+                <span class="badge bg-light text-dark shadow-sm">{{ drums|length }} DRUMS FOUND</span>
+            </div>
+            
+            <div class="card-body bg-white p-0">
+                <div class="p-3 bg-light border-bottom text-muted small">
+                    <strong>Instructions:</strong> Uncheck any drums that should NOT be included in the sampling packet or added to inventory.
+                </div>
+                
+                <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0 text-nowrap">
+                        <thead class="sticky-top shadow-sm" style="background-color: #f8f9fa;">
+                            <tr>
+                                <th class="text-center" style="width: 50px;">
+                                    <input type="checkbox" id="selectAll" class="form-check-input" checked onchange="toggleAll(this)">
+                                </th>
+                                <th>Drum ID</th>
+                                <th>Profile Number</th>
+                                <th>Manifest</th>
+                                <th>Line</th>
+                                <th>Size</th>
+                                <th>Waste Code</th>
+                            </tr>
+                        </thead>
+                        <tbody id="drumTableBody">
+                            {% for drum in drums %}
+                            <tr>
+                                <td class="text-center">
+                                    <input type="checkbox" class="form-check-input drum-checkbox" data-index="{{ loop.index0 }}" checked>
+                                </td>
+                                <td class="fw-bold text-dark">{{ drum.drum_id }}</td>
+                                <td class="fw-bold text-primary">{{ drum.profile }}</td>
+                                <td class="text-muted">{{ drum.manifest }}</td>
+                                <td>{{ drum.manifest_line }}</td>
+                                <td>{{ drum.container_size }}</td>
+                                <td><span class="badge bg-secondary">{{ drum.waste_code }}</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="card-footer bg-light d-flex justify-content-between p-3">
+                <a href="/stu/sampling" class="btn btn-outline-danger fw-bold shadow-sm">Cancel / Upload Different File</a>
+                
+                <form id="packetForm" action="/generate_sampling_packet" method="POST" class="m-0">
+                    <input type="hidden" name="pdf_filename" value="{{ pdf_filename }}">
+                    <input type="hidden" name="selected_drums" id="selected_drums_input">
+                    <button type="button" onclick="submitPacket()" class="btn text-white fw-bold shadow-sm px-4" style="background-color: #970000;">Process & Download Packet</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <script>
+        {% if drums %}
+        // Load the parsed drums from Python into a Javascript array
+        const rawDrumsData = {{ raw_drums_json | safe }};
+
+        // Select All Toggle
+        function toggleAll(source) {
+            let checkboxes = document.querySelectorAll('.drum-checkbox');
+            for(let i=0; i<checkboxes.length; i++) {
+                checkboxes[i].checked = source.checked;
+            }
+        }
+
+        // Safely gathers data and submits form
+        function submitPacket() {
+            let finalDrums = [];
+            let checkboxes = document.querySelectorAll('.drum-checkbox');
+            
+            checkboxes.forEach((cb) => {
+                if(cb.checked) {
+                    let index = cb.getAttribute('data-index');
+                    finalDrums.push(rawDrumsData[index]);
+                }
+            });
+
+            if(finalDrums.length === 0) {
+                alert("You must select at least one drum to process!");
+                return;
+            }
+
+            // Put the filtered list into the hidden input so Python can process it
+            document.getElementById('selected_drums_input').value = JSON.stringify(finalDrums);
+            
+            // Send to backend
+            document.getElementById('packetForm').submit();
+        }
+        {% endif %}
+    </script>
+</body>
+</html>

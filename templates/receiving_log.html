@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Truck Receiving Log</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+    <style>
+        .pulse {
+            animation: pulse-animation 2s infinite;
+        }
+        @keyframes pulse-animation {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .clickable-row:hover { 
+            background-color: #f8f9fa !important; 
+            transition: background-color 0.2s ease; 
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+    <div class="container-fluid mt-4 px-5">
+        <div class="card shadow">
+            
+            <div class="card-header text-white d-flex justify-content-between align-items-center" style="background-color: #970000; border-bottom: 4px solid #00126b;">
+                <h2 class="mb-0 fw-bold">TRUCK RECEIVING LOG</h2>
+                <div>
+                    <a href="/" class="btn btn-light fw-bold shadow-sm me-2 text-dark">
+                        ⬅️ Hub
+                    </a>
+                    <a href="/schedule" class="btn fw-bold shadow-sm me-2" style="background-color: #217346; color: white;">
+                        🗓️ Scheduling
+                    </a>
+                    <a href="/chemist" class="btn fw-bold shadow-sm me-2 text-dark" style="background-color: #ffc107;">
+                        🧪 Lab Portal
+                    </a>
+                    <a href="/reports" class="btn btn-light fw-bold shadow-sm" style="color: #00126b;">
+                        📊 Reports
+                    </a>
+                </div>
+            </div>
+            
+            <div class="card-body mt-2">
+                <div class="row">
+                    
+                    <div class="col-md-4 border-end pe-4">
+                        <h4 class="mb-4 fw-bold text-center" style="color: #00126b;">New Truck Check-In</h4>
+                        
+                        <form action="/submit_truck" method="POST">
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">LOAD #</label>
+                                <input type="number" class="form-control border-secondary" name="load_number" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">PROFILE #</label>
+                                <select id="profile-search" name="profile_number" placeholder="Search or paste a Profile..." required>
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">MANIFEST #</label>
+                                <input type="text" class="form-control border-secondary" name="manifest_number" required>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label text-muted small fw-bold mb-1">GROSS WEIGHT (LBS)</label>
+                                <input type="number" class="form-control border-secondary" name="gross_weight" required>
+                            </div>
+
+                            <button type="submit" class="btn text-white w-100 fw-bold py-2" style="background-color: #3860b2;">
+                                Submit Truck
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="col-md-8 ps-4">
+                        <h4 class="mb-4 fw-bold text-center" style="color: #00126b;">TRUCKS ON SITE</h4>
+                        
+                        <div class="table-responsive">
+                            <table class="table align-middle shadow-sm border">
+                                <thead style="background-color: #00126b; color: white;">
+                                    <tr>
+                                        <th class="py-3">Load #</th>
+                                        <th class="py-3">Manifest #</th>
+                                        <th class="py-3">Profile</th>
+                                        <th class="py-3">Status</th>
+                                        <th class="py-3 text-end pe-4">Action</th>
+                                    </tr>
+                                </thead>
+                              <tbody class="bg-white">
+                                    {% for truck in pending_trucks %}
+                                    <tr class="clickable-row border-bottom"
+                                        data-id="{{ truck.id }}"
+                                        data-load="{{ truck.load_number }}"
+                                        data-manifest="{{ truck.manifest_number }}"
+                                        data-profile="{{ truck.profile_number }}"
+                                        data-gross="{{ truck.gross_weight }}"
+                                        onclick="if(!event.target.closest('button') && !event.target.closest('a') && !event.target.closest('.modal')) populateEditModal(this);"
+                                        title="Click anywhere on row to fix typos">
+                                        
+                                        <td class="fs-5">
+                                            {% if truck.lab_results %}
+                                                <a href="#" class="text-success fw-bold text-decoration-underline" data-bs-toggle="modal" data-bs-target="#viewLabModal{{ truck.id }}" title="View Lab Results">
+                                                    {{ truck.load_number }} 📄
+                                                </a>
+                                            {% else %}
+                                                <span class="text-primary fw-bold">{{ truck.load_number }}</span>
+                                            {% endif %}
+                                        </td>
+                                        
+                                        <td class="text-primary fw-bold">{{ truck.manifest_number }}</td>
+                                        
+                                        <td class="fw-bold">
+                                            <span class="text-dark">{{ truck.profile_number }}</span>
+                                            
+                                            {% if truck.profile_number not in scheduled_profiles %}
+                                                <br><span class="badge mt-1 shadow-sm pulse text-warning" style="background-color: #000; border: 1px solid #ffc107;">🚨 NOT SCHEDULED: CALL LAB</span>
+                                            {% elif truck.profile_number in flagged_profiles %}
+                                                <br><span class="badge bg-danger mt-1 shadow-sm pulse">⚠️ CHARGE UNSCHEDULED FEE</span>
+                                            {% endif %}
+                                        </td>
+                                        
+                                        <td>
+                                            {% if truck.test_status == 'LAB COMPLETED' %}
+                                                <span class="badge bg-info text-dark shadow-sm">LAB COMPLETED</span>
+                                            {% elif 'LAS' in truck.test_assigned %}
+                                                <span class="badge bg-danger">LAS</span>
+                                            {% elif 'FINGERPRINT' in truck.test_assigned %}
+                                                <span class="badge bg-warning text-dark">FINGERPRINT</span>
+                                            {% else %}
+                                                <span class="badge bg-success">VISUAL</span>
+                                            {% endif %}
+
+                                            {% if 'VOC TEST' in truck.test_assigned %}
+                                                <br><span class="badge bg-dark text-white mt-1 shadow-sm border border-secondary">🧪 VOC TEST (10th Load)</span>
+                                            {% endif %}
+                                            
+                                            {% if truck.extra_fees and truck.extra_fees != 'None' %}
+                                                <br><span class="badge mt-1 shadow-sm" style="background-color: #6f42c1;">💰 {{ truck.extra_fees }}</span>
+                                            {% endif %}
+                                            
+                                            {% if truck.cell_location or truck.grid_location %}
+                                                <br><span class="badge bg-secondary mt-1 shadow-sm">📍 {% if truck.cell_location %}WMU: {{ truck.cell_location }} {% endif %}{% if truck.grid_location %}Grid: {{ truck.grid_location }}{% endif %}</span>
+                                            {% endif %}
+                                        </td>
+                                        
+                                      <td class="text-end pe-3">
+                                            <div class="d-flex justify-content-end gap-2">
+                                                <button type="button" class="btn btn-sm btn-outline-primary fw-bold" data-bs-toggle="modal" data-bs-target="#checkoutModal{{ truck.id }}">
+                                                    Check Out
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-danger fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#rejectModal{{ truck.id }}">
+                                                    Void
+                                                </button>
+                                            </div>
+
+                                            {% if truck.lab_results %}
+                                            <div class="modal fade" id="viewLabModal{{ truck.id }}" tabindex="-1" aria-hidden="true">
+                                                <div class="modal-dialog">
+                                                    <div class="modal-content">
+                                                        <div class="modal-header text-dark" style="background-color: #ffc107;">
+                                                            <h5 class="modal-title fw-bold">🧪 Lab Notes: Load {{ truck.load_number }}</h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                        </div>
+                                                        <div class="modal-body text-start">
+                                                            <textarea class="form-control bg-light" rows="5" readonly>{{ truck.lab_results }}</textarea>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {% endif %}
+
+                                            <div class="modal fade" id="checkoutModal{{ truck.id }}" tabindex="-1" aria-hidden="true">
+                                                <div class="modal-dialog">
+                                                    <div class="modal-content">
+                                                        <form action="/checkout_truck" method="POST">
+                                                            <div class="modal-header bg-primary text-white">
+                                                                <h5 class="modal-title fw-bold">🚚 Check Out Load: {{ truck.load_number }}</h5>
+                                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                            </div>
+                                                            <div class="modal-body text-start bg-light">
+                                                                <input type="hidden" name="log_id" value="{{ truck.id }}">
+                                                                
+                                                                <div class="mb-3">
+                                                                    <label class="form-label text-muted small fw-bold">Tare / Exit Weight (LBS)</label>
+                                                                    <input type="text" class="form-control border-primary exit-weight-input" data-gross="{{ truck.gross_weight }}" name="exit_weight" required>
+                                                                </div>
+                                                                
+                                                                <div class="row">
+                                                                    <div class="col-6 mb-3">
+                                                                        <label class="form-label text-muted small fw-bold">Manifest Weight</label>
+                                                                        <input type="text" class="form-control border-primary manifest-weight-input" name="manifest_weight" required>
+                                                                    </div>
+                                                                    <div class="col-6 mb-3">
+                                                                        <label class="form-label text-muted small fw-bold">Manifest Units</label>
+                                                                        <select class="form-select border-primary manifest-units-select" name="manifest_units" required>
+                                                                            <option value="Pounds" selected>Pounds</option>
+                                                                            <option value="Tons">Tons</option>
+                                                                            <option value="Yards">Yards (No Math)</option>
+                                                                            <option value="Gallons">Gallons</option>
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div class="alert alert-danger d-none discrepancy-alert fw-bold py-2 shadow-sm" role="alert"></div>
+
+                                                                <div class="mb-3 p-2 border border-secondary rounded bg-white">
+                                                                    <label class="form-label text-dark fw-bold mb-2">Extra Fees Applied:</label>
+                                                                    <div class="d-flex flex-wrap gap-3">
+                                                                        <div class="form-check">
+                                                                            <input class="form-check-input border-secondary" type="checkbox" name="extra_fees" value="Bin Top / Solidification" id="fee1-{{ truck.id }}">
+                                                                            <label class="form-check-label small fw-bold text-muted" for="fee1-{{ truck.id }}">Bin Top / Solidify</label>
+                                                                        </div>
+                                                                        <div class="form-check">
+                                                                            <input class="form-check-input border-secondary" type="checkbox" name="extra_fees" value="Offload" id="fee2-{{ truck.id }}">
+                                                                            <label class="form-check-label small fw-bold text-muted" for="fee2-{{ truck.id }}">Offload</label>
+                                                                        </div>
+                                                                        <div class="form-check">
+                                                                            <input class="form-check-input border-secondary" type="checkbox" name="extra_fees" value="Washout" id="fee3-{{ truck.id }}">
+                                                                            <label class="form-check-label small fw-bold text-muted" for="fee3-{{ truck.id }}">Washout</label>
+                                                                        </div>
+                                                                        <div class="form-check">
+                                                                            <input class="form-check-input border-secondary" type="checkbox" name="extra_fees" value="Unscheduled" id="fee4-{{ truck.id }}">
+                                                                            <label class="form-check-label small fw-bold text-muted" for="fee4-{{ truck.id }}">Unscheduled</label>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="row">
+                                                                    <div class="col-6 mb-3">
+                                                                        <label class="form-label text-muted small fw-bold">Cell (WMU)</label>
+                                                                        <input type="text" class="form-control border-primary wmu-input" id="checkout-wmu-{{ truck.id }}" name="cell_location" value="{{ truck.cell_location or '' }}" required>
+                                                                    </div>
+                                                                    <div class="col-6 mb-3">
+                                                                        <label class="form-label text-muted small fw-bold">Grid</label>
+                                                                        <input type="text" class="form-control border-primary grid-input" id="checkout-grid-{{ truck.id }}" name="grid_location" value="{{ truck.grid_location or '' }}" required>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div class="modal-footer">
+                                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                                <button type="submit" class="btn btn-primary fw-bold">Complete & Check Out</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="modal fade" id="rejectModal{{ truck.id }}" tabindex="-1" aria-hidden="true">
+                                                <div class="modal-dialog">
+                                                    <div class="modal-content">
+                                                        <form action="/reject_truck" method="POST">
+                                                            <div class="modal-header text-white" style="background-color: #970000;">
+                                                                <h5 class="modal-title fw-bold">🚫 Void Load: {{ truck.load_number }}</h5>
+                                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                            </div>
+                                                            <div class="modal-body text-start bg-light">
+                                                                <input type="hidden" name="log_id" value="{{ truck.id }}">
+                                                                <div class="alert alert-warning border-warning shadow-sm">
+                                                                    <strong>Warning:</strong> Voiding this load will force the net tons to 0 and remove it from the active facility queue. This action will be logged.
+                                                                </div>
+                                                                
+                                                                <div class="mb-3">
+                                                                    <label class="form-label text-muted small fw-bold">Gross Weight (LBS)</label>
+                                                                    <input type="number" class="form-control" value="{{ truck.gross_weight }}" readonly>
+                                                                </div>
+
+                                                                <div class="mb-3">
+                                                                    <label class="form-label text-danger small fw-bold">Void Reason</label>
+                                                                    <textarea class="form-control border-danger shadow-sm" name="rejection_reason" rows="3" placeholder="e.g. Failed fingerprint, leaking drum, missing paperwork..." required></textarea>
+                                                                </div>
+                                                            </div>
+                                                            <div class="modal-footer">
+                                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                                <button type="submit" class="btn btn-danger fw-bold">Void Truck</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% else %}
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted py-5">
+                                            <em>No pending trucks on site.</em>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade d-print-none" id="editTruckModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header text-white" style="background-color: #00126b;">
+                    <h5 class="modal-title fw-bold">✏️ Edit Active Truck</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pb-0 text-start bg-light">
+                    <form id="editTruckForm" method="POST">
+                        <input type="hidden" name="source" value="receiving">
+                        <div class="row mb-2">
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-0">Load #</label>
+                                <input type="number" class="form-control border-secondary" id="edit_load" name="load_number" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-0">Manifest #</label>
+                                <input type="text" class="form-control border-secondary" id="edit_manifest" name="manifest_number" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold mb-0">Profile #</label>
+                            <input type="text" class="form-control border-secondary fw-bold text-primary" id="edit_profile" name="profile_number" required>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label text-muted small fw-bold mb-0">Gross Weight (LBS)</label>
+                            <input type="number" class="form-control border-secondary" id="edit_gross" name="gross_weight" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer bg-light d-flex justify-content-end">
+                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" form="editTruckForm" class="btn text-white fw-bold" style="background-color: #00126b;">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
+    
+    <script>
+        // 1. TomSelect Auto-Search
+        new TomSelect("#profile-search", {
+            valueField: 'value',
+            labelField: 'text',
+            searchField: 'text',
+            create: false,
+            maxOptions: 50,
+            selectOnTab: true,
+            load: function(query, callback) {
+                if (!query.length) return callback();
+                let cleanQuery = query.trim();
+                fetch('/api/search_profiles?q=' + encodeURIComponent(cleanQuery))
+                    .then(response => response.json())
+                    .then(json => { callback(json); })
+                    .catch(()=>{ callback(); });
+            }
+        });
+
+        // 2. Populate the unified Edit Modal when a row is clicked
+        function populateEditModal(row) {
+            let id = row.getAttribute('data-id');
+            document.getElementById('editTruckForm').action = '/edit_truck/' + id;
+            document.getElementById('edit_load').value = row.getAttribute('data-load');
+            document.getElementById('edit_manifest').value = row.getAttribute('data-manifest');
+            document.getElementById('edit_profile').value = row.getAttribute('data-profile');
+            document.getElementById('edit_gross').value = row.getAttribute('data-gross');
+
+            const editModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('editTruckModal'));
+            editModal.show();
+        }
+
+        // 3. Unit 31 Grey-out & Check-Out Math Listener
+        document.addEventListener('input', function(e) {
+            
+            if (e.target && e.target.classList.contains('wmu-input')) {
+                const targetId = e.target.id.replace('checkout-wmu', 'checkout-grid');
+                const gridInput = document.getElementById(targetId);
+                
+                if (gridInput) {
+                    if (e.target.value.trim() === '31') {
+                        gridInput.value = '';
+                        gridInput.setAttribute('readonly', true);
+                        gridInput.removeAttribute('required'); // Prevent form block
+                        gridInput.style.backgroundColor = '#e9ecef';
+                        gridInput.placeholder = 'N/A for Unit 31';
+                    } else {
+                        gridInput.removeAttribute('readonly');
+                        gridInput.setAttribute('required', true); // Require for other units
+                        gridInput.style.backgroundColor = '';
+                        gridInput.placeholder = '';
+                    }
+                }
+            }
+
+            if (e.target && (e.target.classList.contains('exit-weight-input') || 
+                             e.target.classList.contains('manifest-weight-input') || 
+                             e.target.classList.contains('manifest-units-select'))) {
+                
+                const form = e.target.closest('form');
+                if (!form) return;
+
+                const exitInput = form.querySelector('.exit-weight-input');
+                const manifestWtInput = form.querySelector('.manifest-weight-input');
+                const manifestUnitSelect = form.querySelector('.manifest-units-select');
+                const alertBox = form.querySelector('.discrepancy-alert');
+                const submitBtn = form.querySelector('button[type="submit"]');
+
+                if (!exitInput || !manifestWtInput || !manifestUnitSelect || !alertBox) return;
+
+                // Strip commas before calculating in JS
+                const exitVal = exitInput.value.replace(/,/g, '');
+                const manifestVal = manifestWtInput.value.replace(/,/g, '');
+
+                const grossWeight = parseFloat(exitInput.dataset.gross) || 0;
+                const exitWeight = parseFloat(exitVal) || 0;
+                const manifestWeight = parseFloat(manifestVal) || 0;
+                const units = manifestUnitSelect.value;
+
+                // Reset the alert and button every time they type
+                alertBox.classList.add('d-none');
+                if (submitBtn) submitBtn.disabled = false;
+
+                // BLOCK EXIT WEIGHT > GROSS WEIGHT
+                if (exitWeight >= grossWeight && exitWeight > 0) {
+                    alertBox.classList.remove('d-none');
+                    alertBox.innerText = `❌ ERROR: Tare Weight (${exitWeight} lbs) cannot be greater than or equal to Gross Weight (${grossWeight} lbs)!`;
+                    if (submitBtn) submitBtn.disabled = true; // Lock the button!
+                    return; // Stop further math
+                }
+
+                if (exitWeight === 0 || manifestWeight === 0 || units === 'Yards') {
+                    return;
+                }
+
+                const netScaleWeightLbs = grossWeight - exitWeight;
+                let manifestWeightLbs = manifestWeight;
+                if (units === 'Tons') manifestWeightLbs = manifestWeight * 2000;
+
+                const difference = Math.abs(netScaleWeightLbs - manifestWeightLbs);
+                const percentDiff = (difference / manifestWeightLbs) * 100;
+
+                if (percentDiff >= 10) {
+                    alertBox.classList.remove('d-none');
+                    alertBox.innerText = `⚠️ DISCREPANCY: Scale Net is ${netScaleWeightLbs} lbs, Manifest is ${manifestWeightLbs} lbs (${percentDiff.toFixed(1)}% difference)`;
+                }
+            }
+        });
+        
+        // 4. Form Submit Interceptor (Backup to ensure it never goes through if they hit enter)
+        document.addEventListener('submit', function(e) {
+            const form = e.target;
+            
+            // Check for /checkout_truck validation
+            if (form.getAttribute('action') === '/checkout_truck') {
+                const exitInput = form.querySelector('.exit-weight-input');
+                if (exitInput) {
+                    const exitVal = parseFloat(exitInput.value.replace(/,/g, '')) || 0;
+                    const grossVal = parseFloat(exitInput.dataset.gross) || 0;
+                    
+                    if (exitVal >= grossVal && exitVal > 0) {
+                        e.preventDefault(); // Physically blocks the form from sending
+                        alert("❌ Tare weight cannot be greater than or equal to Gross weight!");
+                        return; // Stop here if invalid
+                    }
+                }
+            }
+
+            // Prevent double submission by disabling the submit button
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn && !e.defaultPrevented) {
+                setTimeout(() => {
+                    submitBtn.disabled = true;
+                    const originalText = submitBtn.innerHTML;
+                    submitBtn.innerHTML = 'Processing...';
+                    
+                    // Failsafe: re-enable after 5 seconds if the page didn't reload (e.g. server error)
+                    setTimeout(() => {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalText;
+                    }, 5000);
+                }, 10);
+            }
+        });
+
+        // 5. Smart Auto-Refresh
+        setInterval(function() {
+            // Enhanced Failsafe: Pauses if ANY modal is open or actively fading in
+            if (document.body.classList.contains('modal-open') || document.querySelector('.modal.show')) {
+                return; 
+            }
+            fetch('/receiving')
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const newTableBody = doc.querySelector('tbody').innerHTML;
+                    document.querySelector('tbody').innerHTML = newTableBody;
+                })
+                .catch(err => console.log("Background sync paused..."));
+        }, 5000); 
+    </script>
+</body>
+</html>

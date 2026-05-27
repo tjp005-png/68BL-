@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Scheduling Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        .drag-handle { cursor: grab; font-size: 1.2rem; color: #6c757d; }
+        .drag-handle:active { cursor: grabbing; color: #000; }
+        .sortable-ghost { opacity: 0.4; background-color: #f8f9fa; }
+        
+        .table-fixed-layout { table-layout: auto; }
+        .wrap-text { white-space: normal !important; word-break: break-word; }
+        
+        .clickable-row:hover { background-color: #f1f3f5 !important; transition: background-color 0.2s ease; }
+
+        /* Hides the Blank Row on the computer screen */
+        .print-only-row { display: none; }
+        
+        /* 🖨️ HIGH-DENSITY STRAIGHT-TEXT PRINT STYLES */
+        @media print {
+            @page { size: portrait; margin: 0.5in; }
+            body { background-color: white !important; color: black !important; font-size: 10pt !important; }
+            .d-print-none, .col-md-3, .drag-handle, .actions-col { display: none !important; }
+            .col-md-9, .container-fluid { width: 100% !important; max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+            .card { border: none !important; box-shadow: none !important; }
+            .table-responsive { max-height: none !important; overflow: visible !important; }
+            
+            body::before {
+                content: "DAILY SCHEDULE: {{ selected_date }} (TOTAL TRUCKS: {{ total_loads }})";
+                display: block;
+                text-align: center;
+                font-size: 14pt;
+                font-weight: bold;
+                margin-bottom: 15px;
+                border-bottom: 2px solid black;
+                padding-bottom: 5px;
+            }
+
+            .table { width: 100% !important; border-collapse: collapse !important; }
+            
+            /* Forces headers to repeat on page breaks */
+            .table thead { display: table-header-group; }
+            
+            .table thead th:nth-child(2),
+            .table tbody td:nth-child(2) {
+                padding-left: 15px !important;
+            }
+
+            .table thead th {
+                background-color: transparent !important;
+                color: black !important;
+                border-bottom: 1px solid black !important;
+                padding: 2px !important;
+                font-size: 9pt !important;
+            }
+            .table tbody tr { page-break-inside: avoid; }
+            .table tbody td {
+                padding: 2px 4px !important;
+                border-bottom: 1px dashed #ccc !important;
+                font-size: 9pt !important;
+                vertical-align: top !important;
+                color: black !important;
+            }
+
+            .badge {
+                background-color: transparent !important;
+                color: black !important;
+                border: 1px solid black !important;
+                padding: 1px 3px !important;
+                font-size: 8pt !important;
+                font-weight: bold !important;
+            }
+
+            /* Forces Intercompany to print on a new page */
+            .print-new-page {
+                page-break-before: always !important;
+                break-before: page !important;
+                margin-top: 0 !important;
+                padding-top: 0 !important;
+                border-top: none !important;
+            }
+
+            /* Un-hides the Blank Row for printing and gives it a big write-in height */
+            .print-only-row {
+                display: table-row !important;
+            }
+            .print-only-row td {
+                height: 40px !important; /* Gives lots of vertical room to write */
+                border-bottom: 2px solid #555 !important; /* Thick bottom border to separate loads */
+                border-top: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+    <div class="container-fluid mt-4 px-5">
+        
+        <div class="card shadow mb-4 d-print-none">
+            <div class="card-header text-white d-flex justify-content-between align-items-center" style="background-color: #970000; border-bottom: 4px solid #5a0000;">
+                <div class="d-flex align-items-center">
+                    <img src="{{ url_for('static', filename='CLH_BIG.png') }}" alt="Clean Harbors Logo" style="height: 45px; margin-right: 15px; background-color: white; padding: 4px; border-radius: 5px;">
+                    <h2 class="mb-0 fw-bold">🗓️ DAILY SCHEDULING PORTAL</h2>
+                </div>
+                <div>
+                    <a href="/" class="btn btn-light fw-bold shadow-sm text-dark me-2">⬅️ Hub</a>
+                    <a href="/receiving" class="btn btn-dark fw-bold shadow-sm">🚚 Truck Receiving</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-3 border-end pe-4 d-print-none">
+                <div class="card shadow-sm border-0 mb-4 bg-white">
+                    <div class="card-body p-3">
+                        
+                        <form id="addScheduleForm" action="/add_schedule" method="POST">
+                            
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Date</label>
+                                <input type="date" class="form-control border-secondary fw-bold" name="schedule_date" value="{{ selected_date }}" required>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Profile #</label>
+                                <select id="profile_number" name="profile_number" placeholder="Search Master Profiles..." required></select>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-4 pe-1">
+                                    <label class="form-label text-muted small fw-bold mb-1" title="Trucks per day">Loads</label>
+                                    <input type="number" class="form-control border-secondary px-2" name="load_count" value="1" min="1" required>
+                                </div>
+                                <div class="col-4 px-1">
+                                    <label class="form-label text-muted small fw-bold mb-1" title="Business days to schedule (skips weekends)">Repeat</label>
+                                    <input type="number" class="form-control border-secondary px-2" name="repeat_weeks" value="1" min="1" required>
+                                </div>
+                                <div class="col-4 ps-1">
+                                    <label class="form-label text-muted small fw-bold mb-1">VOC</label>
+                                    <input type="text" class="form-control border-secondary px-2 bg-light" id="voc_level" name="voc_level" readonly tabindex="-1">
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Generator</label>
+                                <input type="text" class="form-control border-secondary bg-light" id="generator" name="generator" required readonly tabindex="-1">
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Requestor</label>
+                                <input type="text" class="form-control border-secondary" name="waste_type">
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Sales Order</label>
+                                <input type="text" class="form-control border-secondary" name="sales_order">
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-1">WIN Code</label>
+                                    <input type="text" class="form-control border-secondary bg-light" id="routing_code" name="routing_code" readonly tabindex="-1">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-1">Initials</label>
+                                    <input type="text" class="form-control border-secondary text-uppercase" name="scheduler_initials" required>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label text-muted small fw-bold mb-1">Special Notes / Flags</label>
+                                <textarea class="form-control border-secondary" id="special_notes" name="special_notes" rows="2"></textarea>
+                            </div>
+
+                            <div class="border rounded p-3 bg-light mb-3">
+                                <button class="btn btn-sm btn-outline-dark w-100 mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#recurringOptions">
+                                    🔄 Select Multiple Days
+                                </button>
+                                
+                                <div class="collapse" id="recurringOptions">
+                                    <label class="form-label small fw-bold mt-2">Days to Schedule:</label>
+                                    <div class="d-flex flex-wrap gap-2 mb-2">
+                                        <div class="form-check"><input class="form-check-input" type="checkbox" name="repeat_days" value="0" id="dayMon"> <label class="form-check-label small" for="dayMon">Mon</label></div>
+                                        <div class="form-check"><input class="form-check-input" type="checkbox" name="repeat_days" value="1" id="dayTue"> <label class="form-check-label small" for="dayTue">Tue</label></div>
+                                        <div class="form-check"><input class="form-check-input" type="checkbox" name="repeat_days" value="2" id="dayWed"> <label class="form-check-label small" for="dayWed">Wed</label></div>
+                                        <div class="form-check"><input class="form-check-input" type="checkbox" name="repeat_days" value="3" id="dayThu"> <label class="form-check-label small" for="dayThu">Thu</label></div>
+                                        <div class="form-check"><input class="form-check-input" type="checkbox" name="repeat_days" value="4" id="dayFri"> <label class="form-check-label small" for="dayFri">Fri</label></div>
+                                    </div>
+                                    <small class="text-muted d-block" style="font-size: 0.75rem;">Uses the 'Repeat' box above to run sequence for multiple weeks.</small>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn text-white w-100 fw-bold shadow-sm py-2" style="background-color: #3860b2;">
+                                Add to Schedule
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-9 ps-4">
+                
+                <div class="card shadow-sm border-0 mb-4 bg-white d-print-none">
+                    <div class="card-body p-3 d-flex justify-content-between align-items-center">
+                        
+                        <form action="/schedule" method="GET" class="d-flex align-items-center m-0">
+                            <h5 class="mb-0 fw-bold text-dark me-3">Viewing Schedule For:</h5>
+                            <input type="date" class="form-control border-primary fw-bold" name="date" value="{{ selected_date }}" onchange="this.form.submit()" style="max-width: 200px;">
+                        </form>
+
+                        <div class="input-group mx-4" style="max-width: 300px;">
+                            <span class="input-group-text bg-light border-end-0">🔍</span>
+                            <input type="text" id="tableSearch" class="form-control border-start-0 bg-light" placeholder="Search loads...">
+                        </div>
+
+                        <div class="d-flex align-items-center">
+                            <button class="btn btn-outline-success fw-bold me-2 shadow-sm" onclick="draftEmail()">✉️ Email</button>
+                            <button class="btn btn-outline-secondary fw-bold me-4 shadow-sm" onclick="window.print()">🖨️ Print</button>
+                            <h4 class="mb-0 text-muted fw-bold">Total Trucks: <span class="text-success">{{ total_loads }}</span></h4>
+                        </div>
+                        
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-0">
+                    <div class="table-responsive" style="max-height: 700px; overflow-y: auto;">
+                        <table class="table align-middle mb-0 table-fixed-layout" id="scheduleTable">
+                            <thead class="sticky-top" style="background-color: #00126b; color: white;">
+                                <tr>
+                                    <th class="drag-handle text-center d-print-none" style="width: 40px;"></th>
+                                    <th class="text-center text-nowrap" style="width: 70px;">Loads</th>
+                                    
+                                    <th class="text-nowrap" style="width: 120px;">Profile</th>
+                                    <th style="min-width: 200px; max-width: 300px;">Generator</th>
+                                    <th class="d-print-none" style="min-width: 150px;">Requestor</th>
+                                    
+                                    <th style="min-width: 95px;">Sales Order</th>
+                                    
+                                    <th class="text-nowrap" style="width: 100px;">WIN Code</th>
+                                    <th class="text-nowrap" style="width: 70px;">VOC</th>
+                                    <th class="text-nowrap d-print-none" style="width: 80px;">Initials</th>
+                                    <th style="min-width: 200px;">Notes / Flags</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sortable-schedule" class="bg-white">
+                                {% for load in daily_loads %}
+                                <tr data-id="{{ load.id }}" 
+                                    data-series="{{ load.series_id or '' }}"
+                                    data-date="{{ load.schedule_date }}"
+                                    data-profile="{{ load.profile_number }}"
+                                    data-generator="{{ load.generator }}"
+                                    data-waste="{{ load.waste_type }}"
+                                    data-sales="{{ load.sales_order }}"
+                                    data-count="{{ load.load_count }}"
+                                    data-win="{{ load.routing_code }}"
+                                    data-voc="{{ load.voc_level }}"
+                                    data-initials="{{ load.scheduler_initials }}"
+                                    data-notes="{{ load.special_notes }}"
+                                    onclick="if(!event.target.classList.contains('drag-handle')) populateEditModal(this);"
+                                    style="cursor: pointer;"
+                                    class="clickable-row border-bottom {% if load.is_unscheduled == 1 %}table-warning{% endif %} {% if load.sales_order|upper|replace(' ', '') == 'SOPENDING' %}d-print-none{% endif %}">
+                                    
+                                    <td class="text-center drag-handle d-print-none" title="Drag to reorder">☰</td>
+                                    
+                                    <td class="fw-bold fs-5 text-center">{{ load.load_count }}</td>
+
+                                    <td class="fw-bold text-primary text-nowrap">{{ load.profile_number }}</td>
+                                    <td class="fw-bold wrap-text" style="max-width: 300px;">{{ load.generator }}</td>
+                                    <td class="text-muted wrap-text d-print-none" style="max-width: 150px;">{{ load.waste_type }}</td>
+                                    
+                                    <td style="min-width: 95px; white-space: normal; word-break: normal;">
+                                        {% if load.sales_order|upper|replace(' ', '') == 'SOPENDING' %}
+                                            <span class="badge bg-danger text-white shadow-sm" title="Hidden from Security Printout">SOPENDING</span>
+                                        {% else %}
+                                            {{ load.sales_order }}
+                                        {% endif %}
+                                    </td>
+                                    
+                                    <td class="text-muted fw-bold text-nowrap">{{ load.routing_code }}</td>
+                                    <td>
+                                        {% if load.voc_level and load.voc_level != 'TBD' and load.voc_level | float >= 50 %}
+                                            <span class="badge bg-danger shadow-sm">{{ load.voc_level }}</span>
+                                        {% else %}
+                                            <span class="text-muted fw-bold">{{ load.voc_level }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-muted fw-bold text-nowrap d-print-none">{{ load.scheduler_initials }}</td>
+                                    <td>
+                                        <div class="d-flex flex-wrap gap-1 mb-1">
+                                            {% if load.is_las %}
+                                                <span class="badge bg-danger shadow-sm">LAS</span>
+                                            {% endif %}
+                                            {% if load.is_unscheduled %}
+                                                <span class="badge bg-warning text-dark shadow-sm">UNSCHEDULED</span>
+                                            {% endif %}
+                                        </div>
+                                        {% if load.clean_notes %}
+                                            <span class="text-muted small fst-italic wrap-text">{{ load.clean_notes }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr class="print-only-row {% if load.sales_order|upper|replace(' ', '') == 'SOPENDING' %}d-print-none{% endif %}">
+                                    <td colspan="10"></td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="10" class="text-center text-muted py-5 fs-5">
+                                        <em>No standard loads scheduled for this date.</em>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+
+                        {% if blcb_loads %}
+                        <div class="mt-4 border-top border-dark pt-3 print-new-page">
+                            <h6 class="fw-bold text-dark mb-2 px-2">🔄 Intercompany Transfers (BLCBPNONEB)</h6>
+                            <table class="table align-middle mb-0 table-fixed-layout border-bottom">
+                                <thead class="sticky-top" style="background-color: #00126b; color: white;">
+                                    <tr>
+                                        <th class="d-print-none" style="width: 40px;"></th>
+                                        <th class="text-center text-nowrap" style="width: 70px;">Loads</th>
+                                        
+                                        <th class="text-nowrap" style="width: 120px;">Profile</th>
+                                        <th style="min-width: 200px; max-width: 300px;">Generator</th>
+                                        <th class="d-print-none" style="min-width: 150px;">Requestor</th>
+                                        
+                                        <th style="min-width: 95px;">Sales Order</th>
+                                        
+                                        <th class="text-nowrap" style="width: 100px;">WIN Code</th>
+                                        <th class="text-nowrap" style="width: 70px;">VOC</th>
+                                        <th class="text-nowrap d-print-none" style="width: 80px;">Initials</th>
+                                        <th style="min-width: 200px;">Notes / Flags</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-light">
+                                    {% for load in blcb_loads %}
+                                    <tr data-id="{{ load.id }}" 
+                                        data-series="{{ load.series_id or '' }}"
+                                        data-date="{{ load.schedule_date }}"
+                                        data-profile="{{ load.profile_number }}"
+                                        data-generator="{{ load.generator }}"
+                                        data-waste="{{ load.waste_type }}"
+                                        data-sales="{{ load.sales_order }}"
+                                        data-count="{{ load.load_count }}"
+                                        data-win="{{ load.routing_code }}"
+                                        data-voc="{{ load.voc_level }}"
+                                        data-initials="{{ load.scheduler_initials }}"
+                                        data-notes="{{ load.special_notes }}"
+                                        onclick="populateEditModal(this);"
+                                        style="cursor: pointer;"
+                                        class="clickable-row border-bottom text-muted">
+                                        
+                                        <td class="text-center d-print-none" style="width: 40px;"></td>
+                                        <td class="fw-bold fs-6 text-center" style="width: 70px;">{{ load.load_count }}</td>
+
+                                        <td class="fw-bold text-dark text-nowrap" style="width: 120px;">{{ load.profile_number }}</td>
+                                        <td class="fw-bold wrap-text" style="max-width: 300px;">{{ load.generator }}</td>
+                                        <td class="wrap-text d-print-none" style="max-width: 150px;">{{ load.waste_type }}</td>
+                                        
+                                        <td style="min-width: 95px; white-space: normal; word-break: normal;">
+                                            {% if load.sales_order|upper|replace(' ', '') == 'SOPENDING' %}
+                                                <span class="badge bg-danger text-white shadow-sm" title="Requires SO Verification at Gate">SOPENDING</span>
+                                            {% else %}
+                                                {{ load.sales_order }}
+                                            {% endif %}
+                                        </td>
+                                        
+                                        <td class="fw-bold text-nowrap" style="width: 100px;">{{ load.routing_code }}</td>
+                                        <td style="width: 70px;">{{ load.voc_level }}</td>
+                                        <td class="fw-bold text-nowrap d-print-none" style="width: 80px;">{{ load.scheduler_initials }}</td>
+                                        <td>
+                                            <div class="d-flex flex-wrap gap-1 mb-1">
+                                                {% if load.is_unscheduled %}
+                                                    <span class="badge bg-warning text-dark shadow-sm">UNSCHEDULED</span>
+                                                {% endif %}
+                                            </div>
+                                            {% if load.clean_notes %}
+                                                <span class="small fst-italic wrap-text">{{ load.clean_notes }}</span><br>
+                                            {% endif %}
+                                            <strong class="text-danger small">⚠️ VERIFY SO ON MANIFEST BEFORE ENTRY</strong>
+                                        </td>
+                                    </tr>
+                                    <tr class="print-only-row">
+                                        <td colspan="10"></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% endif %}
+                        <div class="d-none d-print-block mt-4" style="font-size: 10pt; border: 2px solid black; padding: 12px; background-color: white;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                                <div>
+                                    <strong>LANDFILL</strong> = CBP, CNIA (ASBESTOS), CBPR<br>
+                                    <strong>STU</strong> = CCS, CCSF, CCSM<br>
+                                    <strong>WMU 31</strong> = CNOS-PND<br>
+                                    <strong>CNON</strong> = NORM – SEE WVI
+                                </div>
+                                <div style="text-align: right;">
+                                    <strong style="font-size: 11pt; border-bottom: 1px solid black;">TRUCK TYPE CUTOFF TIMES</strong><br>
+                                    <strong>LAS</strong> – 2:00 &nbsp;&nbsp;&nbsp;&nbsp; <strong>BINS</strong> – 3:00 DOUBLE / 4:00 SINGLE<br>
+                                    <strong>SPECIAL HANDLING</strong> – 3:30 &nbsp;&nbsp;&nbsp;&nbsp; <strong>LIQUID LOADS</strong> – 4:30
+                                </div>
+                            </div>
+                            <div style="text-align: center; border-top: 2px solid black; padding-top: 8px; font-weight: bold; font-size: 11pt;">
+                                ASBESTOS/NOA = DO NOT SAMPLE – LOAD CONTAINS ASBESTOS; USE WATER SPRAYS IN LANDFILL
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade d-print-none" id="editModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header text-white" style="background-color: #00126b;">
+                    <h5 class="modal-title fw-bold">✏️ Edit / Manage Scheduled Load</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                
+                <div class="modal-body pb-0">
+                    <form id="editForm" method="POST">
+                        <div class="mb-2">
+                            <label class="form-label text-muted small fw-bold mb-0">Date</label>
+                            <input type="date" class="form-control border-secondary" id="edit_date" name="schedule_date" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label text-muted small fw-bold mb-0">Profile #</label>
+                            <input type="text" class="form-control border-secondary fw-bold text-primary" id="edit_profile" name="profile_number" required>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-0">Total Loads</label>
+                                <input type="number" class="form-control border-secondary" id="edit_count" name="load_count" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-0">VOC</label>
+                                <input type="text" class="form-control border-secondary bg-light" id="edit_voc" name="voc_level" readonly tabindex="-1">
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label text-muted small fw-bold mb-0">Generator</label>
+                            <input type="text" class="form-control border-secondary bg-light" id="edit_generator" name="generator" required readonly tabindex="-1">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label text-muted small fw-bold mb-0">Requestor</label>
+                            <input type="text" class="form-control border-secondary" id="edit_waste" name="waste_type">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label text-muted small fw-bold mb-0">Sales Order</label>
+                            <input type="text" class="form-control border-secondary" id="edit_sales" name="sales_order">
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-0">WIN Code</label>
+                                <input type="text" class="form-control border-secondary bg-light" id="edit_win" name="routing_code" readonly tabindex="-1">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-0">Initials</label>
+                                <input type="text" class="form-control border-secondary text-uppercase" id="edit_initials" name="scheduler_initials" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold mb-0">Special Notes / Flags</label>
+                            <textarea class="form-control border-secondary" id="edit_notes" name="special_notes" rows="2"></textarea>
+                        </div>
+
+                        <div id="seriesCheckboxWrapper" class="form-check text-start p-3 bg-light border rounded border-primary d-none mb-3">
+                            <input class="form-check-input border-primary" type="checkbox" name="apply_to_series" value="yes" id="applyToSeriesCheckbox">
+                            <label class="form-check-label text-primary fw-bold" for="applyToSeriesCheckbox">
+                                🔄 Apply changes to entire recurring sequence?
+                            </label>
+                            <small class="d-block text-muted" style="font-size: 0.75rem;">Applies to both Edits and Deletes.</small>
+                        </div>
+
+                    </form>
+                </div>
+                
+                <div class="modal-footer bg-light d-flex justify-content-between">
+                    <div class="d-flex gap-2">
+                        <form id="unscheduledForm" method="POST" class="m-0">
+                            <input type="hidden" name="schedule_date" id="unscheduled_date">
+                            <button type="submit" class="btn btn-warning rounded-pill fw-bold shadow-sm px-3" style="font-size: 0.85rem;">Toggle Unscheduled</button>
+                        </form>
+                        <form id="deleteForm" method="POST" class="m-0">
+                            <input type="hidden" name="schedule_date" id="delete_date">
+                            <button type="submit" class="btn btn-outline-danger fw-bold rounded-pill px-3" style="font-size: 0.85rem;">Delete</button>
+                        </form>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" form="editForm" class="btn text-white fw-bold" style="background-color: #970000;">Save Changes</button>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container position-fixed bottom-0 end-0 p-3 d-print-none" style="z-index: 1055;">
+        <div id="updateToast" class="toast align-items-center text-bg-warning border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="false">
+            <div class="d-flex">
+                <div class="toast-body fw-bold fs-6">
+                    ⚠️ Another user just updated this schedule! <br>
+                    <a href="javascript:window.location.reload()" class="text-dark text-decoration-underline">Click here to refresh the page.</a>
+                </div>
+                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
+    
+    <script>
+        // 1. SMART DROPDOWN & AUTO-FILL LOGIC
+        new TomSelect("#profile_number", {
+            valueField: 'value',
+            labelField: 'text',
+            searchField: 'text',
+            create: false, 
+            maxOptions: 50,
+            load: function(query, callback) {
+                if (!query.length) return callback();
+                fetch('/api/search_profiles?q=' + encodeURIComponent(query.trim()))
+                    .then(response => response.json())
+                    .then(json => { callback(json); })
+                    .catch(()=>{ callback(); });
+            },
+            onChange: function(value) {
+                if(!value) return;
+                fetch(`/api/get_profile_details/${encodeURIComponent(value.trim())}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if(!data.error) {
+                            document.getElementById('generator').value = data.generator || '';
+                            document.getElementById('routing_code').value = data.win_code || '';
+                            document.getElementById('special_notes').value = data.special_handling || '';
+                            
+                            let voc = data.voc_percentage;
+                            if (voc === 0 || voc === '0.0') voc = 0;
+                            document.getElementById('voc_level').value = voc;
+                        }
+                    });
+            }
+        });
+
+        // 2. DRAG AND DROP SORTING LOGIC
+        const tbody = document.getElementById('sortable-schedule');
+        if(tbody) {
+            new Sortable(tbody, {
+                animation: 150,
+                handle: '.drag-handle', 
+                ghostClass: 'sortable-ghost',
+                onEnd: function (evt) {
+                    const rows = tbody.querySelectorAll('tr.clickable-row');
+                    let orderData = [];
+                    
+                    rows.forEach((row, index) => {
+                        const id = row.getAttribute('data-id');
+                        const seriesId = row.getAttribute('data-series');
+                        if(id) { 
+                            orderData.push({ 
+                                id: id, 
+                                order: index,
+                                series_id: seriesId 
+                            }); 
+                        }
+                    });
+
+                    fetch(`/update_schedule_order?date=${encodeURIComponent('{{ selected_date }}')}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ order: orderData })
+                    }).catch(err => console.log('Error saving order:', err));
+                }
+            });
+        }
+
+        // 3. TABLE SEARCH FILTER LOGIC
+        document.getElementById('tableSearch').addEventListener('keyup', function() {
+            let filter = this.value.toLowerCase();
+            let rows = document.querySelectorAll('tr.clickable-row');
+            
+            rows.forEach(row => {
+                let text = row.innerText.toLowerCase();
+                row.style.display = text.includes(filter) ? '' : 'none';
+            });
+        });
+
+        // 4. BULLETPROOF EMAIL LOGIC (REVERTED TO 9 COLS)
+        function draftEmail() {
+            let subject = encodeURIComponent("Facility Schedule - {{ selected_date }}");
+            let bodyStr = "Here is the expected volume for {{ selected_date }}:\n\n";
+
+            const rows = document.querySelectorAll('tr.clickable-row');
+            
+            rows.forEach(row => {
+                let cells = row.querySelectorAll('td');
+                if(cells.length < 9) return; 
+                
+                let offset = row.querySelector('.drag-handle') ? 0 : -1;
+                
+                let loads = cells[1 + offset].innerText.trim();
+                let prof = cells[2 + offset].innerText.trim();
+                let gen = cells[3 + offset].innerText.trim();
+                let waste = cells[4 + offset].innerText.trim(); 
+                let sales = cells[5 + offset].innerText.trim();
+                let win = cells[6 + offset].innerText.trim();
+                let initials = cells[8 + offset].innerText.trim(); 
+                
+                let notesText = cells[9 + offset].innerText.replace(/LAS/g, '').replace(/UNSCHEDULED/g, '').replace(/⚠️ VERIFY SO ON MANIFEST BEFORE ENTRY/g, '').trim();
+                
+                bodyStr += `${loads} LOADS; ${prof}; ${gen}; ${waste}; ${sales}; ${win}; ${initials}\n`;
+                if (notesText) {
+                    bodyStr += `***${notesText.toUpperCase()}***\n`;
+                }
+                bodyStr += `\n`;
+            });
+
+            bodyStr += "Total Trucks Expected: {{ total_loads }}";
+            window.location.href = "mailto:?subject=" + subject + "&body=" + encodeURIComponent(bodyStr);
+        }
+
+        // 5. SMART ROW CLICK & POPULATE MODAL LOGIC
+        function populateEditModal(row) {
+            let id = row.getAttribute('data-id');
+            let date = row.getAttribute('data-date');
+            let seriesId = row.getAttribute('data-series');
+
+            document.getElementById('editForm').action = '/edit_schedule/' + id;
+            document.getElementById('edit_date').value = date;
+            document.getElementById('edit_profile').value = row.getAttribute('data-profile');
+            
+            document.getElementById('edit_generator').value = row.getAttribute('data-generator') !== 'None' ? row.getAttribute('data-generator') : '';
+            document.getElementById('edit_waste').value = row.getAttribute('data-waste') !== 'None' ? row.getAttribute('data-waste') : '';
+            document.getElementById('edit_sales').value = row.getAttribute('data-sales') !== 'None' ? row.getAttribute('data-sales') : '';
+            document.getElementById('edit_count').value = row.getAttribute('data-count');
+            document.getElementById('edit_win').value = row.getAttribute('data-win') !== 'None' ? row.getAttribute('data-win') : '';
+            document.getElementById('edit_voc').value = row.getAttribute('data-voc') !== 'None' ? row.getAttribute('data-voc') : '';
+            document.getElementById('edit_initials').value = row.getAttribute('data-initials') !== 'None' ? row.getAttribute('data-initials') : '';
+            document.getElementById('edit_notes').value = row.getAttribute('data-notes') !== 'None' ? row.getAttribute('data-notes') : '';
+
+            // Handle the Series Checkbox Visibility & Reset
+            let seriesWrapper = document.getElementById('seriesCheckboxWrapper');
+            let seriesCheckbox = document.getElementById('applyToSeriesCheckbox');
+            if (seriesId && seriesId !== 'None' && seriesId.trim() !== '') {
+                seriesWrapper.classList.remove('d-none');
+                seriesCheckbox.checked = false; // Ensure it clears if clicking between rows!
+            } else {
+                seriesWrapper.classList.add('d-none');
+                seriesCheckbox.checked = false; 
+            }
+
+            document.getElementById('unscheduledForm').action = '/toggle_unscheduled/' + id;
+            document.getElementById('unscheduled_date').value = date;
+
+            document.getElementById('deleteForm').action = '/delete_schedule/' + id;
+            document.getElementById('delete_date').value = date;
+
+            const editModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('editModal'));
+            editModal.show();
+        }
+
+        // Pass the series checkbox state to the Delete Form when clicked
+        document.getElementById('deleteForm').addEventListener('submit', function(e) {
+            let seriesCheckbox = document.getElementById('applyToSeriesCheckbox');
+            if (seriesCheckbox.checked && !seriesCheckbox.closest('.d-none')) {
+                let hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = 'apply_to_series';
+                hiddenInput.value = 'yes';
+                this.appendChild(hiddenInput);
+            }
+        });
+
+        // 6. SMART DUPLICATE CHECKER
+        const addForm = document.getElementById('addScheduleForm');
+        if (addForm) {
+            addForm.addEventListener('submit', function(e) {
+                e.preventDefault(); 
+                
+                let dateVal = this.querySelector('[name="schedule_date"]').value;
+                let profileVal = this.querySelector('[name="profile_number"]').value;
+                let repeatVal = this.querySelector('[name="repeat_weeks"]') ? this.querySelector('[name="repeat_weeks"]').value : "1";
+                
+                if (!dateVal || !profileVal) {
+                    this.submit();
+                    return;
+                }
+
+                fetch(`/api/check_duplicate?date=${encodeURIComponent(dateVal)}&profile=${encodeURIComponent(profileVal.trim())}&repeat=${encodeURIComponent(repeatVal)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.exists) {
+                            if (confirm(`HEY! This profile is already on the schedule for ${data.conflict_date} (or another overlapping day).\n\nDo you want to add to it?\n(Click OK to merge these loads into the existing entry, or Cancel to stop)`)) {
+                                this.submit();
+                            }
+                        } else {
+                            this.submit();
+                        }
+                    })
+                    .catch(() => {
+                        this.submit(); 
+                    });
+            });
+        }
+        
+        // 7. MULTI-USER SILENT PING (Checks for updates every 10 seconds)
+        let lastDateUpdate = {{ last_updated | default(0) }};
+        let lastGlobalUpdate = {{ global_updated | default(0) }};
+        
+        setInterval(() => {
+            fetch(`/api/check_schedule_updates?date=${encodeURIComponent('{{ selected_date }}')}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.date_updated > lastDateUpdate || data.global_updated > lastGlobalUpdate) {
+                        const toastEl = document.getElementById('updateToast');
+                        const toast = bootstrap.Toast.getOrCreateInstance(toastEl);
+                        toast.show();
+                        // Sync our timestamps so it doesn't keep triggering
+                        lastDateUpdate = data.date_updated;
+                        lastGlobalUpdate = data.global_updated;
+                    }
+                })
+                .catch(() => {}); // Fail silently if offline
+        }, 10000);
+        
+    </script>
+</body>
+</html>

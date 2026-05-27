@@ -1,0 +1,17 @@
+# Databases (SQLite)
+*.db
+
+# Python compiled files and cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Temporary folders & uploads
+temp_uploads/
+
+# Windows system files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
