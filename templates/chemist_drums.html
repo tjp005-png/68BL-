@@ -3,26 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Drum Lab Dashboard</title>
+    <title>Drum Lab Dashboard - Active Packets</title>
+    <!-- Google Fonts Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        .status-select { font-weight: bold; cursor: pointer; }
-        .status-pending { background-color: #f8d7da; color: #842029; }
-        .status-received { background-color: #fff3cd; color: #664d03; }
-        .status-completed { background-color: #d1e7dd; color: #0f5132; }
-        tr { transition: background-color 0.5s ease; }
-        .tight-input { padding: 0.25rem 0.4rem; text-align: center; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f6f9;
+            color: #333;
+        }
+        .ch-red-bg { 
+            background: linear-gradient(135deg, #970000 0%, #c10000 100%) !important; 
+            color: white; 
+        }
+        .ch-dark-red-border { 
+            border-bottom: 4px solid #5a0000; 
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        }
+        .table-row-clickable {
+            transition: background-color 0.2s ease;
+        }
+        .table-row-clickable:hover {
+            background-color: #f1f3f5;
+        }
     </style>
 </head>
 <body class="bg-light">
 
     <div class="container-fluid mt-4 px-5">
         
+        <!-- Header Card -->
         <div class="card shadow mb-4 border-0">
-            <div class="card-header text-white d-flex justify-content-between align-items-center" style="background-color: #970000; border-bottom: 4px solid #5a0000;">
+            <div class="card-header text-white d-flex justify-content-between align-items-center ch-red-bg ch-dark-red-border" style="border-radius: 12px 12px 0 0;">
                 <div class="d-flex align-items-center">
                     <img src="{{ url_for('static', filename='CLH_BIG.png') }}" alt="Clean Harbors Logo" style="height: 45px; margin-right: 15px; background-color: white; padding: 4px; border-radius: 5px;">
-                    <h2 class="mb-0 fw-bold">🧪 DRUM SAMPLING LAB</h2>
+                    <h2 class="mb-0 fw-bold">🧪 DRUM SAMPLING LAB QUEUE</h2>
                 </div>
                 <div>
                     <a href="/chemist" class="btn btn-outline-light fw-bold shadow-sm me-2">🚚 Bulk Truck Lab</a>
@@ -31,141 +54,71 @@
             </div>
         </div>
 
-        <div class="card shadow-sm mb-4 border-primary border-2">
-            <div class="card-body p-4 text-center" style="background-color: #f0f4f8;">
+        <!-- Barcode Scanner Check-In Card -->
+        <div class="card shadow-sm mb-4 border-primary border-2 glass-card">
+            <div class="card-body p-4 text-center" style="background-color: #f0f4f8; border-radius: 10px;">
                 <h5 class="fw-bold text-dark mb-3">🔫 Barcode Scanner Check-In</h5>
+                <div id="scan-alert-container"></div>
                 <form onsubmit="return false;" class="d-flex justify-content-center">
                     <input type="text" id="barcodeScanner" class="form-control form-control-lg border-primary shadow-sm text-center fw-bold text-uppercase" 
                            placeholder="Scan or Type Drum ID and press Enter..." 
                            style="max-width: 600px; font-size: 1.5rem; letter-spacing: 2px;" autofocus autocomplete="off">
                 </form>
-                <small class="text-muted mt-2 d-block">Scanning a drum automatically marks it as RECEIVED.</small>
+                <small class="text-muted mt-2 d-block">Scanning a drum automatically marks it as <strong>RECEIVED</strong> in the database.</small>
             </div>
         </div>
 
         {% if not jobs %}
-            <div class="alert alert-success text-center shadow-sm fs-4 fw-bold py-5 mt-4 border-0">
-                🎉 No pending drums in the queue! The lab is fully caught up.
+            <div class="alert alert-success text-center shadow-sm fs-4 fw-bold py-5 mt-4 border-0 rounded-3">
+                🎉 No pending drum packets in the queue! The lab is fully caught up.
             </div>
         {% endif %}
 
-        <div class="accordion shadow-sm" id="labAccordion">
-            {% for job_id, drums in jobs.items() %}
-            <div class="accordion-item border-secondary mb-3 rounded overflow-hidden">
-                
-                <h2 class="accordion-header" id="heading-{{ loop.index }}">
-                    <button class="accordion-button {% if loop.index > 1 %}collapsed{% endif %} fw-bold fs-5 bg-dark text-white" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}" aria-expanded="true" aria-controls="collapse-{{ loop.index }}">
-                        📦 Sampling Packet: {{ job_id }}
-                        <span class="badge bg-light text-dark ms-3">{{ drums|length }} Samples</span>
-                    </button>
-                </h2>
-                
-                <div id="collapse-{{ loop.index }}" class="accordion-collapse collapse {% if loop.index == 1 %}show{% endif %}" aria-labelledby="heading-{{ loop.index }}">
-                    <div class="accordion-body bg-white p-0">
-                        <form action="/chemist/drums/update" method="POST" class="m-0 p-3">
-                            <input type="hidden" name="job_id" value="{{ job_id }}">
-                            
-                            <div class="d-flex justify-content-between mb-3">
-                                <button type="button" class="btn btn-sm btn-outline-dark fw-bold" onclick="markAllReceived(this)">📥 Mark All Received (Manual Fallback)</button>
-                                <button type="submit" class="btn btn-success fw-bold px-5 shadow-sm">💾 Save Results for this Packet</button>
-                            </div>
-
-                            <div class="table-responsive">
-                                <table class="table table-hover align-middle border text-nowrap">
-                                    <thead class="table-light sticky-top shadow-sm text-center">
-                                        <tr>
-                                            <th class="text-start">Drum ID</th>
-                                            <th class="text-start">Profile</th>
-                                            <th class="text-start">Test Type</th>
-                                            <th>Status</th>
-                                            <th style="width: 70px;">pH</th>
-                                            <th style="width: 70px;">VOC</th>
-                                            <th style="width: 80px;">Flash pt.</th>
-                                            <th style="width: 70px;">CN-</th>
-                                            <th style="width: 70px;">S2-</th>
-                                            <th style="width: 80px;">Oxidizer</th>
-                                            <th class="text-start" style="width: 150px;">Notes</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for d in drums %}
-                                        <tr data-drum-id="{{ d.drum_id|upper }}" class="{% if 'VOC' in d.tests_required or 'CP1' in d.tests_required %}table-warning{% endif %}">
-                                            <input type="hidden" name="drum_db_id" value="{{ d.id }}">
-                                            
-                                            <td class="fw-bold text-dark fs-6">{{ d.drum_id }}</td>
-                                            <td class="fw-bold text-primary">{{ d.profile }}</td>
-                                            <td class="fw-bold">
-                                                {% if 'VOC' in d.tests_required or 'CP1' in d.tests_required or 'RECERT' in d.tests_required %}
-                                                    <span class="text-danger">{{ d.tests_required }}</span>
-                                                {% else %}
-                                                    <span class="text-muted">{{ d.tests_required }}</span>
-                                                {% endif %}
-                                            </td>
-                                            
-                                            <td>
-                                                <select name="status_{{ d.id }}" class="form-select form-select-sm status-select status-{{ d.status|lower }}" onchange="updateStatusColor(this)">
-                                                    <option value="PENDING" {% if d.status == 'PENDING' %}selected{% endif %}>PENDING</option>
-                                                    <option value="RECEIVED" {% if d.status == 'RECEIVED' %}selected{% endif %}>RECEIVED</option>
-                                                    <option value="COMPLETED" {% if d.status == 'COMPLETED' %}selected{% endif %}>COMPLETED</option>
-                                                </select>
-                                            </td>
-                                            
-                                            <td><input type="number" step="0.01" class="form-control form-control-sm tight-input" name="ph_{{ d.id }}" value="{{ d.ph_result if d.ph_result else '' }}"></td>
-                                            <td><input type="number" step="0.01" class="form-control form-control-sm tight-input" name="voc_{{ d.id }}" value="{{ d.voc_result if d.voc_result else '' }}"></td>
-                                            <td><input type="text" class="form-control form-control-sm tight-input" name="flashpoint_{{ d.id }}" value="{{ d.flashpoint if d.flashpoint else '' }}" placeholder=">140"></td>
-                                            <td>
-                                                <select name="cyanide_{{ d.id }}" class="form-select form-select-sm tight-input">
-                                                    <option value=""></option>
-                                                    <option value="Neg" {% if d.cyanide == 'Neg' %}selected{% endif %}>Neg</option>
-                                                    <option value="Pos" {% if d.cyanide == 'Pos' %}selected{% endif %}>Pos</option>
-                                                </select>
-                                            </td>
-                                            <td>
-                                                <select name="sulfide_{{ d.id }}" class="form-select form-select-sm tight-input">
-                                                    <option value=""></option>
-                                                    <option value="Neg" {% if d.sulfide == 'Neg' %}selected{% endif %}>Neg</option>
-                                                    <option value="Pos" {% if d.sulfide == 'Pos' %}selected{% endif %}>Pos</option>
-                                                </select>
-                                            </td>
-                                            <td>
-                                                <select name="oxidation_{{ d.id }}" class="form-select form-select-sm tight-input">
-                                                    <option value=""></option>
-                                                    <option value="Neg" {% if d.oxidation == 'Neg' %}selected{% endif %}>Neg</option>
-                                                    <option value="Pos" {% if d.oxidation == 'Pos' %}selected{% endif %}>Pos</option>
-                                                </select>
-                                            </td>
-                                            <td><input type="text" class="form-control form-control-sm" name="notes_{{ d.id }}" value="{{ d.notes if d.notes else '' }}"></td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </form>
-                    </div>
+        {% if jobs %}
+        <!-- Active Packets Card -->
+        <div class="card shadow glass-card">
+            <div class="card-header bg-dark text-white py-3">
+                <h4 class="mb-0 fw-bold">Active Sampling Packets</h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0 text-nowrap">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Load Number (Job ID)</th>
+                                <th>Total Samples</th>
+                                <th>Status Breakdown</th>
+                                <th class="text-end px-4">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for job in jobs %}
+                            <tr class="table-row-clickable">
+                                <td class="fw-bold text-dark fs-5">{{ job.job_id }}</td>
+                                <td>
+                                    <span class="badge bg-secondary fs-6">{{ job.total_samples }} Samples</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-warning text-dark me-2">{{ job.pending_samples }} Pending Check-in</span>
+                                    <span class="badge bg-info text-dark">{{ job.received_samples }} Received (At Lab)</span>
+                                </td>
+                                <td class="text-end px-4">
+                                    <a href="/chemist/drums/bulk/{{ job.job_id }}" class="btn btn-primary fw-bold shadow-sm">
+                                        🧪 Open Bulk Entry Grid
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
-            {% endfor %}
         </div>
+        {% endif %}
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        function updateStatusColor(selectElement) {
-            selectElement.classList.remove('status-pending', 'status-received', 'status-completed');
-            selectElement.classList.add('status-' + selectElement.value.toLowerCase());
-        }
-
-        function markAllReceived(btn) {
-            const form = btn.closest('form');
-            const selects = form.querySelectorAll('.status-select');
-            selects.forEach(select => {
-                if(select.value === 'PENDING') {
-                    select.value = 'RECEIVED';
-                    updateStatusColor(select);
-                }
-            });
-        }
-
         document.getElementById('barcodeScanner').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault(); 
@@ -173,26 +126,43 @@
                 this.value = ''; 
                 if (!scannedId) return;
 
-                let targetRow = document.querySelector(`tr[data-drum-id="${scannedId}"]`);
-                if (targetRow) {
-                    let collapseDiv = targetRow.closest('.accordion-collapse');
-                    if (!collapseDiv.classList.contains('show')) {
-                        let bsCollapse = new bootstrap.Collapse(collapseDiv, {toggle: false});
-                        bsCollapse.show();
-                    }
+                const alertContainer = document.getElementById('scan-alert-container');
+                alertContainer.innerHTML = ''; // Clear old alerts
 
-                    let statusDropdown = targetRow.querySelector('.status-select');
-                    if (statusDropdown && statusDropdown.value === 'PENDING') {
-                        statusDropdown.value = 'RECEIVED';
-                        updateStatusColor(statusDropdown);
+                fetch('/api/chemist/check_in_drum', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ drum_id: scannedId })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => { throw err; });
                     }
-
-                    targetRow.classList.add('table-success');
-                    setTimeout(() => { targetRow.classList.remove('table-success'); }, 1500);
-                    targetRow.scrollIntoView({behavior: 'smooth', block: 'center'});
-                } else {
-                    alert(`⚠️ ERROR: Drum ID [ ${scannedId} ] not found in any pending queues!`);
-                }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        alertContainer.innerHTML = `
+                            <div class="alert alert-success alert-dismissible fade show fw-bold shadow-sm" role="alert">
+                                ✅ SUCCESS: Drum [ ${scannedId} ] checked in under Load [ ${data.job_id} ]!
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        `;
+                        // Reload the page after a brief delay to update counts
+                        setTimeout(() => { window.location.reload(); }, 1200);
+                    }
+                })
+                .catch(err => {
+                    const errMsg = err.error || "Network error. Please try again.";
+                    alertContainer.innerHTML = `
+                        <div class="alert alert-danger alert-dismissible fade show fw-bold shadow-sm" role="alert">
+                            ⚠️ ERROR: ${errMsg}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    `;
+                });
             }
         });
     </script>

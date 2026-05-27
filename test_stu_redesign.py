@@ -175,5 +175,37 @@ class TestSTURedesignFlow(unittest.TestCase):
         self.assertEqual(lab_row['status'], 'FINAL CODED')
         conn.close()
 
+    def test_chemist_drums_queue_and_scan(self):
+        """Test STU drum queue list view and barcode scanner check-in API"""
+        job_id = "LOAD-777"
+        conn = original_connect(TEST_DB_PATH)
+        conn.execute('''
+            INSERT INTO drum_lab_queue (job_id, drum_id, profile, manifest, tests_required, status)
+            VALUES (?, 'DRUM-SCAN', 'P-STU-TEST', 'MAN-777', 'FingerPrint', 'PENDING')
+        ''', (job_id,))
+        conn.commit()
+        conn.close()
+
+        # Check queue view
+        res = self.client.get('/chemist/drums')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(b'LOAD-777', res.data)
+
+        # Check-in scan API POST
+        res_scan = self.client.post('/api/chemist/check_in_drum', 
+                                    data=json.dumps({'drum_id': 'DRUM-SCAN'}),
+                                    content_type='application/json')
+        self.assertEqual(res_scan.status_code, 200)
+        data = json.loads(res_scan.data.decode('utf-8'))
+        self.assertTrue(data['success'])
+        self.assertEqual(data['job_id'], job_id)
+
+        # Verify DB state
+        conn = original_connect(TEST_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        drum = conn.execute("SELECT status FROM drum_lab_queue WHERE drum_id = 'DRUM-SCAN'").fetchone()
+        self.assertEqual(drum['status'], 'RECEIVED')
+        conn.close()
+
 if __name__ == '__main__':
     unittest.main()

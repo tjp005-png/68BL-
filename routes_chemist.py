@@ -317,21 +317,61 @@ def update_lab():
 @chemist_bp.route('/chemist/drums')
 def chemist_drums():
     with closing(get_db_connection()) as conn:
-        raw_queue = conn.execute("SELECT * FROM drum_lab_queue WHERE status != 'COMPLETED'").fetchall()
+        # Fetch all active jobs with pending/received labs in the queue
+        active_jobs = conn.execute('''
+            SELECT DISTINCT job_id 
+            FROM drum_lab_queue 
+            WHERE status != 'FINAL CODED' AND status != 'COMPLETED'
+        ''').fetchall()
         
-        def sort_priority(drum):
-            test = str(drum['tests_required']).upper()
-            if 'VOC' in test or 'CP1' in test or 'RECERT' in test:
-                return 0 
-            return 1 
+        jobs_list = []
+        for row in active_jobs:
+            job_id = row['job_id']
+            if not job_id: continue
             
-        sorted_queue = sorted(raw_queue, key=sort_priority)
+            # Fetch count of pending samples and received samples
+            total_samples = conn.execute("SELECT COUNT(*) FROM drum_lab_queue WHERE job_id = ?", (job_id,)).fetchone()[0]
+            pending_samples = conn.execute("SELECT COUNT(*) FROM drum_lab_queue WHERE job_id = ? AND status = 'PENDING'", (job_id,)).fetchone()[0]
+            received_samples = conn.execute("SELECT COUNT(*) FROM drum_lab_queue WHERE job_id = ? AND status = 'RECEIVED'", (job_id,)).fetchone()[0]
+            
+            jobs_list.append({
+                'job_id': job_id,
+                'total_samples': total_samples,
+                'pending_samples': pending_samples,
+                'received_samples': received_samples
+            })
+            
+    return render_template('chemist_drums.html', jobs=jobs_list)
+
+@chemist_bp.route('/api/chemist/check_in_drum', methods=['POST'])
+def api_chemist_check_in_drum():
+    data = request.get_json() or {}
+    drum_id = data.get('drum_id', '').strip().upper()
+    
+    if not drum_id:
+        return jsonify({'error': 'Missing Drum ID'}), 400
         
-        jobs = defaultdict(list)
-        for d in sorted_queue:
-            jobs[d['job_id']].append(dict(d))
+    with closing(get_db_connection()) as conn:
+        # Check if the drum exists in the lab queue and is pending check-in
+        drum = conn.execute('''
+            SELECT * FROM drum_lab_queue 
+            WHERE TRIM(UPPER(drum_id)) = ? AND status = 'PENDING'
+        ''', (drum_id,)).fetchone()
+        
+        if not drum:
+            return jsonify({'error': f'Drum {drum_id} not found or already checked in.'}), 404
             
-    return render_template('chemist_drums.html', jobs=jobs)
+        conn.execute('''
+            UPDATE drum_lab_queue 
+            SET status = 'RECEIVED' 
+            WHERE id = ?
+        ''', (drum['id'],))
+        conn.commit()
+        
+        # Emit socket update
+        socketio.emit('drum_update', {'job_id': drum['job_id']})
+        
+    return jsonify({'success': True, 'job_id': drum['job_id']})
 
 @chemist_bp.route('/chemist/drums/update', methods=['POST'])
 def update_drum_lab():
