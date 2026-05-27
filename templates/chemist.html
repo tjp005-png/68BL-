@@ -103,6 +103,10 @@
                                                                             <span class="badge bg-light text-dark border fw-bold px-2 py-1">{{ truck.flashpoint or 'N/A' }}</span>
                                                                         </div>
                                                                         <div class="col-6 mb-2">
+                                                                            <label class="text-muted small fw-bold d-block mb-0">VOC Limit</label>
+                                                                            <span class="badge bg-light text-dark border fw-bold px-2 py-1">{{ truck.voc_ppm if truck.voc_ppm is not none else 'N/A' }} ppm</span>
+                                                                        </div>
+                                                                        <div class="col-6 mb-2">
                                                                             <label class="text-muted small fw-bold d-block mb-0">Sulfides</label>
                                                                             <span class="badge bg-light text-dark border px-2 py-1">{{ truck.sulfides or 'N/A' }}</span>
                                                                         </div>
@@ -177,6 +181,37 @@
                                                                     <div class="col-6">
                                                                         <label class="form-label text-muted small fw-bold mb-1">Measured Flashpoint</label>
                                                                         <input type="text" class="form-control border-secondary-subtle" name="measured_flashpoint" value="{{ truck.flashpoint or '' }}" placeholder="e.g. >200 or 140°F">
+                                                                    </div>
+                                                                </div>
+
+                                                                <!-- Measured VOC and Pass/Fail (Broken Out) -->
+                                                                {% set has_voc_test = 'VOC TEST' in truck.test_assigned|upper %}
+                                                                {% if has_voc_test %}
+                                                                <div class="alert alert-warning p-2 border border-warning-subtle mb-3 animate-fade-in" style="font-size: 0.85rem;">
+                                                                    <strong>⚠️ VOC TEST REQUIRED</strong> (10th Load Compliance Check)
+                                                                </div>
+                                                                {% endif %}
+                                                                
+                                                                <div class="mb-3 p-3 {% if has_voc_test %}bg-warning bg-opacity-10 border border-warning{% else %}bg-light border border-secondary-subtle{% endif %} rounded">
+                                                                    <label class="form-label text-dark fw-bold mb-1" style="font-size: 0.85rem;">Measured VOC (ppm) {% if has_voc_test %}<span class="text-danger">*</span>{% endif %}</label>
+                                                                    <div class="row g-2">
+                                                                        <div class="col-8">
+                                                                            <input type="number" step="0.1" min="0" class="form-control border-secondary-subtle fw-bold" name="measured_voc" id="measured_voc_{{ truck.id }}" placeholder="e.g. 12.5" oninput="checkVocPassFail('{{ truck.id }}', {{ truck.voc_ppm | default(50) }})" {% if has_voc_test %}required{% endif %}>
+                                                                        </div>
+                                                                        <div class="col-4">
+                                                                            <select class="form-select border-secondary-subtle fw-bold" name="voc_pass_fail" id="voc_pass_fail_{{ truck.id }}">
+                                                                                <option value="PASS" class="text-success">PASS</option>
+                                                                                <option value="FAIL" class="text-danger">FAIL</option>
+                                                                                <option value="N/A" {% if not has_voc_test %}selected{% endif %}>N/A</option>
+                                                                            </select>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="form-text text-muted small mt-1" style="font-size: 0.75rem;">
+                                                                        {% if has_voc_test %}
+                                                                        VOC compliance test is required. Max limit is {{ truck.voc_ppm | default(50) }} ppm.
+                                                                        {% else %}
+                                                                        Optional VOC entry (VOC test is not assigned).
+                                                                        {% endif %}
                                                                     </div>
                                                                 </div>
 
@@ -261,6 +296,30 @@
         }
         
         socket.on('truck_update', refreshTableData); 
+
+        // VOC pass/fail auto check
+        function checkVocPassFail(truckId, limit) {
+            const vocInput = document.getElementById('measured_voc_' + truckId);
+            const passFailSelect = document.getElementById('voc_pass_fail_' + truckId);
+            if (!vocInput || !passFailSelect) return;
+            
+            const val = parseFloat(vocInput.value);
+            if (isNaN(val)) {
+                passFailSelect.value = 'N/A';
+                return;
+            }
+            
+            const allowedLimit = limit && !isNaN(limit) ? parseFloat(limit) : 50.0;
+            if (val > allowedLimit) {
+                passFailSelect.value = 'FAIL';
+                passFailSelect.classList.remove('text-success');
+                passFailSelect.classList.add('text-danger');
+            } else {
+                passFailSelect.value = 'PASS';
+                passFailSelect.classList.remove('text-danger');
+                passFailSelect.classList.add('text-success');
+            }
+        }
     </script>
 </body>
 </html>

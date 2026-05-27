@@ -226,7 +226,7 @@ def chemist_dashboard():
     with closing(get_db_connection()) as conn:
         pending_lab_trucks = conn.execute('''
             SELECT tl.*, 
-                   w.ph_min, w.ph_max, w.sulfides, w.cyanide, w.free_liquids, w.flashpoint, 
+                   w.ph_min, w.ph_max, w.sulfides, w.cyanide, w.free_liquids, w.flashpoint, w.voc_ppm,
                    w.treatment_information, w.notes_revisions, w.physical_description, w.handling_instruction,
                    w.generator_name, w.waste_name, w.approved_date, w.expiration_date, w.is_synced
             FROM truck_logs tl
@@ -268,6 +268,10 @@ def update_lab():
     measured_cyanide = request.form.get('measured_cyanide', '')
     measured_free_liquids = request.form.get('measured_free_liquids', '')
     
+    # Extract broken-out VOC fields
+    measured_voc = request.form.get('measured_voc')
+    voc_pass_fail = request.form.get('voc_pass_fail', 'N/A')
+    
     # Handle optional float numbers safely
     try:
         specific_gravity = float(specific_gravity) if specific_gravity else None
@@ -278,6 +282,11 @@ def update_lab():
         measured_ph = float(measured_ph) if measured_ph else None
     except ValueError:
         measured_ph = None
+
+    try:
+        measured_voc = float(measured_voc) if measured_voc else None
+    except ValueError:
+        measured_voc = None
         
     with closing(get_db_connection()) as conn:
         truck = conn.execute('SELECT date_received FROM truck_logs WHERE id = ?', (log_id,)).fetchone()
@@ -292,10 +301,13 @@ def update_lab():
                 measured_sulfides = ?,
                 measured_cyanide = ?,
                 measured_free_liquids = ?,
+                measured_voc = ?,
+                voc_pass_fail = ?,
                 test_status = 'LAB COMPLETED' 
             WHERE id = ?
         ''', (lab_results, specific_gravity, measured_ph, measured_flashpoint, 
-              measured_sulfides, measured_cyanide, measured_free_liquids, log_id))
+              measured_sulfides, measured_cyanide, measured_free_liquids, 
+              measured_voc, voc_pass_fail, log_id))
         conn.commit()
         socketio.emit('lab_update', {'date': received_date})
     return redirect(url_for('chemist_bp.chemist_dashboard'))

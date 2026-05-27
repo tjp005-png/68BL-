@@ -51,7 +51,9 @@ cursor.execute('''
         measured_flashpoint TEXT,
         measured_sulfides TEXT,
         measured_cyanide TEXT,
-        measured_free_liquids TEXT
+        measured_free_liquids TEXT,
+        measured_voc REAL,
+        voc_pass_fail TEXT DEFAULT "N/A"
     )
 ''')
 

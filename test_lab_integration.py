@@ -214,5 +214,38 @@ class TestCompliancePortalIntegration(unittest.TestCase):
         self.assertEqual(summary['kpi3_val'], 2)
         self.assertEqual(summary['kpi4_val'], "25%")
 
+    def test_update_lab_voc(self):
+        """Verify submitting lab results with VOC data correctly persists and triggers events"""
+        conn = original_connect(TEST_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT id FROM truck_logs WHERE truck_id = 'T1'").fetchone()
+        truck_id = row['id']
+        conn.close()
+        
+        response = self.client.post('/update_lab', data={
+            'log_id': truck_id,
+            'lab_results': 'VOC verified ok',
+            'specific_gravity': '1.025',
+            'measured_ph': '7.5',
+            'measured_flashpoint': '>200',
+            'measured_sulfides': 'Negative',
+            'measured_cyanide': 'Negative',
+            'measured_free_liquids': 'No',
+            'measured_voc': '12.4',
+            'voc_pass_fail': 'PASS'
+        })
+        
+        self.assertEqual(response.status_code, 302)
+        
+        # Verify in DB
+        conn = original_connect(TEST_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        updated_row = conn.execute("SELECT * FROM truck_logs WHERE id = ?", (truck_id,)).fetchone()
+        conn.close()
+        
+        self.assertEqual(updated_row['measured_voc'], 12.4)
+        self.assertEqual(updated_row['voc_pass_fail'], 'PASS')
+        self.assertEqual(updated_row['lab_results'], 'VOC verified ok')
+
 if __name__ == '__main__':
     unittest.main()

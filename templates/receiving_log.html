@@ -105,7 +105,7 @@
                                         title="Click anywhere on row to fix typos">
                                         
                                         <td class="fs-5">
-                                            {% if truck.test_status == 'LAB COMPLETED' or truck.lab_results or truck.measured_ph is not none or truck.specific_gravity is not none or truck.measured_flashpoint or truck.measured_sulfides or truck.measured_cyanide or truck.measured_free_liquids %}
+                                            {% if truck.test_status == 'LAB COMPLETED' or truck.lab_results or truck.measured_ph is not none or truck.specific_gravity is not none or truck.measured_flashpoint or truck.measured_sulfides or truck.measured_cyanide or truck.measured_free_liquids or truck.measured_voc is not none %}
                                                 <a href="#" class="text-success fw-bold text-decoration-underline" data-bs-toggle="modal" data-bs-target="#viewLabModal{{ truck.id }}" title="View Lab Results">
                                                     {{ truck.load_number }} 📄
                                                 </a>
@@ -160,7 +160,7 @@
                                                 </button>
                                             </div>
 
-                                            {% if truck.test_status == 'LAB COMPLETED' or truck.lab_results or truck.measured_ph is not none or truck.specific_gravity is not none or truck.measured_flashpoint or truck.measured_sulfides or truck.measured_cyanide or truck.measured_free_liquids %}
+                                            {% if truck.test_status == 'LAB COMPLETED' or truck.lab_results or truck.measured_ph is not none or truck.specific_gravity is not none or truck.measured_flashpoint or truck.measured_sulfides or truck.measured_cyanide or truck.measured_free_liquids or truck.measured_voc is not none %}
                                             <div class="modal fade" id="viewLabModal{{ truck.id }}" tabindex="-1" aria-hidden="true">
                                                 <div class="modal-dialog">
                                                     <div class="modal-content border-warning shadow-lg">
@@ -203,6 +203,16 @@
                                                                         <div class="col-6 mt-2">
                                                                             <span class="text-muted small fw-bold d-block mb-1" style="font-size: 0.75rem;">FREE LIQUIDS</span>
                                                                             <span class="badge {% if truck.measured_free_liquids == 'Yes' %}bg-danger{% elif truck.measured_free_liquids == 'No' %}bg-success{% else %}bg-secondary{% endif %} px-2 py-1 fw-bold">{{ truck.measured_free_liquids or 'N/A' }}</span>
+                                                                        </div>
+                                                                        
+                                                                        <div class="col-6 border-end border-2 border-light mt-2">
+                                                                            <span class="text-muted small fw-bold d-block mb-1" style="font-size: 0.75rem;">MEASURED VOC</span>
+                                                                            <span class="fw-bold text-dark">{{ truck.measured_voc if truck.measured_voc is not none else 'N/A' }}{% if truck.measured_voc is not none %} ppm{% endif %}</span>
+                                                                        </div>
+                                                                        
+                                                                        <div class="col-6 mt-2">
+                                                                            <span class="text-muted small fw-bold d-block mb-1" style="font-size: 0.75rem;">VOC STATUS</span>
+                                                                            <span class="badge {% if truck.voc_pass_fail == 'FAIL' %}bg-danger{% elif truck.voc_pass_fail == 'PASS' %}bg-success{% else %}bg-secondary{% endif %} px-2 py-1 fw-bold">{{ truck.voc_pass_fail or 'N/A' }}</span>
                                                                         </div>
                                                                     </div>
                                                                 </div>
