@@ -28,7 +28,7 @@ app.register_blueprint(approvals_bp)
 #        CONFIGURATION & HELPER VARS
 # ==========================================
 TARGET_ROUTING_CODE = "BL"
-PERMITTED_CODES = {'CBP', 'CNO', 'CBPS', 'CNOS', 'CNIA', 'CCS', 'CCSS', 'D23'}
+PERMITTED_CODES = {'CBP', 'CNO', 'CBPS', 'CNOS', 'CNIA', 'CCS', 'CCSS', 'D23', 'D80L'}
 
 def get_db_connection():
     conn = sqlite3.connect('database.db', timeout=15)
