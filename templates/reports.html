@@ -228,6 +228,13 @@
                                                 data-grid="{{ truck.grid_location }}"
                                                 data-timein="{{ truck.time_in }}"
                                                 data-timeout="{{ truck.time_out }}"
+                                                data-sg="{{ truck.specific_gravity or '' }}"
+                                                data-ph="{{ truck.measured_ph or '' }}"
+                                                data-fp="{{ truck.measured_flashpoint or '' }}"
+                                                data-sulfides="{{ truck.measured_sulfides or '' }}"
+                                                data-cyanide="{{ truck.measured_cyanide or '' }}"
+                                                data-free-liquids="{{ truck.measured_free_liquids or '' }}"
+                                                data-labresults="{{ truck.lab_results or '' }}"
                                                 onclick="populateEditTruckModal(this)">
                                                 
                                                 <td class="fw-bold ps-3">{{ truck.load_number }}</td>
@@ -240,10 +247,24 @@
                                                 <td>
                                                     {% if truck.test_status == 'COMPLETED' %}
                                                         <span class="badge bg-success">COMPLETED</span>
+                                                    {% elif truck.test_status == 'LAB COMPLETED' %}
+                                                        <span class="badge bg-info text-dark">LAB DONE</span>
                                                     {% elif truck.test_status == 'WEIGHED IN' %}
                                                         <span class="badge bg-warning text-dark">ON SITE</span>
                                                     {% else %}
                                                         <span class="badge bg-secondary">{{ truck.test_status }}</span>
+                                                    {% endif %}
+                                                    
+                                                    {% if truck.measured_ph is not none or truck.specific_gravity is not none or truck.measured_flashpoint or truck.measured_sulfides or truck.measured_cyanide or truck.measured_free_liquids or truck.lab_results %}
+                                                        <div class="small text-muted mt-1" style="font-size: 0.73rem; line-height: 1.25;">
+                                                            {% if truck.specific_gravity is not none %}SG: <strong>{{ truck.specific_gravity }}</strong><br>{% endif %}
+                                                            {% if truck.measured_ph is not none %}pH: <strong>{{ truck.measured_ph }}</strong><br>{% endif %}
+                                                            {% if truck.measured_flashpoint %}FP: <strong>{{ truck.measured_flashpoint }}</strong><br>{% endif %}
+                                                            {% if truck.measured_sulfides %}S²⁻: <strong>{{ truck.measured_sulfides }}</strong><br>{% endif %}
+                                                            {% if truck.measured_cyanide %}CN⁻: <strong>{{ truck.measured_cyanide }}</strong><br>{% endif %}
+                                                            {% if truck.measured_free_liquids %}FL: <strong>{{ truck.measured_free_liquids }}</strong><br>{% endif %}
+                                                            {% if truck.lab_results %}<span class="text-truncate d-inline-block text-secondary" style="max-width: 130px; font-style: italic;" title="{{ truck.lab_results }}">📝 {{ truck.lab_results }}</span>{% endif %}
+                                                        </div>
                                                     {% endif %}
                                                 </td>
                                                 <td class="pe-3">
@@ -413,6 +434,61 @@
                                 <input type="text" class="form-control border-secondary bg-light" id="edit_truck_time_out" name="time_out" placeholder="e.g. 14:15">
                             </div>
                         </div>
+
+                        <!-- 🧪 Lab Results -->
+                        <div class="border-top pt-3 mt-3">
+                            <h6 class="fw-bold text-dark mb-3">🧪 Lab Results</h6>
+                            
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-0">Specific Gravity</label>
+                                    <input type="number" step="0.001" min="0.001" max="5.0" class="form-control border-secondary" id="edit_truck_sg" name="specific_gravity">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-0">Measured pH</label>
+                                    <input type="number" step="0.1" min="0" max="14" class="form-control border-secondary" id="edit_truck_ph" name="measured_ph">
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-0">Measured Flashpoint</label>
+                                    <input type="text" class="form-control border-secondary" id="edit_truck_fp" name="measured_flashpoint">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-0">Free Liquids</label>
+                                    <select class="form-select border-secondary" id="edit_truck_free_liquids" name="measured_free_liquids">
+                                        <option value="">--</option>
+                                        <option value="No">No</option>
+                                        <option value="Yes">Yes</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-0">Measured Sulfides</label>
+                                    <select class="form-select border-secondary" id="edit_truck_sulfides" name="measured_sulfides">
+                                        <option value="">--</option>
+                                        <option value="Negative">Negative</option>
+                                        <option value="Positive">Positive</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-0">Measured Cyanide</label>
+                                    <select class="form-select border-secondary" id="edit_truck_cyanide" name="measured_cyanide">
+                                        <option value="">--</option>
+                                        <option value="Negative">Negative</option>
+                                        <option value="Positive">Positive</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold mb-0">Lab Notes / Results</label>
+                                <textarea class="form-control border-secondary" id="edit_truck_labresults" name="lab_results" rows="2"></textarea>
+                            </div>
+                        </div>
                     </form>
                 </div>
                 
@@ -470,6 +546,28 @@
 
             let timeOut = row.getAttribute('data-timeout');
             document.getElementById('edit_truck_time_out').value = (timeOut && timeOut !== 'None') ? timeOut : '';
+
+            // Populate Lab Results Fields
+            let sg = row.getAttribute('data-sg');
+            document.getElementById('edit_truck_sg').value = (sg && sg !== 'None') ? parseFloat(sg) : '';
+
+            let ph = row.getAttribute('data-ph');
+            document.getElementById('edit_truck_ph').value = (ph && ph !== 'None') ? parseFloat(ph) : '';
+
+            let fp = row.getAttribute('data-fp');
+            document.getElementById('edit_truck_fp').value = (fp && fp !== 'None') ? fp : '';
+
+            let freeLiquids = row.getAttribute('data-free-liquids');
+            document.getElementById('edit_truck_free_liquids').value = (freeLiquids && freeLiquids !== 'None') ? freeLiquids : '';
+
+            let sulfides = row.getAttribute('data-sulfides');
+            document.getElementById('edit_truck_sulfides').value = (sulfides && sulfides !== 'None') ? sulfides : '';
+
+            let cyanide = row.getAttribute('data-cyanide');
+            document.getElementById('edit_truck_cyanide').value = (cyanide && cyanide !== 'None') ? cyanide : '';
+
+            let labresults = row.getAttribute('data-labresults');
+            document.getElementById('edit_truck_labresults').value = (labresults && labresults !== 'None') ? labresults : '';
 
             // Show Modal
             const editModal = new bootstrap.Modal(document.getElementById('editTruckModal'));

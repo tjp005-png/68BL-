@@ -156,9 +156,61 @@
                                                                     <input type="text" class="form-control bg-light fw-bold text-danger" value="{{ truck.test_assigned }}" readonly>
                                                                 </div>
 
+                                                                <!-- Conditional Specific Gravity for CNOS loads -->
+                                                                {% if 'CNOS' in truck.profile_number|upper %}
+                                                                <div class="mb-3 p-3 bg-danger bg-opacity-10 border border-danger-subtle rounded animate-fade-in">
+                                                                    <label class="form-label text-dark fw-bold mb-1">Specific Gravity <span class="text-danger">*</span></label>
+                                                                    <div class="input-group">
+                                                                        <span class="input-group-text bg-danger text-white border-danger">📐</span>
+                                                                        <input type="number" step="0.001" min="0.001" max="5.0" class="form-control border-danger fw-bold" name="specific_gravity" placeholder="e.g. 1.050" required>
+                                                                    </div>
+                                                                    <div class="form-text text-danger small mt-1">Specific Gravity is required for CNOS loads.</div>
+                                                                </div>
+                                                                {% endif %}
+
+                                                                <!-- Measured pH and Flashpoint -->
+                                                                <div class="row g-2 mb-3">
+                                                                    <div class="col-6">
+                                                                        <label class="form-label text-muted small fw-bold mb-1">Measured pH</label>
+                                                                        <input type="number" step="0.1" min="0" max="14" class="form-control border-secondary-subtle" name="measured_ph" placeholder="e.g. 7.2">
+                                                                    </div>
+                                                                    <div class="col-6">
+                                                                        <label class="form-label text-muted small fw-bold mb-1">Measured Flashpoint</label>
+                                                                        <input type="text" class="form-control border-secondary-subtle" name="measured_flashpoint" value="{{ truck.flashpoint or '' }}" placeholder="e.g. >200 or 140°F">
+                                                                    </div>
+                                                                </div>
+
+                                                                <!-- Measured Sulfides, Cyanide, Free Liquids (defaulted to WVI values) -->
+                                                                <div class="row g-2 mb-3">
+                                                                    <div class="col-4">
+                                                                        <label class="form-label text-muted small fw-bold mb-1">Sulfides</label>
+                                                                        <select class="form-select border-secondary-subtle" name="measured_sulfides">
+                                                                            <option value="">--</option>
+                                                                            <option value="Negative" {% if truck.sulfides == 'No' %}selected{% endif %}>Negative</option>
+                                                                            <option value="Positive" {% if truck.sulfides == 'Yes' %}selected{% endif %}>Positive</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div class="col-4">
+                                                                        <label class="form-label text-muted small fw-bold mb-1">Cyanide</label>
+                                                                        <select class="form-select border-secondary-subtle" name="measured_cyanide">
+                                                                            <option value="">--</option>
+                                                                            <option value="Negative" {% if truck.cyanide == 'No' %}selected{% endif %}>Negative</option>
+                                                                            <option value="Positive" {% if truck.cyanide == 'Yes' %}selected{% endif %}>Positive</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div class="col-4">
+                                                                        <label class="form-label text-muted small fw-bold mb-1">Free Liquids</label>
+                                                                        <select class="form-select border-secondary-subtle" name="measured_free_liquids">
+                                                                            <option value="">--</option>
+                                                                            <option value="No" {% if truck.free_liquids == 'No' %}selected{% endif %}>No</option>
+                                                                            <option value="Yes" {% if truck.free_liquids == 'Yes' %}selected{% endif %}>Yes</option>
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+
                                                                 <div class="mb-3">
-                                                                    <label class="form-label text-muted small fw-bold mb-1">Lab Notes / Results</label>
-                                                                    <textarea class="form-control border-danger" name="lab_results" rows="6" placeholder="Enter pH, Flash Point, or pass/fail notes..." required></textarea>
+                                                                    <label class="form-label text-muted small fw-bold mb-1">Lab Notes / Results (Optional)</label>
+                                                                    <textarea class="form-control border-danger" name="lab_results" rows="3" placeholder="Enter additional lab notes or observations..."></textarea>
                                                                 </div>
                                                             </div>
                                                         </div>

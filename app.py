@@ -66,6 +66,12 @@ def upgrade_db():
         if not column_exists(cursor, 'truck_logs', 'sales_order'): cursor.execute('ALTER TABLE truck_logs ADD COLUMN sales_order TEXT DEFAULT ""')
         if not column_exists(cursor, 'truck_logs', 'time_in'): cursor.execute('ALTER TABLE truck_logs ADD COLUMN time_in TEXT DEFAULT ""')
         if not column_exists(cursor, 'truck_logs', 'time_out'): cursor.execute('ALTER TABLE truck_logs ADD COLUMN time_out TEXT DEFAULT ""')
+        if not column_exists(cursor, 'truck_logs', 'specific_gravity'): cursor.execute('ALTER TABLE truck_logs ADD COLUMN specific_gravity REAL')
+        if not column_exists(cursor, 'truck_logs', 'measured_ph'): cursor.execute('ALTER TABLE truck_logs ADD COLUMN measured_ph REAL')
+        if not column_exists(cursor, 'truck_logs', 'measured_flashpoint'): cursor.execute('ALTER TABLE truck_logs ADD COLUMN measured_flashpoint TEXT')
+        if not column_exists(cursor, 'truck_logs', 'measured_sulfides'): cursor.execute('ALTER TABLE truck_logs ADD COLUMN measured_sulfides TEXT')
+        if not column_exists(cursor, 'truck_logs', 'measured_cyanide'): cursor.execute('ALTER TABLE truck_logs ADD COLUMN measured_cyanide TEXT')
+        if not column_exists(cursor, 'truck_logs', 'measured_free_liquids'): cursor.execute('ALTER TABLE truck_logs ADD COLUMN measured_free_liquids TEXT')
 
         # 2. MASTER PROFILES 
         cursor.execute('''
@@ -75,6 +81,7 @@ def upgrade_db():
                 special_handling TEXT
             )
         ''')
+        if not column_exists(cursor, 'profiles', 'generator'): cursor.execute('ALTER TABLE profiles ADD COLUMN generator TEXT')
         if not column_exists(cursor, 'profiles', 'waste_description'): cursor.execute('ALTER TABLE profiles ADD COLUMN waste_description TEXT')
         if not column_exists(cursor, 'profiles', 'win_code'): cursor.execute('ALTER TABLE profiles ADD COLUMN win_code TEXT')
         if not column_exists(cursor, 'profiles', 'special_handling'): cursor.execute('ALTER TABLE profiles ADD COLUMN special_handling TEXT')
@@ -156,6 +163,39 @@ def upgrade_db():
         if not column_exists(cursor, 'drum_lab_queue', 'cyanide'): cursor.execute('ALTER TABLE drum_lab_queue ADD COLUMN cyanide TEXT')
         if not column_exists(cursor, 'drum_lab_queue', 'sulfide'): cursor.execute('ALTER TABLE drum_lab_queue ADD COLUMN sulfide TEXT')
         if not column_exists(cursor, 'drum_lab_queue', 'oxidation'): cursor.execute('ALTER TABLE drum_lab_queue ADD COLUMN oxidation TEXT')
+        
+        # 7. WVI PROFILE CACHE (Prevent JOIN crashes)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS profile_wvi (
+                profile TEXT PRIMARY KEY,
+                filename TEXT,
+                generator_name TEXT,
+                waste_name TEXT,
+                physical_description TEXT,
+                ldr TEXT,
+                state_waste_codes TEXT,
+                federal_waste_codes TEXT,
+                dot_description TEXT,
+                handling_instruction TEXT,
+                sample_procedures TEXT,
+                verification_procedures TEXT,
+                ph_min REAL,
+                ph_max REAL,
+                sulfides TEXT,
+                cyanide TEXT,
+                free_liquids TEXT,
+                flashpoint TEXT,
+                unloading_instructions TEXT,
+                reactivity_codes TEXT,
+                approved_date TEXT,
+                expiration_date TEXT,
+                lab_num TEXT,
+                voc_ppm REAL,
+                treatment_information TEXT,
+                notes_revisions TEXT,
+                is_synced INTEGER DEFAULT 0
+            )
+        ''')
         
         conn.commit()
 
@@ -547,13 +587,36 @@ def edit_truck(log_id):
             
             net_weight_tons = (gross_weight - exit_weight) / 2000.0 if exit_weight > 0 else 0.0
             
+            # Extract lab values
+            specific_gravity = request.form.get('specific_gravity')
+            measured_ph = request.form.get('measured_ph')
+            measured_flashpoint = request.form.get('measured_flashpoint', '')
+            measured_sulfides = request.form.get('measured_sulfides', '')
+            measured_cyanide = request.form.get('measured_cyanide', '')
+            measured_free_liquids = request.form.get('measured_free_liquids', '')
+            
+            try:
+                specific_gravity = float(specific_gravity) if specific_gravity else None
+            except ValueError:
+                specific_gravity = None
+                
+            try:
+                measured_ph = float(measured_ph) if measured_ph else None
+            except ValueError:
+                measured_ph = None
+                
             conn.execute('''
                 UPDATE truck_logs 
                 SET manifest_number = ?, load_number = ?, profile_number = ?, 
                     gross_weight = ?, exit_weight = ?, net_weight = ?, cell_location = ?, grid_location = ?,
-                    time_in = ?, time_out = ?
+                    time_in = ?, time_out = ?,
+                    specific_gravity = ?, measured_ph = ?, measured_flashpoint = ?,
+                    measured_sulfides = ?, measured_cyanide = ?, measured_free_liquids = ?
                 WHERE id = ?
-            ''', (manifest_number, load_number, profile_number, gross_weight, exit_weight, net_weight_tons, cell_location, grid_location, time_in, time_out, log_id))
+            ''', (manifest_number, load_number, profile_number, gross_weight, exit_weight, net_weight_tons, 
+                  cell_location, grid_location, time_in, time_out, 
+                  specific_gravity, measured_ph, measured_flashpoint, 
+                  measured_sulfides, measured_cyanide, measured_free_liquids, log_id))
             conn.commit()
             return redirect(url_for('reports', date=date_received))
 
@@ -640,10 +703,19 @@ def export_excel():
         # SHEET 3: GALLONS CALCULATOR (WMU 31 loads only)
         # ---------------------------------------------------------
         if wmu.startswith('31'):
-            # Convert LBS to Gallons (Assuming water weight ~8.34 lbs/gal)
-            gallons = (lbs / 8.34) if lbs else 0.0 
+            # Retrieve Specific Gravity from database or default to 1.0
+            sg = t.get('specific_gravity')
+            try:
+                sg_val = float(sg) if sg is not None else 1.0
+            except (ValueError, TypeError):
+                sg_val = 1.0
+            if sg_val <= 0:
+                sg_val = 1.0
+                
+            # Convert LBS to Gallons (Using Specific Gravity)
+            gallons = (lbs / (8.34 * sg_val)) if lbs else 0.0 
             gallons_data.append({
-                'SPECIFIC GRAVITY': 1.0,  # Defaulting to 1.0, can be adjusted
+                'SPECIFIC GRAVITY': sg_val,
                 'NET (LBS) WEIGHT OF LOAD': lbs,
                 'GALLONS PER LOAD': round(gallons, 2),
                 'WEIGHT TICKET #': t.get('load_number', ''),
@@ -875,10 +947,44 @@ def reports():
 
 @app.route('/update_lab', methods=['POST'])
 def update_lab():
+    log_id = request.form.get('log_id')
+    lab_results = request.form.get('lab_results', '')
+    
+    # Extract new fields
+    specific_gravity = request.form.get('specific_gravity')
+    measured_ph = request.form.get('measured_ph')
+    measured_flashpoint = request.form.get('measured_flashpoint', '')
+    measured_sulfides = request.form.get('measured_sulfides', '')
+    measured_cyanide = request.form.get('measured_cyanide', '')
+    measured_free_liquids = request.form.get('measured_free_liquids', '')
+    
+    # Handle optional float numbers safely
+    try:
+        specific_gravity = float(specific_gravity) if specific_gravity else None
+    except ValueError:
+        specific_gravity = None
+        
+    try:
+        measured_ph = float(measured_ph) if measured_ph else None
+    except ValueError:
+        measured_ph = None
+        
     with closing(get_db_connection()) as conn:
-        conn.execute("UPDATE truck_logs SET lab_results = ?, test_status = 'LAB COMPLETED' WHERE id = ?", (request.form.get('lab_results'), request.form.get('log_id')))
+        conn.execute('''
+            UPDATE truck_logs 
+            SET lab_results = ?, 
+                specific_gravity = ?,
+                measured_ph = ?,
+                measured_flashpoint = ?,
+                measured_sulfides = ?,
+                measured_cyanide = ?,
+                measured_free_liquids = ?,
+                test_status = 'LAB COMPLETED' 
+            WHERE id = ?
+        ''', (lab_results, specific_gravity, measured_ph, measured_flashpoint, 
+              measured_sulfides, measured_cyanide, measured_free_liquids, log_id))
         conn.commit()
-    return redirect(url_for('home'))
+    return redirect(url_for('chemist_dashboard'))
 
 def sync_profile_from_wvi_file(conn, profile_number):
     if not profile_number:

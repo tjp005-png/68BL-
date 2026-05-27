@@ -105,7 +105,7 @@
                                         title="Click anywhere on row to fix typos">
                                         
                                         <td class="fs-5">
-                                            {% if truck.lab_results %}
+                                            {% if truck.test_status == 'LAB COMPLETED' or truck.lab_results or truck.measured_ph is not none or truck.specific_gravity is not none or truck.measured_flashpoint or truck.measured_sulfides or truck.measured_cyanide or truck.measured_free_liquids %}
                                                 <a href="#" class="text-success fw-bold text-decoration-underline" data-bs-toggle="modal" data-bs-target="#viewLabModal{{ truck.id }}" title="View Lab Results">
                                                     {{ truck.load_number }} 📄
                                                 </a>
@@ -160,19 +160,63 @@
                                                 </button>
                                             </div>
 
-                                            {% if truck.lab_results %}
+                                            {% if truck.test_status == 'LAB COMPLETED' or truck.lab_results or truck.measured_ph is not none or truck.specific_gravity is not none or truck.measured_flashpoint or truck.measured_sulfides or truck.measured_cyanide or truck.measured_free_liquids %}
                                             <div class="modal fade" id="viewLabModal{{ truck.id }}" tabindex="-1" aria-hidden="true">
                                                 <div class="modal-dialog">
-                                                    <div class="modal-content">
-                                                        <div class="modal-header text-dark" style="background-color: #ffc107;">
-                                                            <h5 class="modal-title fw-bold">🧪 Lab Notes: Load {{ truck.load_number }}</h5>
+                                                    <div class="modal-content border-warning shadow-lg">
+                                                        <div class="modal-header text-dark" style="background-color: #ffc107; border-bottom: 3px solid #e0a800;">
+                                                            <h5 class="modal-title fw-bold">🧪 Lab Results: Load {{ truck.load_number }}</h5>
                                                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                                         </div>
                                                         <div class="modal-body text-start">
-                                                            <textarea class="form-control bg-light" rows="5" readonly>{{ truck.lab_results }}</textarea>
+                                                            <div class="card bg-light border-0 mb-3 shadow-sm">
+                                                                <div class="card-body p-3">
+                                                                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">📋 Test Measurements</h6>
+                                                                    <div class="row g-3">
+                                                                        {% if truck.specific_gravity is not none %}
+                                                                        <div class="col-6 border-end border-2 border-light">
+                                                                            <span class="text-muted small fw-bold d-block" style="font-size: 0.75rem;">SPECIFIC GRAVITY</span>
+                                                                            <span class="fs-5 fw-bold text-danger">{{ truck.specific_gravity }}</span>
+                                                                        </div>
+                                                                        {% endif %}
+                                                                        
+                                                                        <div class="col-6">
+                                                                            <span class="text-muted small fw-bold d-block" style="font-size: 0.75rem;">MEASURED pH</span>
+                                                                            <span class="fs-5 fw-bold text-dark">{{ truck.measured_ph if truck.measured_ph is not none else 'N/A' }}</span>
+                                                                        </div>
+                                                                        
+                                                                        <div class="col-6 border-end border-2 border-light mt-2">
+                                                                            <span class="text-muted small fw-bold d-block" style="font-size: 0.75rem;">FLASHPOINT</span>
+                                                                            <span class="fw-bold text-dark">{{ truck.measured_flashpoint or 'N/A' }}</span>
+                                                                        </div>
+                                                                        
+                                                                        <div class="col-6 mt-2">
+                                                                            <span class="text-muted small fw-bold d-block mb-1" style="font-size: 0.75rem;">SULFIDES</span>
+                                                                            <span class="badge {% if truck.measured_sulfides == 'Positive' %}bg-danger{% elif truck.measured_sulfides == 'Negative' %}bg-success{% else %}bg-secondary{% endif %} px-2 py-1 fw-bold">{{ truck.measured_sulfides or 'N/A' }}</span>
+                                                                        </div>
+                                                                        
+                                                                        <div class="col-6 border-end border-2 border-light mt-2">
+                                                                            <span class="text-muted small fw-bold d-block mb-1" style="font-size: 0.75rem;">CYANIDE</span>
+                                                                            <span class="badge {% if truck.measured_cyanide == 'Positive' %}bg-danger{% elif truck.measured_cyanide == 'Negative' %}bg-success{% else %}bg-secondary{% endif %} px-2 py-1 fw-bold">{{ truck.measured_cyanide or 'N/A' }}</span>
+                                                                        </div>
+                                                                        
+                                                                        <div class="col-6 mt-2">
+                                                                            <span class="text-muted small fw-bold d-block mb-1" style="font-size: 0.75rem;">FREE LIQUIDS</span>
+                                                                            <span class="badge {% if truck.measured_free_liquids == 'Yes' %}bg-danger{% elif truck.measured_free_liquids == 'No' %}bg-success{% else %}bg-secondary{% endif %} px-2 py-1 fw-bold">{{ truck.measured_free_liquids or 'N/A' }}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            {% if truck.lab_results %}
+                                                            <div class="mb-2">
+                                                                <span class="text-muted small fw-bold d-block mb-1">LAB NOTES / OBSERVATIONS</span>
+                                                                <textarea class="form-control bg-light border-warning-subtle" rows="4" readonly>{{ truck.lab_results }}</textarea>
+                                                            </div>
+                                                            {% endif %}
                                                         </div>
                                                         <div class="modal-footer">
-                                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                                            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Close</button>
                                                         </div>
                                                     </div>
                                                 </div>
