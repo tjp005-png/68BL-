@@ -161,29 +161,33 @@ def reports():
     
     with closing(get_db_connection()) as conn:
         all_profiles = conn.execute('SELECT profile_number, voc_percentage FROM profiles').fetchall()
-        voc_dict = {p['profile_number']: p['voc_percentage'] for p in all_profiles}
+        voc_dict = {str(p['profile_number'] or '').strip().upper(): p['voc_percentage'] for p in all_profiles}
         
         sched_data = conn.execute("SELECT profile_number, SUM(load_count) as sched_loads FROM daily_schedule WHERE schedule_date = ? GROUP BY profile_number", (selected_date,)).fetchall()
-        schedule_dict = {row['profile_number']: row['sched_loads'] for row in sched_data}
+        schedule_dict = {}
+        for row in sched_data:
+            prof_clean = str(row['profile_number'] or '').strip().upper()
+            schedule_dict[prof_clean] = schedule_dict.get(prof_clean, 0) + row['sched_loads']
         total_scheduled = sum(schedule_dict.values())
         
         # Pulls truck counts and exact tonnage sent to Unit 35
         actual_data = conn.execute('''
             SELECT 
-                t.profile_number, 
+                TRIM(UPPER(t.profile_number)) as profile_number, 
                 COUNT(t.id) as total_trucks, 
                 SUM(CASE WHEN t.cell_location LIKE '35%' THEN t.net_weight ELSE 0 END) as total_tons, 
                 MAX(p.voc_percentage) as profile_voc 
             FROM truck_logs t 
-            LEFT JOIN profiles p ON t.profile_number = p.profile_number 
+            LEFT JOIN profiles p ON TRIM(UPPER(t.profile_number)) = TRIM(UPPER(p.profile_number)) 
             WHERE t.exit_weight IS NOT NULL AND t.date_received = ? 
-            GROUP BY t.profile_number
+            GROUP BY TRIM(UPPER(t.profile_number))
         ''', (selected_date,)).fetchall()
         
+        # Pulls logs details, joining case-insensitively
         truck_logs_raw = conn.execute('''
             SELECT t.*, p.generator
             FROM truck_logs t
-            LEFT JOIN profiles p ON t.profile_number = p.profile_number
+            LEFT JOIN profiles p ON TRIM(UPPER(t.profile_number)) = TRIM(UPPER(p.profile_number))
             WHERE t.date_received = ? AND t.test_status != 'REJECTED'
             ORDER BY CAST(t.load_number AS INTEGER) ASC
         ''', (selected_date,)).fetchall()
@@ -197,7 +201,7 @@ def reports():
     
     actual_profiles = set()
     for a in actual_data:
-        prof = a['profile_number']
+        prof = str(a['profile_number'] or '').strip().upper()
         actual_profiles.add(prof)
         sched = schedule_dict.get(prof, 0)
         
@@ -227,15 +231,21 @@ def reports():
             voc_x_tons_sum += (safe_voc * unit_35_tons) 
             unit_35_total_tons += unit_35_tons
             
-    for s in sched_data:
-        prof = s['profile_number']
+    for prof, sched in schedule_dict.items():
         if prof not in actual_profiles: 
             try:
                 safe_voc = float(voc_dict.get(prof, 0.0))
             except (ValueError, TypeError):
                 safe_voc = 0.0
                 
-            master_report.append({'profile_number': prof, 'total_trucks': 0, 'total_tons': 0.0, 'avg_voc_ppm': safe_voc, 'scheduled': s['sched_loads'], 'variance': -s['sched_loads']})
+            master_report.append({
+                'profile_number': prof, 
+                'total_trucks': 0, 
+                'total_tons': 0.0, 
+                'avg_voc_ppm': safe_voc, 
+                'scheduled': sched, 
+                'variance': -sched
+            })
             
     master_report.sort(key=lambda x: (x['scheduled'], x['total_trucks']), reverse=True)
             
@@ -251,7 +261,8 @@ def reports():
     
     trucks_by_profile = defaultdict(list)
     for t in truck_logs:
-        trucks_by_profile[t['profile_number']].append(t)
+        prof_clean = str(t['profile_number'] or '').strip().upper()
+        trucks_by_profile[prof_clean].append(t)
 
     # ---------------------------------------------------------
     # GAP FILLING LOGIC FOR PRINTED COVER SHEET (SAFEGUARDED)

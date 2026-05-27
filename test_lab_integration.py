@@ -247,5 +247,30 @@ class TestCompliancePortalIntegration(unittest.TestCase):
         self.assertEqual(updated_row['voc_pass_fail'], 'PASS')
         self.assertEqual(updated_row['lab_results'], 'VOC verified ok')
 
+    def test_unscheduled_truck_in_reports(self):
+        """Verify that an unscheduled checked-out truck is tracked in the reports page"""
+        conn = original_connect(TEST_DB_PATH)
+        # Insert an unscheduled truck log on 2026-05-01 (PUNSCHED has no schedule)
+        conn.execute('''
+            INSERT INTO truck_logs (
+                truck_id, profile_number, manifest_number, load_number,
+                gross_weight, exit_weight, net_weight, cell_location, grid_location,
+                date_received, time_in, time_out, test_status
+            ) VALUES (
+                'TUNSCHED', 'PUNSCHED', 'MUNSCHED', '99',
+                55000.0, 35000.0, 20000.0, '35-CELL', 'G-99',
+                '2026-05-01', '13:00', '13:45', 'COMPLETED'
+            )
+        ''')
+        conn.commit()
+        conn.close()
+        
+        # Request reports page for 2026-05-01
+        response = self.client.get('/reports?date=2026-05-01')
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify that PUNSCHED is in the html response
+        self.assertIn(b'PUNSCHED', response.data)
+
 if __name__ == '__main__':
     unittest.main()
