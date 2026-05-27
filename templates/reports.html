@@ -510,6 +510,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
     
     <script>
         function populateEditTruckModal(row) {
@@ -574,15 +576,16 @@
             editModal.show();
         }
 
-        // --- 🟢 LIVE AUTO-REFRESH LOGIC (ONLY IF VIEWING TODAY) ---
+        // --- 🟢 LIVE WEBSOCKET AUTO-REFRESH LOGIC (ONLY IF VIEWING TODAY) ---
         {% if selected_date == today_str %}
-            setInterval(function() {
-                // Safety Check: Is the Bootstrap modal currently open?
-                // If the body has 'modal-open', the user is editing something. Do not refresh!
+            const socket = io();
+            function checkAndReload() {
                 if (!document.body.classList.contains('modal-open')) {
                     window.location.reload(); 
                 }
-            }, 60000); 
+            }
+            socket.on('truck_update', checkAndReload);
+            socket.on('lab_update', checkAndReload);
         {% endif %}
     </script>
 </body>
