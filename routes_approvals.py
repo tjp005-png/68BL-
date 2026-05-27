@@ -1,0 +1,129 @@
+from flask import Blueprint, render_template, request, redirect, url_for, jsonify
+from datetime import date
+from contextlib import closing
+import pdfplumber
+import re
+import time
+from database import get_db_connection
+from shared_state import SCHEDULE_UPDATES
+
+approvals_bp = Blueprint('approvals_bp', __name__)
+
+@approvals_bp.route('/approvals')
+def approvals_portal():
+    search_query = request.args.get('search', '').strip()
+    with closing(get_db_connection()) as conn:
+        if search_query:
+            query = f"%{search_query}%"
+            # We select generator as generator_name to match approvals.html
+            profiles = conn.execute('''
+                SELECT profile_number, generator AS generator_name, waste_description, win_code, 
+                       voc_percentage, special_handling, ph_range, physical_appearance, flash_point, expiration_date
+                FROM profiles
+                WHERE profile_number LIKE ? OR generator LIKE ? OR win_code LIKE ?
+                ORDER BY profile_number ASC
+            ''', (query, query, query)).fetchall()
+        else:
+            profiles = conn.execute('''
+                SELECT profile_number, generator AS generator_name, waste_description, win_code, 
+                       voc_percentage, special_handling, ph_range, physical_appearance, flash_point, expiration_date
+                FROM profiles
+                ORDER BY profile_number ASC
+            ''').fetchall()
+    return render_template('approvals.html', profiles=profiles, search_query=search_query)
+
+@approvals_bp.route('/waste_acceptance')
+def waste_acceptance():
+    with closing(get_db_connection()) as conn:
+        completed_labs = conn.execute("SELECT * FROM drum_lab_queue WHERE status = 'COMPLETED'").fetchall()
+        
+        staging_data = []
+        for lab in completed_labs:
+            related_drums = conn.execute('''
+                SELECT * FROM drum_inventory 
+                WHERE manifest = ? AND inb_prof = ? AND process_type = 'PENDING SAMPLING'
+            ''', (lab['manifest'], lab['profile'])).fetchall()
+            
+            if related_drums:
+                staging_data.append({
+                    'lab_result': dict(lab),
+                    'related_drums': [dict(d) for d in related_drums],
+                    'drum_count': len(related_drums)
+                })
+                
+    return render_template('waste_acceptance.html', staging_data=staging_data)
+
+@approvals_bp.route('/api/parse_profile_pdf', methods=['POST'])
+def parse_profile_pdf():
+    if 'pdf_file' not in request.files: return jsonify({'error': 'No file uploaded'}), 400
+    file = request.files['pdf_file']
+    if file.filename == '': return jsonify({'error': 'No file selected'}), 400
+
+    extracted_data = {'profile_number': '', 'generator': '', 'waste_description': '', 'win_code': '', 'special_handling': ''}
+    try:
+        with pdfplumber.open(file) as pdf:
+            full_text = "".join([page.extract_text() + "\n" for page in pdf.pages[:2]])
+            prof_match = re.search(r'Clean Harbors Profile No\.\s*([A-Z0-9]+)', full_text)
+            if prof_match: extracted_data['profile_number'] = prof_match.group(1).strip()
+            gen_match = re.search(r'GENERATOR NAME:\s*(.*?)\n', full_text)
+            if gen_match: extracted_data['generator'] = gen_match.group(1).strip()
+            desc_match = re.search(r'CUSTOMER WASTE DESCRIPTION:\s*(.*?)\n', full_text)
+            if desc_match: extracted_data['waste_description'] = desc_match.group(1).strip()
+            form_code_match = re.search(r'SPECIFY THE FORM CODE.*?([A-Z][0-9]{3})', full_text, re.IGNORECASE | re.DOTALL)
+            if form_code_match: extracted_data['win_code'] = form_code_match.group(1).strip()
+        return jsonify(extracted_data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@approvals_bp.route('/add_master_profile', methods=['POST'])
+def add_master_profile():
+    with closing(get_db_connection()) as conn:
+        generator = request.form.get('generator') or request.form.get('generator_name') or ''
+        conn.execute('''
+            REPLACE INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, special_handling, ph_range, physical_appearance, flash_point, expiration_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (request.form.get('profile_number').upper(), generator, request.form.get('waste_description', ''), request.form.get('win_code', ''), request.form.get('voc_percentage', 0.0), request.form.get('special_handling', ''), request.form.get('ph_range', ''), request.form.get('physical_appearance', ''), request.form.get('flash_point', ''), request.form.get('expiration_date', '')))
+        conn.commit()
+    return redirect(url_for('approvals_bp.approvals_portal'))
+
+@approvals_bp.route('/api/auto_sync_profiles', methods=['POST'])
+def auto_sync_profiles():
+    date_str = request.form.get('schedule_date')
+    updates_made = False
+    
+    if date_str:
+        with closing(get_db_connection()) as conn:
+            schedules = conn.execute('SELECT id, profile_number, voc_level, generator FROM daily_schedule WHERE schedule_date = ?', (date_str,)).fetchall()
+            
+            for s in schedules:
+                prof_num = str(s['profile_number']).strip().upper()
+                prof = conn.execute('''
+                    SELECT voc_percentage, generator, win_code 
+                    FROM profiles 
+                    WHERE TRIM(UPPER(profile_number)) = ?
+                ''', (prof_num,)).fetchone()
+                
+                if prof:
+                    try:
+                        val = float(prof['voc_percentage'])
+                        new_voc = str(int(val)) if val > 0 else '0'
+                    except (ValueError, TypeError):
+                        new_voc = 'TBD'
+                        
+                    # CRITICAL: Only update the database IF the values are actually different
+                    if new_voc != str(s['voc_level']) or str(prof['generator']) != str(s['generator']):
+                        conn.execute('''
+                            UPDATE daily_schedule 
+                            SET voc_level = ?, generator = ?, routing_code = ?
+                            WHERE id = ?
+                        ''', (new_voc, prof['generator'], prof['win_code'], s['id']))
+                        updates_made = True
+                        
+            if updates_made:
+                conn.commit()
+                
+        # Only ping the connected users if we actually changed something
+        if updates_made:
+            SCHEDULE_UPDATES[date_str] = time.time()
+            
+    return jsonify({'updated': updates_made})
