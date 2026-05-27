@@ -130,6 +130,7 @@ def upgrade_db():
         ''')
         if not column_exists(cursor, 'drum_inventory', 'manifest'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN manifest TEXT')
         if not column_exists(cursor, 'drum_inventory', 'job_id'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN job_id TEXT')
+        if not column_exists(cursor, 'drum_inventory', 'status'): cursor.execute("ALTER TABLE drum_inventory ADD COLUMN status TEXT DEFAULT 'PENDING'")
 
         # 5. DRUM SAMPLING COMPLIANCE TABLES
         cursor.execute('''
@@ -165,6 +166,7 @@ def upgrade_db():
         if not column_exists(cursor, 'drum_lab_queue', 'cyanide'): cursor.execute('ALTER TABLE drum_lab_queue ADD COLUMN cyanide TEXT')
         if not column_exists(cursor, 'drum_lab_queue', 'sulfide'): cursor.execute('ALTER TABLE drum_lab_queue ADD COLUMN sulfide TEXT')
         if not column_exists(cursor, 'drum_lab_queue', 'oxidation'): cursor.execute('ALTER TABLE drum_lab_queue ADD COLUMN oxidation TEXT')
+        if not column_exists(cursor, 'drum_lab_queue', 'coded_in_win'): cursor.execute('ALTER TABLE drum_lab_queue ADD COLUMN coded_in_win INTEGER DEFAULT 0')
         
         # 7. WVI PROFILE CACHE (Prevent JOIN crashes)
         cursor.execute('''

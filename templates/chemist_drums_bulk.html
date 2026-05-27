@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chemist Bulk Drum Entry - {{ job_id }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .ch-red-bg { background-color: #970000 !important; color: white; }
+        .input-sm { padding: 4px 6px; font-size: 0.9rem; }
+    </style>
+</head>
+<body class="bg-light">
+
+    <div class="container-fluid mt-4 px-5">
+        
+        <!-- Header Card -->
+        <div class="card shadow mb-4 border-0">
+            <div class="card-header text-white d-flex justify-content-between align-items-center ch-red-bg" style="border-bottom: 4px solid #5a0000;">
+                <div class="d-flex align-items-center">
+                    <img src="{{ url_for('static', filename='CLH_BIG.png') }}" alt="Clean Harbors Logo" style="height: 45px; margin-right: 15px; background-color: white; padding: 4px; border-radius: 5px;">
+                    <h2 class="mb-0 fw-bold">🧪 CHEMIST DRUM ENTRY GRID - LOAD: {{ job_id }}</h2>
+                </div>
+                <div>
+                    <button type="button" onclick="prefillDefaults()" class="btn btn-warning fw-bold shadow-sm me-2">
+                        ⚡ Pre-fill Standard Defaults
+                    </button>
+                    <a href="/stu/hub" class="btn btn-light fw-bold shadow-sm text-dark">⬅️ STU Hub</a>
+                </div>
+            </div>
+        </div>
+
+        <form action="/chemist/drums/bulk/submit" method="POST">
+            <input type="hidden" name="job_id" value="{{ job_id }}">
+            
+            <div class="card shadow">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 text-nowrap">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Drum ID</th>
+                                    <th>Profile</th>
+                                    <th>Manifest</th>
+                                    <th style="min-width: 140px;">WVI Profile Limits (Ref)</th>
+                                    <th style="width: 100px;">pH</th>
+                                    <th style="width: 100px;">VOC (ppm)</th>
+                                    <th style="width: 130px;">Flashpoint</th>
+                                    <th style="width: 110px;">Cyanide</th>
+                                    <th style="width: 120px;">Sulfide</th>
+                                    <th style="width: 110px;">Oxidation</th>
+                                    <th style="width: 130px;">Status</th>
+                                    <th>Chemist Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for drum in drums %}
+                                <tr>
+                                    <td class="fw-bold">
+                                        {{ drum.drum_id }}
+                                        <input type="hidden" name="drum_db_id" value="{{ drum.id }}">
+                                    </td>
+                                    <td class="fw-bold text-primary">{{ drum.profile }}</td>
+                                    <td class="text-muted">{{ drum.manifest }}</td>
+                                    <td style="font-size: 0.85rem; line-height: 1.2;" class="text-secondary">
+                                        <strong>pH:</strong> {{ drum.ph_min or '-' }} to {{ drum.ph_max or '-' }}<br>
+                                        <strong>VOC:</strong> {{ drum.wvi_voc_ppm or '-' }} ppm<br>
+                                        <strong>Sulf/Cyan:</strong> {{ drum.wvi_sulfides or '-' }}/{{ drum.wvi_cyanide or '-' }}
+                                    </td>
+                                    <td>
+                                        <input type="number" step="0.1" class="form-control form-control-sm input-sm ph-input" name="ph_{{ drum.id }}" value="{{ drum.ph_result or '' }}" required>
+                                    </td>
+                                    <td>
+                                        <input type="number" step="0.1" class="form-control form-control-sm input-sm voc-input" name="voc_{{ drum.id }}" value="{{ drum.voc_result or '' }}" required>
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm input-sm fp-input" name="flashpoint_{{ drum.id }}" value="{{ drum.flashpoint or '' }}" placeholder="e.g. >200">
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm input-sm cy-input" name="cyanide_{{ drum.id }}">
+                                            <option value="No" {% if drum.cyanide == 'No' %}selected{% endif %}>No</option>
+                                            <option value="Yes" {% if drum.cyanide == 'Yes' %}selected{% endif %}>Yes</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm input-sm sulf-input" name="sulfide_{{ drum.id }}">
+                                            <option value="Negative" {% if drum.sulfide == 'Negative' %}selected{% endif %}>Negative</option>
+                                            <option value="Positive" {% if drum.sulfide == 'Positive' %}selected{% endif %}>Positive</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm input-sm ox-input" name="oxidation_{{ drum.id }}">
+                                            <option value="No" {% if drum.oxidation == 'No' %}selected{% endif %}>No</option>
+                                            <option value="Yes" {% if drum.oxidation == 'Yes' %}selected{% endif %}>Yes</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm input-sm status-input" name="status_{{ drum.id }}" required>
+                                            <option value="PENDING" {% if drum.status == 'PENDING' %}selected{% endif %}>PENDING</option>
+                                            <option value="COMPLETED" {% if drum.status == 'COMPLETED' or not drum.status %}selected{% endif %}>COMPLETED</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm input-sm notes-input" name="notes_{{ drum.id }}" value="{{ drum.notes or '' }}" placeholder="Optional notes">
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-light p-3 text-end">
+                    <button type="submit" class="btn btn-success fw-bold px-5 shadow-sm fs-5">
+                        💾 Submit All Lab Results
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Set all drum values to standard pre-filled defaults
+        function prefillDefaults() {
+            if (confirm("This will pre-fill all empty inputs with standard defaults (pH: 7.0, VOC: 0, Negative, Completed). Continue?")) {
+                document.querySelectorAll('.ph-input').forEach(input => { if (!input.value) input.value = "7.0"; });
+                document.querySelectorAll('.voc-input').forEach(input => { if (!input.value) input.value = "0"; });
+                document.querySelectorAll('.fp-input').forEach(input => { if (!input.value) input.value = ">200"; });
+                document.querySelectorAll('.cy-input').forEach(select => { select.value = "No"; });
+                document.querySelectorAll('.sulf-input').forEach(select => { select.value = "Negative"; });
+                document.querySelectorAll('.ox-input').forEach(select => { select.value = "No"; });
+                document.querySelectorAll('.status-input').forEach(select => { select.value = "COMPLETED"; });
+            }
+        }
+    </script>
+</body>
+</html>

@@ -32,32 +32,103 @@ def approvals_portal():
             ''').fetchall()
     return render_template('approvals.html', profiles=profiles, search_query=search_query)
 
-from collections import defaultdict
-
 @approvals_bp.route('/waste_acceptance')
 def waste_acceptance():
+    return redirect(url_for('stu_bp.stu_hub', view='pipeline'))
+
+@approvals_bp.route('/waste_acceptance/checklist/<job_id>')
+def waste_acceptance_checklist(job_id):
     with closing(get_db_connection()) as conn:
-        completed_labs = conn.execute("SELECT * FROM drum_lab_queue WHERE status = 'COMPLETED'").fetchall()
+        # Fetch all labs for this job_id
+        labs = conn.execute('''
+            SELECT * FROM drum_lab_queue 
+            WHERE job_id = ?
+        ''', (job_id,)).fetchall()
         
-        grouped_jobs = defaultdict(list)
-        for lab in completed_labs:
-            grouped_jobs[lab['job_id']].append(dict(lab))
+        # Fetch all related physical drums in drum_inventory for this job
+        related_drums = conn.execute('''
+            SELECT * FROM drum_inventory 
+            WHERE job_id = ? AND process_type = 'PENDING SAMPLING'
+        ''', (job_id,)).fetchall()
+        
+    return render_template('waste_acceptance.html', 
+                           job_id=job_id, 
+                           labs=[dict(l) for l in labs], 
+                           related_drums=[dict(d) for d in related_drums])
+
+@approvals_bp.route('/waste_acceptance/mark_coded', methods=['POST'])
+def waste_acceptance_mark_coded():
+    data = request.get_json() or {}
+    lab_id = data.get('lab_id')
+    coded = data.get('coded') # 1 or 0
+    
+    if lab_id is None or coded is None:
+        return jsonify({'error': 'Missing lab_id or coded state'}), 400
+        
+    with closing(get_db_connection()) as conn:
+        conn.execute('''
+            UPDATE drum_lab_queue 
+            SET coded_in_win = ? 
+            WHERE id = ?
+        ''', (int(coded), lab_id))
+        
+        # Fetch job_id to emit websocket update
+        lab_row = conn.execute('SELECT job_id FROM drum_lab_queue WHERE id = ?', (lab_id,)).fetchone()
+        job_id = lab_row['job_id'] if lab_row else None
+        
+        conn.commit()
+        
+        if job_id:
+            from shared_state import socketio
+            socketio.emit('drum_update', {'job_id': job_id})
             
-        staging_data = []
-        for job_id, labs in grouped_jobs.items():
-            related_drums = conn.execute('''
-                SELECT * FROM drum_inventory 
-                WHERE job_id = ? AND process_type = 'PENDING SAMPLING'
-            ''', (job_id,)).fetchall()
+    return jsonify({'success': True})
+
+@approvals_bp.route('/waste_acceptance/finalize_load', methods=['POST'])
+def waste_acceptance_finalize_load():
+    job_id = request.form.get('job_id')
+    if not job_id:
+        return "Missing Load Number (job_id)", 400
+        
+    with closing(get_db_connection()) as conn:
+        # Get all completed labs for this job_id
+        labs = conn.execute('''
+            SELECT * FROM drum_lab_queue 
+            WHERE job_id = ? AND status = 'COMPLETED'
+        ''', (job_id,)).fetchall()
+        
+        # 1. Update the drum_inventory drums that match the lab's manifest and profile
+        for lab in labs:
+            conn.execute('''
+                UPDATE drum_inventory 
+                SET process_type = 'TESTED', 
+                    ph = ?, 
+                    voc_ppm = ?, 
+                    voc_weight = weight * ?
+                WHERE job_id = ? AND manifest = ? AND inb_prof = ? AND process_type = 'PENDING SAMPLING'
+            ''', (lab['ph_result'], lab['voc_result'], lab['voc_result'], job_id, lab['manifest'], lab['profile']))
             
-            staging_data.append({
-                'job_id': job_id,
-                'labs': labs,
-                'related_drums': [dict(d) for d in related_drums],
-                'drum_count': len(related_drums)
-            })
-                
-    return render_template('waste_acceptance.html', staging_data=staging_data)
+        # 2. Update ALL remaining drums for this job_id that are PENDING SAMPLING to TESTED
+        conn.execute('''
+            UPDATE drum_inventory
+            SET process_type = 'TESTED'
+            WHERE job_id = ? AND process_type = 'PENDING SAMPLING'
+        ''', (job_id,))
+        
+        # 3. Update the drum_lab_queue status to 'FINAL CODED' for this job_id
+        conn.execute('''
+            UPDATE drum_lab_queue 
+            SET status = 'FINAL CODED' 
+            WHERE job_id = ?
+        ''', (job_id,))
+        
+        conn.commit()
+        
+        # Emit a socket update for the completed load
+        from shared_state import socketio
+        socketio.emit('drum_update', {'job_id': job_id})
+        
+    return redirect(url_for('stu_bp.stu_hub', view='pipeline'))
 
 @approvals_bp.route('/api/parse_profile_pdf', methods=['POST'])
 def parse_profile_pdf():

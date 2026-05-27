@@ -384,3 +384,49 @@ def final_code():
         socketio.emit('drum_update', {'manifest': manifest, 'profile': profile})
         
     return redirect(url_for('approvals_bp.waste_acceptance'))
+
+@chemist_bp.route('/chemist/drums/bulk/<job_id>')
+def chemist_drums_bulk(job_id):
+    with closing(get_db_connection()) as conn:
+        drums = conn.execute('''
+            SELECT q.*, 
+                   w.ph_min, w.ph_max, w.sulfides as wvi_sulfides, w.cyanide as wvi_cyanide, 
+                   w.free_liquids as wvi_free_liquids, w.flashpoint as wvi_flashpoint, 
+                   w.voc_ppm as wvi_voc_ppm
+            FROM drum_lab_queue q
+            LEFT JOIN profile_wvi w ON TRIM(UPPER(q.profile)) = TRIM(UPPER(w.profile))
+            WHERE q.job_id = ?
+        ''', (job_id,)).fetchall()
+        
+    return render_template('chemist_drums_bulk.html', job_id=job_id, drums=drums)
+
+@chemist_bp.route('/chemist/drums/bulk/submit', methods=['POST'])
+def chemist_drums_bulk_submit():
+    job_id = request.form.get('job_id')
+    drum_db_ids = request.form.getlist('drum_db_id')
+    
+    with closing(get_db_connection()) as conn:
+        for d_id in drum_db_ids:
+            status = request.form.get(f'status_{d_id}')
+            notes = request.form.get(f'notes_{d_id}', '')
+            flashpoint = request.form.get(f'flashpoint_{d_id}', '')
+            cyanide = request.form.get(f'cyanide_{d_id}', '')
+            sulfide = request.form.get(f'sulfide_{d_id}', '')
+            oxidation = request.form.get(f'oxidation_{d_id}', '')
+            
+            try: ph_result = float(request.form.get(f'ph_{d_id}', 0))
+            except: ph_result = 0.0
+                
+            try: voc_result = float(request.form.get(f'voc_{d_id}', 0))
+            except: voc_result = 0.0
+            
+            conn.execute('''
+                UPDATE drum_lab_queue 
+                SET status = ?, ph_result = ?, voc_result = ?, flashpoint = ?, 
+                    cyanide = ?, sulfide = ?, oxidation = ?, notes = ?
+                WHERE id = ?
+            ''', (status, ph_result, voc_result, flashpoint, cyanide, sulfide, oxidation, notes, d_id))
+                    
+        conn.commit()
+        socketio.emit('drum_update', {'job_id': job_id})
+    return redirect(url_for('stu_bp.stu_hub', view='pipeline'))

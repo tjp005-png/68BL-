@@ -9,6 +9,8 @@ __pycache__/
 
 # Temporary folders & uploads
 temp_uploads/
+*.csv
+test_database.db*
 
 # Windows system files
 Thumbs.db

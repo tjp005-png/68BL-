@@ -13,22 +13,78 @@ from database import get_db_connection
 
 stu_bp = Blueprint('stu_bp', __name__)
 
-@stu_bp.route('/stu/inventory')
-def stu_inventory():
+@stu_bp.route('/stu/hub')
+def stu_hub():
+    view = request.args.get('view', 'pipeline')  # 'pipeline' or 'inventory'
     category = request.args.get('category', 'All')
+    
     with closing(get_db_connection()) as conn:
+        # Get active pipeline loads
+        active_jobs = conn.execute('''
+            SELECT DISTINCT job_id 
+            FROM drum_lab_queue 
+            WHERE status != 'FINAL CODED'
+            UNION
+            SELECT DISTINCT job_id
+            FROM drum_inventory
+            WHERE process_type = 'PENDING SAMPLING' AND job_id IS NOT NULL
+        ''').fetchall()
+        
+        pipeline_loads = []
+        for row in active_jobs:
+            job_id = row['job_id']
+            if not job_id: continue
+            
+            # Fetch total drums in inventory for this job
+            total_drums = conn.execute("SELECT COUNT(*) FROM drum_inventory WHERE job_id = ?", (job_id,)).fetchone()[0]
+            
+            # Fetch labs status
+            total_labs = conn.execute("SELECT COUNT(*) FROM drum_lab_queue WHERE job_id = ?", (job_id,)).fetchone()[0]
+            completed_labs = conn.execute("SELECT COUNT(*) FROM drum_lab_queue WHERE job_id = ? AND status = 'COMPLETED'", (job_id,)).fetchone()[0]
+            coded_labs = conn.execute("SELECT COUNT(*) FROM drum_lab_queue WHERE job_id = ? AND coded_in_win = 1", (job_id,)).fetchone()[0]
+            
+            # Determine stage
+            if total_drums == 0:
+                stage = "Empty Load"
+            elif completed_labs < total_labs:
+                stage = f"Pending Lab Analysis ({completed_labs}/{total_labs} tested)"
+            elif coded_labs < total_labs:
+                stage = f"Ready for WIN Coding ({coded_labs}/{total_labs} coded)"
+            else:
+                stage = "Ready for Finalization"
+                
+            pipeline_loads.append({
+                'job_id': job_id,
+                'total_drums': total_drums,
+                'total_labs': total_labs,
+                'completed_labs': completed_labs,
+                'coded_labs': coded_labs,
+                'stage': stage
+            })
+            
+        # Get inventory drums
         queries = {
-            'Decon': "SELECT * FROM drum_inventory WHERE process_type IN ('direct land haz', 'directlandasbes', 'asbestos') OR inb_prof = 'cnia' ORDER BY age DESC",
-            'Solidification': "SELECT * FROM drum_inventory WHERE process_type = 'solidify normal' ORDER BY age DESC",
-            'T_Drums': "SELECT * FROM drum_inventory WHERE process_type IN ('stabsolids 1', 'stabsolids 2') ORDER BY age DESC",
-            'TL_Drums': "SELECT * FROM drum_inventory WHERE process_type IN ('stabsolids 3', 'stabsolids 5') ORDER BY age DESC",
-            'Special_Handling': "SELECT * FROM drum_inventory WHERE process_type IN ('stabsolids 6', 'stabsolids 8', 'stabsolids 9', 'stabsolids 11', 'stabsolids 12', 'stabsolids 13', 'stabsolids 14') ORDER BY age DESC",
-            'All': "SELECT * FROM drum_inventory ORDER BY age DESC"
+            'Decon': "SELECT * FROM drum_inventory WHERE (process_type IN ('direct land haz', 'directlandasbes', 'asbestos') OR inb_prof = 'cnia') AND process_type != 'PENDING SAMPLING' ORDER BY age DESC",
+            'Solidification': "SELECT * FROM drum_inventory WHERE process_type = 'solidify normal' AND process_type != 'PENDING SAMPLING' ORDER BY age DESC",
+            'T_Drums': "SELECT * FROM drum_inventory WHERE process_type IN ('stabsolids 1', 'stabsolids 2') AND process_type != 'PENDING SAMPLING' ORDER BY age DESC",
+            'TL_Drums': "SELECT * FROM drum_inventory WHERE process_type IN ('stabsolids 3', 'stabsolids 5') AND process_type != 'PENDING SAMPLING' ORDER BY age DESC",
+            'Special_Handling': "SELECT * FROM drum_inventory WHERE process_type IN ('stabsolids 6', 'stabsolids 8', 'stabsolids 9', 'stabsolids 11', 'stabsolids 12', 'stabsolids 13', 'stabsolids 14') AND process_type != 'PENDING SAMPLING' ORDER BY age DESC",
+            'All': "SELECT * FROM drum_inventory WHERE process_type != 'PENDING SAMPLING' ORDER BY age DESC"
         }
         drums = conn.execute(queries.get(category, queries['All'])).fetchall()
         last_upload_row = conn.execute('SELECT MAX(import_date) FROM drum_inventory').fetchone()
         last_upload = last_upload_row[0] if last_upload_row else 'NO DATA'
-    return render_template('stu_inventory.html', drums=drums, category=category, last_upload=last_upload)
+        
+    return render_template('stu_hub.html', 
+                           pipeline_loads=pipeline_loads, 
+                           drums=drums, 
+                           view=view, 
+                           category=category, 
+                           last_upload=last_upload)
+
+@stu_bp.route('/stu/inventory')
+def stu_inventory():
+    return redirect(url_for('stu_bp.stu_hub', view='inventory', category=request.args.get('category', 'All')))
 
 @stu_bp.route('/stu/sampling', methods=['GET', 'POST'])
 def stu_sampling():
@@ -176,7 +232,7 @@ def upload_vpi():
     except Exception as e: 
         return f"Critical Error processing file: {e}", 500
     
-    return redirect(url_for('stu_bp.stu_inventory'))
+    return redirect(url_for('stu_bp.stu_hub', view='inventory'))
 
 @stu_bp.route('/export_stu', methods=['POST'])
 def export_stu():
