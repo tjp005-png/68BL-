@@ -4,53 +4,118 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chemist Bulk Drum Entry - {{ job_id }}</title>
+    <!-- Google Fonts Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        .ch-red-bg { background-color: #970000 !important; color: white; }
-        .input-sm { padding: 4px 6px; font-size: 0.9rem; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f6f9;
+            color: #333;
+            -webkit-text-size-adjust: 100%; /* Prevents text resizing on iOS orientation change */
+        }
+        .ch-red-bg { 
+            background: linear-gradient(135deg, #970000 0%, #c10000 100%) !important; 
+            color: white; 
+        }
+        .ch-dark-red-border { 
+            border-bottom: 4px solid #5a0000; 
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        }
+        /* iPad & Safari optimization to prevent automatic viewport zoom on input focus */
+        .input-sm {
+            padding: 8px 12px;
+            font-size: 16px !important; /* iOS Safari zoom prevention */
+            border-radius: 8px;
+            min-height: 40px;
+        }
+        /* Safari select styling alignment */
+        select.input-sm {
+            -webkit-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 16px 12px;
+            padding-right: 2rem;
+        }
+        /* Enable momentum touch scrolling for Safari on iOS */
+        .table-responsive {
+            -webkit-overflow-scrolling: touch;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        .table th, .table td {
+            vertical-align: middle;
+            padding: 10px 12px;
+        }
+        /* Apple iOS minimum touch target compliance (44x44px for buttons) */
+        .btn-touch {
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        /* Custom highlight for active focus rings */
+        .form-control:focus, .form-select:focus {
+            border-color: #3860b2;
+            box-shadow: 0 0 0 0.25rem rgba(56, 96, 178, 0.25);
+        }
     </style>
 </head>
 <body class="bg-light">
 
-    <div class="container-fluid mt-4 px-5">
+    <div class="container-fluid mt-4 px-3 px-md-5">
         
         <!-- Header Card -->
         <div class="card shadow mb-4 border-0">
-            <div class="card-header text-white d-flex justify-content-between align-items-center ch-red-bg" style="border-bottom: 4px solid #5a0000;">
+            <div class="card-header text-white d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 ch-red-bg ch-dark-red-border" style="border-radius: 12px 12px 0 0;">
                 <div class="d-flex align-items-center">
                     <img src="{{ url_for('static', filename='CLH_BIG.png') }}" alt="Clean Harbors Logo" style="height: 45px; margin-right: 15px; background-color: white; padding: 4px; border-radius: 5px;">
-                    <h2 class="mb-0 fw-bold">🧪 CHEMIST DRUM ENTRY GRID - LOAD: {{ job_id }}</h2>
+                    <h2 class="mb-0 fw-bold fs-3">🧪 CHEMIST DRUM ENTRY GRID - LOAD: {{ job_id }}</h2>
                 </div>
-                <div>
-                    <button type="button" onclick="prefillDefaults()" class="btn btn-warning fw-bold shadow-sm me-2">
-                        ⚡ Pre-fill Standard Defaults
+                <div class="d-flex gap-2">
+                    <button type="button" onclick="prefillDefaults()" class="btn btn-warning fw-bold btn-touch shadow-sm text-dark">
+                        ⚡ Pre-fill Defaults
                     </button>
-                    <a href="/stu/hub" class="btn btn-light fw-bold shadow-sm text-dark">⬅️ STU Hub</a>
+                    <a href="/chemist/drums" class="btn btn-light fw-bold btn-touch shadow-sm text-dark">⬅️ Lab Queue</a>
                 </div>
             </div>
         </div>
 
-        <form action="/chemist/drums/bulk/submit" method="POST">
+        <!-- Touchscreen Swipe Assist Indicator -->
+        <div class="alert alert-secondary d-lg-none text-center py-2 mb-3 border-0" style="font-size: 0.85rem; border-radius: 8px;">
+            ↔️ Swipe horizontally to view all columns on iPad/mobile
+        </div>
+
+        <form action="/chemist/drums/bulk/submit" method="POST" id="bulk-submit-form" onsubmit="disableSubmitButton(this)">
             <input type="hidden" name="job_id" value="{{ job_id }}">
             
-            <div class="card shadow">
+            <div class="card shadow glass-card">
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0 text-nowrap">
                             <thead class="table-dark">
                                 <tr>
-                                    <th>Drum ID</th>
-                                    <th>Profile</th>
-                                    <th>Manifest</th>
-                                    <th style="min-width: 140px;">WVI Profile Limits (Ref)</th>
-                                    <th style="width: 100px;">pH</th>
-                                    <th style="width: 100px;">VOC (ppm)</th>
-                                    <th style="width: 130px;">Flashpoint</th>
-                                    <th style="width: 110px;">Cyanide</th>
-                                    <th style="width: 120px;">Sulfide</th>
-                                    <th style="width: 110px;">Oxidation</th>
-                                    <th style="width: 130px;">Status</th>
-                                    <th>Chemist Notes</th>
+                                    <th style="min-width: 130px;">Drum ID</th>
+                                    <th style="min-width: 120px;">Profile</th>
+                                    <th style="min-width: 120px;">Manifest</th>
+                                    <th style="min-width: 170px;">WVI Limits (Ref)</th>
+                                    <th style="min-width: 100px;">pH</th>
+                                    <th style="min-width: 100px;">VOC (ppm)</th>
+                                    <th style="min-width: 120px;">Flashpoint</th>
+                                    <th style="min-width: 100px;">Cyanide</th>
+                                    <th style="min-width: 110px;">Sulfide</th>
+                                    <th style="min-width: 100px;">Oxidation</th>
+                                    <th style="min-width: 130px;">Status</th>
+                                    <th style="min-width: 250px;">Chemist Notes</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -62,16 +127,16 @@
                                     </td>
                                     <td class="fw-bold text-primary">{{ drum.profile }}</td>
                                     <td class="text-muted">{{ drum.manifest }}</td>
-                                    <td style="font-size: 0.85rem; line-height: 1.2;" class="text-secondary">
+                                    <td style="font-size: 0.85rem; line-height: 1.3;" class="text-secondary">
                                         <strong>pH:</strong> {{ drum.ph_min or '-' }} to {{ drum.ph_max or '-' }}<br>
                                         <strong>VOC:</strong> {{ drum.wvi_voc_ppm or '-' }} ppm<br>
                                         <strong>Sulf/Cyan:</strong> {{ drum.wvi_sulfides or '-' }}/{{ drum.wvi_cyanide or '-' }}
                                     </td>
                                     <td>
-                                        <input type="number" step="0.1" class="form-control form-control-sm input-sm ph-input" name="ph_{{ drum.id }}" value="{{ drum.ph_result or '' }}" required>
+                                        <input type="number" step="0.1" class="form-control form-control-sm input-sm ph-input" name="ph_{{ drum.id }}" value="{{ drum.ph_result or '' }}" placeholder="pH" required>
                                     </td>
                                     <td>
-                                        <input type="number" step="0.1" class="form-control form-control-sm input-sm voc-input" name="voc_{{ drum.id }}" value="{{ drum.voc_result or '' }}" required>
+                                        <input type="number" step="0.1" class="form-control form-control-sm input-sm voc-input" name="voc_{{ drum.id }}" value="{{ drum.voc_result or '' }}" placeholder="VOC" required>
                                     </td>
                                     <td>
                                         <input type="text" class="form-control form-control-sm input-sm fp-input" name="flashpoint_{{ drum.id }}" value="{{ drum.flashpoint or '' }}" placeholder="e.g. >200">
@@ -110,7 +175,7 @@
                     </div>
                 </div>
                 <div class="card-footer bg-light p-3 text-end">
-                    <button type="submit" class="btn btn-success fw-bold px-5 shadow-sm fs-5">
+                    <button type="submit" id="submit-btn" class="btn btn-success btn-touch fw-bold px-5 shadow-sm fs-5">
                         💾 Submit All Lab Results
                     </button>
                 </div>
@@ -129,6 +194,15 @@
                 document.querySelectorAll('.sulf-input').forEach(select => { select.value = "Negative"; });
                 document.querySelectorAll('.ox-input').forEach(select => { select.value = "No"; });
                 document.querySelectorAll('.status-input').forEach(select => { select.value = "COMPLETED"; });
+            }
+        }
+
+        // Disable submit button on click to prevent double submits in iOS Safari
+        function disableSubmitButton(form) {
+            const btn = document.getElementById('submit-btn');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Saving Results...`;
             }
         }
     </script>
