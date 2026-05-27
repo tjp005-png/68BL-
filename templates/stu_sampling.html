@@ -34,7 +34,14 @@
                         <p class="text-muted mb-4">Upload the PDF containing the BL labels to parse the drums and prepare the sampling packet.</p>
                         
                         <form action="/stu/sampling" method="POST" enctype="multipart/form-data">
-                            <input class="form-control mb-4 border-primary" type="file" name="label_pdf" accept=".pdf" required>
+                            <div class="mb-3 text-start">
+                                <label for="load_number" class="form-label fw-bold text-dark">Load Number</label>
+                                <input class="form-control border-primary" type="text" id="load_number" name="load_number" placeholder="Enter Load Number (e.g. LD12345)" required>
+                            </div>
+                            <div class="mb-4 text-start">
+                                <label for="label_pdf" class="form-label fw-bold text-dark">Upload Manifest PDF</label>
+                                <input class="form-control border-primary" type="file" id="label_pdf" name="label_pdf" accept=".pdf" required>
+                            </div>
                             <button type="submit" class="btn text-white fw-bold w-100 py-2 fs-5" style="background-color: #3860b2;">Parse Labels & Preview</button>
                         </form>
                     </div>
@@ -94,6 +101,7 @@
                 <form id="packetForm" action="/generate_sampling_packet" method="POST" class="m-0">
                     <input type="hidden" name="pdf_filename" value="{{ pdf_filename }}">
                     <input type="hidden" name="selected_drums" id="selected_drums_input">
+                    <input type="hidden" name="load_number" value="{{ load_number }}">
                     <button type="button" onclick="submitPacket()" class="btn text-white fw-bold shadow-sm px-4" style="background-color: #970000;">Process & Download Packet</button>
                 </form>
             </div>

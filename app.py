@@ -129,6 +129,7 @@ def upgrade_db():
             )
         ''')
         if not column_exists(cursor, 'drum_inventory', 'manifest'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN manifest TEXT')
+        if not column_exists(cursor, 'drum_inventory', 'job_id'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN job_id TEXT')
 
         # 5. DRUM SAMPLING COMPLIANCE TABLES
         cursor.execute('''

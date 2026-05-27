@@ -41,44 +41,57 @@
             <div class="col-12">
                 <div class="card shadow-sm border-secondary">
                     <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-3">
-                        <h4 class="mb-0 fw-bold">Manifest: {{ item.lab_result.manifest }} | Profile: {{ item.lab_result.profile }}</h4>
-                        <span class="badge bg-light text-dark fs-6">{{ item.drum_count }} Drums Pending</span>
+                        <h4 class="mb-0 fw-bold">Load Number: {{ item.job_id }}</h4>
+                        <span class="badge bg-light text-dark fs-6">{{ item.drum_count }} Physical Drums Pending</span>
                     </div>
                     
                     <div class="card-body row m-0 p-0">
-                        <div class="col-md-5 p-4 border-end" style="background-color: #f8f9fa;">
-                            <h5 class="fw-bold text-primary mb-3">🧪 Lab Findings</h5>
-                            <ul class="list-group list-group-flush shadow-sm mb-4">
-                                <li class="list-group-item d-flex justify-content-between"><strong>Sampled Drum:</strong> <span>{{ item.lab_result.drum_id }}</span></li>
-                                <li class="list-group-item d-flex justify-content-between"><strong>pH Result:</strong> <span class="fw-bold">{{ item.lab_result.ph_result }}</span></li>
-                                <li class="list-group-item d-flex justify-content-between"><strong>VOC (ppm):</strong> <span class="fw-bold">{{ item.lab_result.voc_result }}</span></li>
-                                <li class="list-group-item d-flex justify-content-between"><strong>Flashpoint:</strong> <span>{{ item.lab_result.flashpoint or 'N/A' }}</span></li>
-                                <li class="list-group-item d-flex justify-content-between"><strong>Cyanide / Sulfide:</strong> <span>{{ item.lab_result.cyanide or '-' }} / {{ item.lab_result.sulfide or '-' }}</span></li>
-                                <li class="list-group-item d-flex justify-content-between"><strong>Oxidizer:</strong> <span>{{ item.lab_result.oxidation or '-' }}</span></li>
-                                <li class="list-group-item"><strong>Chemist Notes:</strong> <br><span class="text-muted fst-italic">{{ item.lab_result.notes or 'No notes provided.' }}</span></li>
-                            </ul>
+                        <!-- Left side: List of completed lab findings in this load -->
+                        <div class="col-md-7 p-4 border-end" style="background-color: #f8f9fa;">
+                            <h5 class="fw-bold text-primary mb-3">🧪 Completed Lab Findings</h5>
                             
-                            <form action="/final_code" method="POST">
-                                <input type="hidden" name="lab_id" value="{{ item.lab_result.id }}">
-                                <input type="hidden" name="manifest" value="{{ item.lab_result.manifest }}">
-                                <input type="hidden" name="profile" value="{{ item.lab_result.profile }}">
-                                <input type="hidden" name="ph_val" value="{{ item.lab_result.ph_result }}">
-                                <input type="hidden" name="voc_val" value="{{ item.lab_result.voc_result }}">
-                                
-                                <button type="submit" class="btn btn-success fw-bold w-100 py-3 shadow-sm fs-5" onclick="return confirm('Confirm data has been entered into the corporate WIN portal? This will push all {{ item.drum_count }} drums into active inventory.');">
-                                    ✅ DATA ENTERED - FINAL CODE DRUMS
-                                </button>
-                            </form>
+                            {% for lab in item.labs %}
+                            <div class="card mb-4 shadow-sm border-secondary-subtle">
+                                <div class="card-header bg-secondary text-white py-2 fw-bold">
+                                    Manifest: {{ lab.manifest }} | Profile: {{ lab.profile }}
+                                </div>
+                                <div class="card-body py-3 px-4">
+                                    <ul class="list-group list-group-flush mb-3" style="font-size: 0.95rem;">
+                                        <li class="list-group-item d-flex justify-content-between py-1"><strong>Sampled Drum ID:</strong> <span class="fw-bold">{{ lab.drum_id }}</span></li>
+                                        <li class="list-group-item d-flex justify-content-between py-1"><strong>pH Result:</strong> <span class="fw-bold text-success">{{ lab.ph_result }}</span></li>
+                                        <li class="list-group-item d-flex justify-content-between py-1"><strong>VOC (ppm):</strong> <span class="fw-bold text-danger">{{ lab.voc_result }}</span></li>
+                                        <li class="list-group-item d-flex justify-content-between py-1"><strong>Flashpoint:</strong> <span>{{ lab.flashpoint or 'N/A' }}</span></li>
+                                        <li class="list-group-item d-flex justify-content-between py-1"><strong>Cyanide / Sulfide:</strong> <span>{{ lab.cyanide or '-' }} / {{ lab.sulfide or '-' }}</span></li>
+                                        <li class="list-group-item d-flex justify-content-between py-1"><strong>Oxidizer:</strong> <span>{{ lab.oxidation or '-' }}</span></li>
+                                        <li class="list-group-item py-1"><strong>Chemist Notes:</strong> <br><span class="text-muted fst-italic">{{ lab.notes or 'No notes provided.' }}</span></li>
+                                    </ul>
+                                    
+                                    <form action="/final_code" method="POST" class="m-0">
+                                        <input type="hidden" name="lab_id" value="{{ lab.id }}">
+                                        <input type="hidden" name="manifest" value="{{ lab.manifest }}">
+                                        <input type="hidden" name="profile" value="{{ lab.profile }}">
+                                        <input type="hidden" name="ph_val" value="{{ lab.ph_result }}">
+                                        <input type="hidden" name="voc_val" value="{{ lab.voc_result }}">
+                                        
+                                        <button type="submit" class="btn btn-success fw-bold w-100 py-2 shadow-sm fs-6" onclick="return confirm('Confirm data has been entered into the corporate WIN portal? This will push all matching drums for manifest {{ lab.manifest }} and profile {{ lab.profile }} into active inventory.');">
+                                            ✅ DATA ENTERED - FINAL CODE DRUMS
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            {% endfor %}
                         </div>
 
-                        <div class="col-md-7 p-4">
-                            <h5 class="fw-bold text-dark mb-3">🛢️ Physical Drums Affected</h5>
-                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
-                                <table class="table table-sm table-striped border">
+                        <!-- Right side: Affected drums in this load -->
+                        <div class="col-md-5 p-4">
+                            <h5 class="fw-bold text-dark mb-3">🛢️ Physical Drums in Load</h5>
+                            <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                                <table class="table table-sm table-striped border align-middle">
                                     <thead class="table-light sticky-top">
                                         <tr>
                                             <th>Drum ID</th>
-                                            <th>Current Status</th>
+                                            <th>Profile</th>
+                                            <th>Manifest</th>
                                             <th>Weight</th>
                                         </tr>
                                     </thead>
@@ -86,7 +99,8 @@
                                         {% for drum in item.related_drums %}
                                         <tr>
                                             <td class="fw-bold text-monospace">{{ drum.track_no }}</td>
-                                            <td><span class="badge bg-warning text-dark">{{ drum.process_type }}</span></td>
+                                            <td class="fw-bold text-primary">{{ drum.inb_prof }}</td>
+                                            <td class="text-muted" style="font-size: 0.9rem;">{{ drum.manifest }}</td>
                                             <td>{{ drum.weight }} lbs</td>
                                         </tr>
                                         {% endfor %}

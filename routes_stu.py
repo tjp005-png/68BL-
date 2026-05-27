@@ -33,6 +33,9 @@ def stu_inventory():
 @stu_bp.route('/stu/sampling', methods=['GET', 'POST'])
 def stu_sampling():
     if request.method == 'POST':
+        load_number = request.form.get('load_number', '').strip()
+        if not load_number: return "No Load Number entered", 400
+        
         if 'label_pdf' not in request.files: return "No file uploaded", 400
         file = request.files['label_pdf']
         if file.filename == '': return "No file selected", 400
@@ -52,7 +55,7 @@ def stu_sampling():
         with open(temp_filepath, 'wb') as f:
             f.write(file_bytes)
         
-        return render_template('stu_sampling.html', drums=raw_drums, pdf_filename=temp_filename, raw_drums_json=json.dumps(raw_drums))
+        return render_template('stu_sampling.html', drums=raw_drums, pdf_filename=temp_filename, raw_drums_json=json.dumps(raw_drums), load_number=load_number)
         
     return render_template('stu_sampling.html', drums=None)
 
@@ -60,8 +63,9 @@ def stu_sampling():
 def generate_sampling_packet():
     pdf_filename = request.form.get('pdf_filename')
     selected_drums_json = request.form.get('selected_drums')
+    load_number = request.form.get('load_number', '').strip()
 
-    if not pdf_filename or not selected_drums_json:
+    if not pdf_filename or not selected_drums_json or not load_number:
         return f"Error: Data dropped.", 400
 
     temp_filepath = os.path.join('temp_uploads', pdf_filename)
@@ -72,7 +76,7 @@ def generate_sampling_packet():
         return "Temporary file lost. Please start over and re-upload the PDF.", 400
 
     raw_drums = json.loads(selected_drums_json)
-    job_name = datetime.now().strftime("%m-%d-%Y_%H%M")
+    job_name = load_number
 
     with closing(get_db_connection()) as conn:
         picklist_data, total_samples = stu_services.process_drums(conn, raw_drums)
@@ -83,9 +87,9 @@ def generate_sampling_packet():
             existing = conn.execute("SELECT id FROM drum_inventory WHERE track_no = ?", (d['drum_id'],)).fetchone()
             if not existing:
                 conn.execute('''
-                    INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date) 
-                    VALUES (?, ?, ?, 'PENDING SAMPLING', 0, 0, 0, 0, 0, ?)
-                ''', (d['drum_id'], d['profile'], d['manifest'], today_str))
+                    INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id) 
+                    VALUES (?, ?, ?, 'PENDING SAMPLING', 0, 0, 0, 0, 0, ?, ?)
+                ''', (d['drum_id'], d['profile'], d['manifest'], today_str, job_name))
                 
         for p in picklist_data:
             if p.get('is_sampled') == 'Yes':

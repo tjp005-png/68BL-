@@ -32,24 +32,30 @@ def approvals_portal():
             ''').fetchall()
     return render_template('approvals.html', profiles=profiles, search_query=search_query)
 
+from collections import defaultdict
+
 @approvals_bp.route('/waste_acceptance')
 def waste_acceptance():
     with closing(get_db_connection()) as conn:
         completed_labs = conn.execute("SELECT * FROM drum_lab_queue WHERE status = 'COMPLETED'").fetchall()
         
-        staging_data = []
+        grouped_jobs = defaultdict(list)
         for lab in completed_labs:
+            grouped_jobs[lab['job_id']].append(dict(lab))
+            
+        staging_data = []
+        for job_id, labs in grouped_jobs.items():
             related_drums = conn.execute('''
                 SELECT * FROM drum_inventory 
-                WHERE manifest = ? AND inb_prof = ? AND process_type = 'PENDING SAMPLING'
-            ''', (lab['manifest'], lab['profile'])).fetchall()
+                WHERE job_id = ? AND process_type = 'PENDING SAMPLING'
+            ''', (job_id,)).fetchall()
             
-            if related_drums:
-                staging_data.append({
-                    'lab_result': dict(lab),
-                    'related_drums': [dict(d) for d in related_drums],
-                    'drum_count': len(related_drums)
-                })
+            staging_data.append({
+                'job_id': job_id,
+                'labs': labs,
+                'related_drums': [dict(d) for d in related_drums],
+                'drum_count': len(related_drums)
+            })
                 
     return render_template('waste_acceptance.html', staging_data=staging_data)
 
