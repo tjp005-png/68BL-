@@ -51,10 +51,34 @@ def waste_acceptance_checklist(job_id):
             WHERE job_id = ? AND process_type = 'PENDING SAMPLING'
         ''', (job_id,)).fetchall()
         
+    labs_list = [dict(l) for l in labs]
+    drums_list = [dict(d) for d in related_drums]
+    
+    # Associate physical drums with their representing lab queue sample
+    associated_track_nos = set()
+    for lab in labs_list:
+        lab_manifest = str(lab['manifest']).strip().upper()
+        lab_profile = str(lab['profile']).strip().upper()
+        
+        batch_drums = []
+        for drum in drums_list:
+            drum_manifest = str(drum['manifest']).strip().upper() if drum.get('manifest') else ""
+            drum_profile = str(drum['inb_prof']).strip().upper() if drum.get('inb_prof') else ""
+            
+            if drum_manifest == lab_manifest and drum_profile == lab_profile:
+                batch_drums.append(drum)
+                associated_track_nos.add(drum['track_no'])
+                
+        lab['batch_drums'] = batch_drums
+        
+    # Filter out unsampled drums (e.g., asbestos or other low-risk profiles)
+    unsampled_drums = [d for d in drums_list if d['track_no'] not in associated_track_nos]
+        
     return render_template('waste_acceptance.html', 
                            job_id=job_id, 
-                           labs=[dict(l) for l in labs], 
-                           related_drums=[dict(d) for d in related_drums])
+                           labs=labs_list, 
+                           related_drums=drums_list,
+                           unsampled_drums=unsampled_drums)
 
 @approvals_bp.route('/waste_acceptance/mark_coded', methods=['POST'])
 def waste_acceptance_mark_coded():

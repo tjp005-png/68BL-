@@ -196,6 +196,47 @@
                                             {% endif %}
                                         </div>
                                     </div>
+
+                                    <!-- Collapsible represented batch drums -->
+                                    {% if lab.batch_drums %}
+                                    <div class="mt-3 border-top pt-2">
+                                        <button class="btn btn-sm btn-outline-secondary py-1 px-3 fw-bold d-flex align-items-center gap-2" style="font-size: 0.8rem; border-radius: 6px;" type="button" data-bs-toggle="collapse" data-bs-target="#batch-drums-{{ lab.id }}" aria-expanded="false" aria-controls="batch-drums-{{ lab.id }}">
+                                            <span>🛢️ View Represented Batch Drums</span>
+                                            <span class="badge bg-secondary">{{ lab.batch_drums|length }}</span>
+                                        </button>
+                                        <div class="collapse mt-2" id="batch-drums-{{ lab.id }}">
+                                            <div class="card card-body p-3 bg-light border-0" style="font-size: 0.85rem; border-radius: 8px;">
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm table-hover table-borderless align-middle mb-0">
+                                                        <thead>
+                                                            <tr class="text-muted" style="font-size: 0.75rem; border-bottom: 1px solid #dee2e6;">
+                                                                <th>Drum ID</th>
+                                                                <th>Weight</th>
+                                                                <th>Role</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {% for d in lab.batch_drums %}
+                                                            <tr>
+                                                                <td class="fw-bold text-monospace" style="font-size: 0.9rem;">{{ d.track_no }}</td>
+                                                                <td>{{ d.weight }} lbs</td>
+                                                                <td>
+                                                                    {% if d.track_no == lab.drum_id %}
+                                                                        <span class="badge bg-primary text-white" style="font-size: 0.7rem;">🧪 Tested Sample Drum</span>
+                                                                    {% else %}
+                                                                        <span class="badge bg-dark-subtle text-dark" style="font-size: 0.7rem;">📦 Batch Member</span>
+                                                                    {% endif %}
+                                                                </td>
+                                                            </tr>
+                                                            {% endfor %}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
                                 </div>
                             </div>
                             {% endfor %}
@@ -204,7 +245,7 @@
                 </div>
             </div>
 
-            <!-- Right side: Summary, Finalize button, and Physical drums list -->
+            <!-- Right side: Summary, Finalize button, and Unsampled drums list -->
             <div class="col-lg-4">
                 <div class="sticky-summary">
                     <!-- Progress Card -->
@@ -231,15 +272,15 @@
                         </small>
                     </div>
 
-                    <!-- Physical Drums List -->
+                    <!-- Unsampled / Special Handling Drums List -->
                     <div class="card glass-card p-4">
                         <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
-                            <h5 class="fw-bold mb-0 text-dark">🛢️ Manifested Physical Drums</h5>
-                            <span class="badge bg-dark fs-6">{{ related_drums|length }} Drums</span>
+                            <h5 class="fw-bold mb-0 text-dark">📦 Unsampled / Special Handling</h5>
+                            <span class="badge bg-dark fs-6">{{ unsampled_drums|length }} Drums</span>
                         </div>
                         
                         <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
-                            <table class="table table-sm table-hover align-middle" id="physical-drums-table">
+                            <table class="table table-sm table-hover align-middle" id="unsampled-drums-table">
                                 <thead class="table-light sticky-top">
                                     <tr>
                                         <th>Drum ID</th>
@@ -248,7 +289,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for drum in related_drums %}
+                                    {% for drum in unsampled_drums %}
                                     <tr>
                                         <td class="fw-bold text-monospace small">{{ drum.track_no }}</td>
                                         <td class="fw-bold text-primary small">{{ drum.inb_prof }}</td>
@@ -256,7 +297,7 @@
                                     </tr>
                                     {% else %}
                                     <tr>
-                                        <td colspan="3" class="text-center text-muted py-3">No physical drums in database.</td>
+                                        <td colspan="3" class="text-center text-muted py-3">No unsampled drums (e.g. asbestos) in this load.</td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
