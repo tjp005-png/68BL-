@@ -1,10 +1,11 @@
-from flask import Blueprint, render_template, request, redirect, url_for, send_file
-from datetime import date, datetime
+from flask import Blueprint, render_template, request, redirect, url_for, send_file, jsonify
+from datetime import date, datetime, timedelta
 from contextlib import closing
 from io import BytesIO
 import pandas as pd
 from collections import defaultdict
 from database import get_db_connection
+
 
 reports_bp = Blueprint('reports_bp', __name__)
 
@@ -325,3 +326,269 @@ def reports():
                            today_str=today_str, 
                            trucks_by_profile=trucks_by_profile, 
                            all_trucks=filled_trucks)
+
+
+@reports_bp.route('/compliance')
+def compliance():
+    today = date.today()
+    # Default date range: Jan 1st of current year to today
+    start_date = date(today.year, 1, 1).isoformat()
+    end_date = today.isoformat()
+    return render_template('compliance.html', start_date=start_date, end_date=end_date)
+
+
+@reports_bp.route('/api/compliance/data')
+def compliance_data():
+    report_type = request.args.get('report_type', 'variance')
+    start_str = request.args.get('start_date')
+    end_str = request.args.get('end_date')
+    
+    if not start_str or not end_str:
+        return jsonify({'error': 'Missing dates'}), 400
+        
+    try:
+        start_dt = datetime.strptime(start_str, '%Y-%m-%d').date()
+        end_dt = datetime.strptime(end_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date format'}), 400
+        
+    # Generate all dates in range
+    date_list = []
+    curr = start_dt
+    while curr <= end_dt:
+        date_list.append(curr.isoformat())
+        curr += timedelta(days=1)
+        
+    with closing(get_db_connection()) as conn:
+        if report_type == 'variance':
+            # 1. Scheduled
+            sched_rows = conn.execute('''
+                SELECT schedule_date, SUM(load_count) as scheduled
+                FROM daily_schedule
+                WHERE schedule_date BETWEEN ? AND ?
+                GROUP BY schedule_date
+            ''', (start_str, end_str)).fetchall()
+            sched_map = {r['schedule_date']: r['scheduled'] for r in sched_rows}
+            
+            # 2. Actual
+            actual_rows = conn.execute('''
+                SELECT date_received, COUNT(id) as actual
+                FROM truck_logs
+                WHERE date_received BETWEEN ? AND ? AND test_status != 'REJECTED' AND exit_weight IS NOT NULL
+                GROUP BY date_received
+            ''', (start_str, end_str)).fetchall()
+            actual_map = {r['date_received']: r['actual'] for r in actual_rows}
+            
+            labels = date_list
+            scheduled_data = [sched_map.get(d, 0) for d in labels]
+            actual_data = [actual_map.get(d, 0) for d in labels]
+            variance_data = [actual_data[i] - scheduled_data[i] for i in range(len(labels))]
+            
+            # Summary Metrics
+            total_sched = sum(scheduled_data)
+            total_act = sum(actual_data)
+            net_variance = total_act - total_sched
+            avg_variance = round(net_variance / len(labels), 1) if labels else 0
+            
+            summary = {
+                'kpi1_val': total_sched, 'kpi1_label': 'Total Scheduled',
+                'kpi2_val': total_act, 'kpi2_label': 'Total Actual Weighed',
+                'kpi3_val': f"{net_variance:+d}", 'kpi3_label': 'Net Variance',
+                'kpi4_val': avg_variance, 'kpi4_label': 'Avg Daily Variance'
+            }
+            
+            # Details table data
+            table_data = []
+            for i, d in enumerate(labels):
+                table_data.append({
+                    'date': d, 'scheduled': scheduled_data[i], 'actual': actual_data[i], 'variance': f"{variance_data[i]:+d}"
+                })
+                
+            return jsonify({
+                'labels': labels,
+                'datasets': [
+                    {'label': 'Scheduled Loads', 'data': scheduled_data},
+                    {'label': 'Actual Loads', 'data': actual_data},
+                    {'label': 'Variance', 'data': variance_data}
+                ],
+                'summary': summary,
+                'table_data': table_data
+            })
+            
+        elif report_type == 'traffic':
+            traffic_rows = conn.execute('''
+                SELECT date_received, COUNT(id) as traffic
+                FROM truck_logs
+                WHERE date_received BETWEEN ? AND ? AND test_status != 'REJECTED'
+                GROUP BY date_received
+            ''', (start_str, end_str)).fetchall()
+            traffic_map = {r['date_received']: r['traffic'] for r in traffic_rows}
+            
+            labels = date_list
+            counts = [traffic_map.get(d, 0) for d in labels]
+            
+            # Summary metrics
+            total_trucks = sum(counts)
+            avg_daily = round(total_trucks / len(labels), 1) if labels else 0
+            max_daily = max(counts) if counts else 0
+            
+            # Find busiest day
+            busiest_day = 'N/A'
+            if counts:
+                busiest_idx = counts.index(max_daily)
+                busiest_day = labels[busiest_idx]
+                
+            summary = {
+                'kpi1_val': total_trucks, 'kpi1_label': 'Total Trucks Weighed',
+                'kpi2_val': avg_daily, 'kpi2_label': 'Avg Daily Trucks',
+                'kpi3_val': max_daily, 'kpi3_label': 'Busiest Day Traffic',
+                'kpi4_val': busiest_day, 'kpi4_label': 'Busiest Day Date'
+            }
+            
+            table_data = [{'date': d, 'count': counts[i]} for i, d in enumerate(labels)]
+            
+            return jsonify({
+                'labels': labels,
+                'datasets': [
+                    {'label': 'Total Checked-in Trucks', 'data': counts}
+                ],
+                'summary': summary,
+                'table_data': table_data
+            })
+            
+        elif report_type == 'tonnage_ytd':
+            # Aggregation query
+            rows = conn.execute('''
+                SELECT date_received, cell_location, SUM(net_weight) as tons
+                FROM truck_logs
+                WHERE date_received BETWEEN ? AND ? AND exit_weight IS NOT NULL AND test_status != 'REJECTED'
+                GROUP BY date_received, cell_location
+                ORDER BY date_received ASC
+            ''', (start_str, end_str)).fetchall()
+            
+            labels = date_list
+            # Pre-populate daily bins
+            daily_wmu35 = {d: 0.0 for d in labels}
+            daily_wmu31 = {d: 0.0 for d in labels}
+            daily_stu = {d: 0.0 for d in labels}
+            daily_landfill = {d: 0.0 for d in labels}
+            
+            for r in rows:
+                d = r['date_received']
+                if d not in daily_wmu35:
+                    continue
+                wmu = str(r['cell_location'] or '').strip().upper()
+                tons = float(r['tons'] or 0.0)
+                
+                is_stu = wmu.startswith('34') or wmu.startswith('STU') or 'BAY' in wmu or wmu in ['CCS', 'CCSF', 'CCSM']
+                
+                if wmu.startswith('35'):
+                    daily_wmu35[d] += tons
+                elif wmu.startswith('31'):
+                    daily_wmu31[d] += tons
+                elif is_stu:
+                    daily_stu[d] += tons
+                else:
+                    daily_landfill[d] += tons
+            
+            # Compute running cumulative sums (YTD Curves)
+            cum_wmu35, cum_wmu31, cum_stu, cum_landfill = [], [], [], []
+            sum35, sum31, sum_s, sum_l = 0.0, 0.0, 0.0, 0.0
+            
+            for d in labels:
+                sum35 += daily_wmu35[d]
+                sum31 += daily_wmu31[d]
+                sum_s += daily_stu[d]
+                sum_l += daily_landfill[d]
+                cum_wmu35.append(round(sum35, 2))
+                cum_wmu31.append(round(sum31, 2))
+                cum_stu.append(round(sum_s, 2))
+                cum_landfill.append(round(sum_l, 2))
+                
+            grand_total = round(sum35 + sum31 + sum_s + sum_l, 2)
+            
+            summary = {
+                'kpi1_val': f"{grand_total:,.2f} Tons", 'kpi1_label': 'Total YTD Tonnage',
+                'kpi2_val': f"{sum35:,.2f} Tons", 'kpi2_label': 'WMU 35 Total',
+                'kpi3_val': f"{sum31:,.2f} Tons", 'kpi3_label': 'WMU 31 Total',
+                'kpi4_val': f"{sum_s:,.2f} Tons", 'kpi4_label': 'STU / Decon Total'
+            }
+            
+            table_data = []
+            for i, d in enumerate(labels):
+                table_data.append({
+                    'date': d,
+                    'wmu35': f"{cum_wmu35[i]:,.2f}",
+                    'wmu31': f"{cum_wmu31[i]:,.2f}",
+                    'stu': f"{cum_stu[i]:,.2f}",
+                    'landfill': f"{cum_landfill[i]:,.2f}",
+                    'total': f"{(cum_wmu35[i] + cum_wmu31[i] + cum_stu[i] + cum_landfill[i]):,.2f}"
+                })
+                
+            return jsonify({
+                'labels': labels,
+                'datasets': [
+                    {'label': 'WMU 35 Cumulative', 'data': cum_wmu35},
+                    {'label': 'WMU 31 Cumulative', 'data': cum_wmu31},
+                    {'label': 'STU / Decon Cumulative', 'data': cum_stu},
+                    {'label': 'Landfill / Other Cumulative', 'data': cum_landfill}
+                ],
+                'summary': summary,
+                'table_data': table_data
+            })
+            
+        elif report_type == 'timings':
+            rows = conn.execute('''
+                SELECT time_in, COUNT(id) as count
+                FROM truck_logs
+                WHERE date_received BETWEEN ? AND ? AND time_in IS NOT NULL AND time_in != ''
+                GROUP BY time_in
+            ''', (start_str, end_str)).fetchall()
+            
+            # Map hours 00 to 23
+            hourly_counts = {f"{h:02d}": 0 for h in range(24)}
+            for r in rows:
+                time_str = r['time_in']
+                try:
+                    hour_part = time_str.split(':')[0].strip()
+                    if hour_part.isdigit():
+                        h_int = int(hour_part)
+                        if 0 <= h_int < 24:
+                            hourly_counts[f"{h_int:02d}"] += r['count']
+                except:
+                    pass
+            
+            # Select working hours range to show in chart for clean design (e.g. 06:00 to 18:00)
+            hours_keys = [f"{h:02d}" for h in range(6, 19)]
+            labels = [f"{h}:00" for h in hours_keys]
+            counts = [hourly_counts[h] for h in hours_keys]
+            
+            total_weighed = sum(hourly_counts.values())
+            
+            # Find peak hour
+            peak_val = max(counts) if counts else 0
+            peak_hour = 'N/A'
+            if peak_val > 0:
+                peak_idx = counts.index(peak_val)
+                peak_hour = labels[peak_idx]
+                
+            summary = {
+                'kpi1_val': total_weighed, 'kpi1_label': 'Total Checked-in Trucks',
+                'kpi2_val': peak_hour, 'kpi2_label': 'Busiest Hour (Peak)',
+                'kpi3_val': peak_val, 'kpi3_label': 'Peak Hour Truck Volume',
+                'kpi4_val': f"{round((peak_val/total_weighed*100) if total_weighed > 0 else 0)}%", 'kpi4_label': 'Peak Hour Traffic Ratio'
+            }
+            
+            table_data = [{'hour': labels[i], 'count': counts[i]} for i, h in enumerate(labels)]
+            
+            return jsonify({
+                'labels': labels,
+                'datasets': [
+                    {'label': 'Truck Entry Count', 'data': counts}
+                ],
+                'summary': summary,
+                'table_data': table_data
+            })
+            
+    return jsonify({'error': 'Invalid report type'}), 400
+

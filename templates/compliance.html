@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compliance Portal - Clean Harbors</title>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Flatpickr Date Picker CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --ch-red: #970000;
+            --ch-red-hover: #7a0000;
+            --ch-red-light: rgba(151, 0, 0, 0.1);
+            --slate-50: #f8fafc;
+            --slate-100: #f1f5f9;
+            --slate-200: #e2e8f0;
+            --slate-700: #334155;
+            --slate-800: #1e293b;
+            --slate-900: #0f172a;
+            
+            --success-color: #10b981;
+            --info-color: #3b82f6;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            
+            --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f4f6fa;
+            color: var(--slate-800);
+            min-height: 100vh;
+        }
+
+        /* Rich Aesthetics: Custom glassmorphic styles, smooth transitions & animations */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: 12px;
+            box-shadow: 0 4px 18px -4px rgba(15, 23, 42, 0.05), 0 4px 6px -1px rgba(15, 23, 42, 0.02);
+            transition: var(--transition-smooth);
+        }
+        
+        .glass-card:hover {
+            box-shadow: 0 12px 24px -8px rgba(15, 23, 42, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.03);
+        }
+
+        .kpi-card {
+            border-left: 5px solid var(--slate-700);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 80px;
+            height: 100%;
+            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.05) 100%);
+            pointer-events: none;
+        }
+
+        .kpi-card.kpi-sched { border-left-color: var(--info-color); }
+        .kpi-card.kpi-act { border-left-color: var(--success-color); }
+        .kpi-card.kpi-var-pos { border-left-color: var(--success-color); }
+        .kpi-card.kpi-var-neg { border-left-color: var(--danger-color); }
+        .kpi-card.kpi-var-neutral { border-left-color: var(--warning-color); }
+        .kpi-card.kpi-fourth { border-left-color: #8b5cf6; } /* Purple accent */
+
+        .kpi-val {
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: -0.05em;
+            line-height: 1;
+            margin-bottom: 4px;
+            transition: var(--transition-smooth);
+        }
+
+        .kpi-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Filter Panel Styles */
+        .filter-panel {
+            background: linear-gradient(135deg, #ffffff 0%, #fafbfc 100%);
+            border-radius: 12px;
+            border: 1px solid var(--slate-200);
+        }
+
+        .form-select-custom, .form-input-custom {
+            height: 48px;
+            border-radius: 8px;
+            border: 1.5px solid var(--slate-200);
+            padding: 10px 16px;
+            font-weight: 500;
+            font-size: 0.95rem;
+            background-color: white;
+            transition: var(--transition-smooth);
+        }
+
+        .form-select-custom:focus, .form-input-custom:focus {
+            border-color: var(--ch-red);
+            box-shadow: 0 0 0 3px var(--ch-red-light);
+            outline: none;
+        }
+
+        /* Button Hover Effects */
+        .btn-ch-red {
+            background-color: var(--ch-red);
+            color: white;
+            font-weight: 600;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+            transition: var(--transition-smooth);
+        }
+
+        .btn-ch-red:hover {
+            background-color: var(--ch-red-hover);
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(151, 0, 0, 0.2);
+        }
+
+        /* Loading Spinner Overlays */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 12px;
+            z-index: 10;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease-in-out;
+        }
+
+        .loading-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .spinner-custom {
+            width: 48px;
+            height: 48px;
+            border: 4px solid var(--slate-200);
+            border-top: 4px solid var(--ch-red);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Table Styling */
+        .table-custom {
+            font-size: 0.95rem;
+        }
+
+        .table-custom th {
+            font-weight: 600;
+            color: var(--slate-700);
+            background-color: var(--slate-50);
+            border-bottom: 2px solid var(--slate-200);
+            padding: 14px 16px;
+        }
+
+        .table-custom td {
+            padding: 14px 16px;
+            vertical-align: middle;
+            border-bottom: 1px solid var(--slate-100);
+        }
+
+        .table-custom tbody tr {
+            transition: var(--transition-smooth);
+        }
+
+        .table-custom tbody tr:hover {
+            background-color: rgba(248, 250, 252, 0.8) !important;
+        }
+
+        .badge-variance-pos {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: #065f46;
+            font-weight: 700;
+        }
+
+        .badge-variance-neg {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: #991b1b;
+            font-weight: 700;
+        }
+
+        .badge-variance-neutral {
+            background-color: rgba(100, 116, 139, 0.1);
+            color: #334155;
+            font-weight: 700;
+        }
+
+        /* Details section container height maxing */
+        .table-responsive-container {
+            max-height: 450px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header bar styled specifically to match reports.html layout -->
+    <div class="container mt-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header text-white d-flex justify-content-between align-items-center" style="background-color: var(--ch-red); border-bottom: 4px solid #5a0000; border-radius: 8px 8px 0 0;">
+                <div class="d-flex align-items-center">
+                    <img src="{{ url_for('static', filename='CLH_BIG.png') }}" alt="Clean Harbors Logo" style="height: 45px; margin-right: 15px; background-color: white; padding: 4px; border-radius: 5px;">
+                    <h2 class="mb-0 fw-bold">📋 COMPLIANCE PORTAL</h2>
+                </div>
+                <div>
+                    <a href="/reports" class="btn btn-light fw-bold shadow-sm text-dark me-2">📊 Daily Reports</a>
+                    <a href="/" class="btn btn-outline-light fw-bold shadow-sm me-2">Hub</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Selection Row (Glassmorphic design) -->
+        <div class="card glass-card border-0 mb-4">
+            <div class="card-body p-4">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-5">
+                        <label for="report-type" class="form-label fw-bold text-muted small text-uppercase">Select Analysis Report</label>
+                        <select id="report-type" class="form-select form-select-custom">
+                            <option value="variance" selected>📊 Variance Tracker (Scheduled vs. Actual)</option>
+                            <option value="traffic">📈 Truck check-in volume trends</option>
+                            <option value="tonnage_ytd">⛰️ Cumulative Tonnage curves (YTD by Unit)</option>
+                            <option value="timings">⏰ Hourly check-in volume distribution (Peak Timings)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-5">
+                        <label for="date-range" class="form-label fw-bold text-muted small text-uppercase">Select Date Range</label>
+                        <input type="text" id="date-range" class="form-control form-input-custom" placeholder="Select date range...">
+                    </div>
+                    <div class="col-md-2">
+                        <button id="btn-refresh" class="btn btn-ch-red w-100 d-flex justify-content-center align-items-center gap-2" style="height: 48px;">
+                            🔄 Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- KPI Metric Summary Grid -->
+        <div class="row g-3 mb-4">
+            <div class="col-sm-6 col-xl-3">
+                <div class="card glass-card kpi-card kpi-sched border-0">
+                    <div class="card-body p-3">
+                        <div class="kpi-label" id="kpi1-label">Total Scheduled</div>
+                        <div class="kpi-val text-primary" id="kpi1-val">0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card glass-card kpi-card kpi-act border-0">
+                    <div class="card-body p-3">
+                        <div class="kpi-label" id="kpi2-label">Total Actual Weighed</div>
+                        <div class="kpi-val text-success" id="kpi2-val">0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card glass-card kpi-card border-0" id="kpi3-container">
+                    <div class="card-body p-3">
+                        <div class="kpi-label" id="kpi3-label">Net Variance</div>
+                        <div class="kpi-val" id="kpi3-val">0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card glass-card kpi-card kpi-fourth border-0">
+                    <div class="card-body p-3">
+                        <div class="kpi-label" id="kpi4-label">Avg Daily Variance</div>
+                        <div class="kpi-val text-dark" id="kpi4-val">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart Visualization Card -->
+        <div class="card glass-card border-0 mb-4 position-relative">
+            <div class="loading-overlay" id="chart-loader">
+                <div class="spinner-custom"></div>
+            </div>
+            <div class="card-header bg-transparent border-0 pt-4 px-4 d-flex justify-content-between align-items-center">
+                <h4 class="mb-0 fw-bold text-dark" id="chart-title">Data Trends</h4>
+                <span class="badge bg-secondary px-3 py-2 fs-7" id="chart-sub">YTD Timeline</span>
+            </div>
+            <div class="card-body px-4 pb-4">
+                <div style="position: relative; height: 350px; width: 100%;">
+                    <canvas id="compliance-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Grid Table Card -->
+        <div class="card glass-card border-0 mb-5 position-relative">
+            <div class="loading-overlay" id="table-loader">
+                <div class="spinner-custom"></div>
+            </div>
+            <div class="card-header bg-transparent border-0 pt-4 px-4">
+                <h4 class="mb-0 fw-bold text-dark">Data Grid Detail</h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive table-responsive-container">
+                    <table class="table table-custom mb-0 text-nowrap" id="data-table">
+                        <thead id="table-head">
+                            <!-- Headers dynamically populated -->
+                        </thead>
+                        <tbody id="table-body">
+                            <!-- Data rows dynamically populated -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-3 text-center text-muted small border-top bg-light" id="table-empty-msg" style="display: none;">
+                    No records found for the selected date range.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <!-- Bootstrap Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Flatpickr JS -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <!-- Chart.js JS -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        // Global references
+        let chartInstance = null;
+        let flatpickrInstance = null;
+        
+        document.addEventListener("DOMContentLoaded", function() {
+            // Initialize Flatpickr range selector
+            flatpickrInstance = flatpickr("#date-range", {
+                mode: "range",
+                dateFormat: "Y-m-d",
+                defaultDate: ["{{ start_date }}", "{{ end_date }}"],
+                onChange: function(selectedDates, dateStr, instance) {
+                    if (selectedDates.length === 2) {
+                        fetchData();
+                    }
+                }
+            });
+
+            // Bind Event Listeners
+            document.getElementById("report-type").addEventListener("change", fetchData);
+            document.getElementById("btn-refresh").addEventListener("click", fetchData);
+
+            // Initial Fetch
+            fetchData();
+        });
+
+        function showLoaders(show) {
+            const chartLoader = document.getElementById("chart-loader");
+            const tableLoader = document.getElementById("table-loader");
+            if (show) {
+                chartLoader.classList.add("active");
+                tableLoader.classList.add("active");
+            } else {
+                chartLoader.classList.remove("active");
+                tableLoader.classList.remove("active");
+            }
+        }
+
+        function fetchData() {
+            const reportType = document.getElementById("report-type").value;
+            const dateRange = document.getElementById("date-range").value;
+            
+            // Split range to dates
+            let start = "{{ start_date }}";
+            let end = "{{ end_date }}";
+            if (dateRange && dateRange.includes(" to ")) {
+                const parts = dateRange.split(" to ");
+                start = parts[0].trim();
+                end = parts[1].trim();
+            } else if (dateRange && dateRange.length === 10) {
+                // Single date selected, use it for both
+                start = dateRange;
+                end = dateRange;
+            }
+
+            showLoaders(true);
+
+            fetch(`/api/compliance/data?report_type=${reportType}&start_date=${start}&end_date=${end}`)
+                .then(res => {
+                    if (!res.ok) throw new Error("API response error");
+                    return res.json();
+                })
+                .then(data => {
+                    updateSummaryKPIs(data.summary, reportType);
+                    updateChart(data, reportType);
+                    updateTable(data.table_data, reportType);
+                    showLoaders(false);
+                })
+                .catch(err => {
+                    console.error("Error loading compliance data:", err);
+                    showLoaders(false);
+                });
+        }
+
+        function updateSummaryKPIs(summary, type) {
+            if (!summary) return;
+            
+            document.getElementById("kpi1-label").innerText = summary.kpi1_label || "";
+            document.getElementById("kpi1-val").innerText = summary.kpi1_val !== undefined ? summary.kpi1_val : "0";
+            
+            document.getElementById("kpi2-label").innerText = summary.kpi2_label || "";
+            document.getElementById("kpi2-val").innerText = summary.kpi2_val !== undefined ? summary.kpi2_val : "0";
+            
+            document.getElementById("kpi3-label").innerText = summary.kpi3_label || "";
+            document.getElementById("kpi3-val").innerText = summary.kpi3_val !== undefined ? summary.kpi3_val : "0";
+            
+            document.getElementById("kpi4-label").innerText = summary.kpi4_label || "";
+            document.getElementById("kpi4-val").innerText = summary.kpi4_val !== undefined ? summary.kpi4_val : "0";
+            
+            // Adjust kpi3 border indicator based on variance
+            const kpi3Container = document.getElementById("kpi3-container");
+            kpi3Container.className = "card glass-card kpi-card border-0"; // reset
+            
+            const kpi3ValEl = document.getElementById("kpi3-val");
+            kpi3ValEl.className = "kpi-val"; // reset
+            
+            if (type === "variance") {
+                const varVal = parseInt(summary.kpi3_val);
+                if (varVal > 0) {
+                    kpi3Container.classList.add("kpi-var-pos");
+                    kpi3ValEl.classList.add("text-success");
+                } else if (varVal < 0) {
+                    kpi3Container.classList.add("kpi-var-neg");
+                    kpi3ValEl.classList.add("text-danger");
+                } else {
+                    kpi3Container.classList.add("kpi-var-neutral");
+                    kpi3ValEl.classList.add("text-muted");
+                }
+            } else if (type === "traffic") {
+                kpi3Container.classList.add("kpi-fourth");
+                kpi3ValEl.classList.add("text-primary");
+            } else if (type === "tonnage_ytd") {
+                kpi3Container.classList.add("kpi-fourth");
+                kpi3ValEl.classList.add("text-primary");
+            } else if (type === "timings") {
+                kpi3Container.classList.add("kpi-var-pos");
+                kpi3ValEl.classList.add("text-success");
+            }
+        }
+
+        function updateChart(apiData, type) {
+            const ctx = document.getElementById("compliance-chart").getContext("2d");
+            
+            // Destroy existing chart instance
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            const labels = apiData.labels || [];
+            let datasets = [];
+            let chartType = "bar";
+            let chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            font: { family: "'Inter', sans-serif", size: 12, weight: '600' },
+                            usePointStyle: true,
+                            boxWidth: 8
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        titleFont: { family: "'Inter', sans-serif", size: 13, weight: 'bold' },
+                        bodyFont: { family: "'Inter', sans-serif", size: 12 },
+                        padding: 12,
+                        cornerRadius: 8,
+                        boxPadding: 6
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { family: "'Inter', sans-serif", size: 11, weight: '500' } }
+                    },
+                    y: {
+                        grid: { color: 'rgba(226, 232, 240, 0.6)', borderDash: [4, 4] },
+                        ticks: { font: { family: "'Inter', sans-serif", size: 11, weight: '500' } }
+                    }
+                }
+            };
+
+            const dropdownEl = document.getElementById("report-type");
+            const selectedText = dropdownEl.options[dropdownEl.selectedIndex].text;
+            document.getElementById("chart-title").innerText = selectedText.split(" ").slice(1).join(" ");
+            
+            // Subtitle
+            const startStr = apiData.labels && apiData.labels.length > 0 ? apiData.labels[0] : "";
+            const endStr = apiData.labels && apiData.labels.length > 1 ? apiData.labels[apiData.labels.length - 1] : "";
+            document.getElementById("chart-sub").innerText = startStr && endStr ? `${startStr} ➔ ${endStr}` : "All Records";
+
+            if (type === "variance") {
+                chartType = "bar";
+                datasets = [
+                    {
+                        type: "bar",
+                        label: "Scheduled Loads",
+                        data: apiData.datasets[0].data,
+                        backgroundColor: "rgba(59, 130, 246, 0.75)",
+                        borderColor: "rgb(59, 130, 246)",
+                        borderWidth: 1.5,
+                        borderRadius: 4,
+                        barPercentage: 0.7,
+                        categoryPercentage: 0.6
+                    },
+                    {
+                        type: "bar",
+                        label: "Actual Weighed Loads",
+                        data: apiData.datasets[1].data,
+                        backgroundColor: "rgba(16, 185, 129, 0.75)",
+                        borderColor: "rgb(16, 185, 129)",
+                        borderWidth: 1.5,
+                        borderRadius: 4,
+                        barPercentage: 0.7,
+                        categoryPercentage: 0.6
+                    },
+                    {
+                        type: "line",
+                        label: "Variance (+/-)",
+                        data: apiData.datasets[2].data,
+                        borderColor: "rgb(239, 68, 68)",
+                        borderWidth: 3,
+                        pointBackgroundColor: "white",
+                        pointBorderColor: "rgb(239, 68, 68)",
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        tension: 0.3,
+                        fill: false
+                    }
+                ];
+            } else if (type === "traffic") {
+                chartType = "line";
+                datasets = [
+                    {
+                        label: "Checked-in Trucks",
+                        data: apiData.datasets[0].data,
+                        borderColor: "rgb(79, 70, 229)",
+                        borderWidth: 3,
+                        backgroundColor: "rgba(79, 70, 229, 0.08)",
+                        fill: true,
+                        tension: 0.3,
+                        pointBackgroundColor: "white",
+                        pointBorderColor: "rgb(79, 70, 229)",
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }
+                ];
+            } else if (type === "tonnage_ytd") {
+                chartType = "line";
+                const colors = [
+                    "rgb(185, 28, 28)",  // Deep Red for WMU 35
+                    "rgb(2, 132, 199)",  // Ocean Blue for WMU 31
+                    "rgb(217, 119, 6)",  // Amber for STU/Decon
+                    "rgb(71, 85, 105)"   // Slate for Landfill
+                ];
+                datasets = apiData.datasets.map((d, index) => ({
+                    label: d.label,
+                    data: d.data,
+                    borderColor: colors[index % colors.length],
+                    borderWidth: 2.5,
+                    fill: false,
+                    tension: 0.2,
+                    pointRadius: 1,
+                    pointHoverRadius: 5
+                }));
+            } else if (type === "timings") {
+                chartType = "bar";
+                datasets = [
+                    {
+                        label: "Checked-in Volume",
+                        data: apiData.datasets[0].data,
+                        backgroundColor: "rgba(249, 115, 22, 0.8)",
+                        borderColor: "rgb(249, 115, 22)",
+                        borderWidth: 1.5,
+                        borderRadius: 6,
+                        barPercentage: 0.85
+                    }
+                ];
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: chartType,
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: chartOptions
+            });
+        }
+
+        function updateTable(tableData, type) {
+            const tableHead = document.getElementById("table-head");
+            const tableBody = document.getElementById("table-body");
+            const tableEmptyMsg = document.getElementById("table-empty-msg");
+            
+            tableHead.innerHTML = "";
+            tableBody.innerHTML = "";
+            
+            if (!tableData || tableData.length === 0) {
+                tableEmptyMsg.style.display = "block";
+                return;
+            }
+            tableEmptyMsg.style.display = "none";
+
+            // Define Headers
+            let headers = [];
+            if (type === "variance") {
+                headers = ["Date", "Scheduled Loads", "Actual Loads", "Variance"];
+            } else if (type === "traffic") {
+                headers = ["Date", "Trucks Count"];
+            } else if (type === "tonnage_ytd") {
+                headers = ["Date", "WMU 35 YTD (Tons)", "WMU 31 YTD (Tons)", "STU/Decon YTD (Tons)", "Landfill/Other YTD (Tons)", "Total YTD (Tons)"];
+            } else if (type === "timings") {
+                headers = ["Hour", "Check-in Count"];
+            }
+
+            const trHead = document.createElement("tr");
+            headers.forEach(h => {
+                const th = document.createElement("th");
+                th.innerText = h;
+                if (h !== "Date" && h !== "Hour") {
+                    th.classList.add("text-end");
+                }
+                trHead.appendChild(th);
+            });
+            tableHead.appendChild(trHead);
+
+            // Populate rows
+            tableData.forEach(row => {
+                const tr = document.createElement("tr");
+                
+                if (type === "variance") {
+                    const tdDate = document.createElement("td");
+                    tdDate.innerText = row.date;
+                    tdDate.classList.add("fw-bold");
+                    
+                    const tdSched = document.createElement("td");
+                    tdSched.innerText = row.scheduled;
+                    tdSched.classList.add("text-end", "text-muted");
+                    
+                    const tdAct = document.createElement("td");
+                    tdAct.innerText = row.actual;
+                    tdAct.classList.add("text-end", "fw-bold");
+                    
+                    const tdVar = document.createElement("td");
+                    const varVal = parseInt(row.variance);
+                    tdVar.classList.add("text-end");
+                    
+                    const span = document.createElement("span");
+                    span.classList.add("badge", "px-2.5", "py-1.5", "rounded");
+                    span.innerText = row.variance;
+                    
+                    if (varVal > 0) {
+                        span.classList.add("badge-variance-pos");
+                    } else if (varVal < 0) {
+                        span.classList.add("badge-variance-neg");
+                    } else {
+                        span.classList.add("badge-variance-neutral");
+                    }
+                    tdVar.appendChild(span);
+                    
+                    tr.appendChild(tdDate);
+                    tr.appendChild(tdSched);
+                    tr.appendChild(tdAct);
+                    tr.appendChild(tdVar);
+                } else if (type === "traffic") {
+                    const tdDate = document.createElement("td");
+                    tdDate.innerText = row.date;
+                    tdDate.classList.add("fw-bold");
+                    
+                    const tdCount = document.createElement("td");
+                    tdCount.innerText = row.count;
+                    tdCount.classList.add("text-end", "fw-bold");
+                    
+                    tr.appendChild(tdDate);
+                    tr.appendChild(tdCount);
+                } else if (type === "tonnage_ytd") {
+                    const tdDate = document.createElement("td");
+                    tdDate.innerText = row.date;
+                    tdDate.classList.add("fw-bold");
+                    
+                    const td35 = document.createElement("td");
+                    td35.innerText = row.wmu35;
+                    td35.classList.add("text-end");
+                    
+                    const td31 = document.createElement("td");
+                    td31.innerText = row.wmu31;
+                    td31.classList.add("text-end");
+                    
+                    const tdStu = document.createElement("td");
+                    tdStu.innerText = row.stu;
+                    tdStu.classList.add("text-end");
+                    
+                    const tdL = document.createElement("td");
+                    tdL.innerText = row.landfill;
+                    tdL.classList.add("text-end");
+                    
+                    const tdTot = document.createElement("td");
+                    tdTot.innerText = row.total;
+                    tdTot.classList.add("text-end", "fw-bold", "text-primary");
+                    
+                    tr.appendChild(tdDate);
+                    tr.appendChild(td35);
+                    tr.appendChild(td31);
+                    tr.appendChild(tdStu);
+                    tr.appendChild(tdL);
+                    tr.appendChild(tdTot);
+                } else if (type === "timings") {
+                    const tdHour = document.createElement("td");
+                    tdHour.innerText = row.hour;
+                    tdHour.classList.add("fw-bold");
+                    
+                    const tdCount = document.createElement("td");
+                    tdCount.innerText = row.count;
+                    tdCount.classList.add("text-end", "fw-bold");
+                    
+                    tr.appendChild(tdHour);
+                    tr.appendChild(tdCount);
+                }
+                
+                tableBody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+</html>
