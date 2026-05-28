@@ -23,6 +23,8 @@ def require_auth(f):
         return f(*args, **kwargs)
     return decorated
 
+SECONDARY_BACKUP_DIR = os.environ.get("SECONDARY_BACKUP_DIR", r"F:\Truck_Log_Backups")
+
 def run_backup_logic():
     if not os.path.exists(DB_PATH):
         return False, "Database file not found."
@@ -33,15 +35,41 @@ def run_backup_logic():
     filename = f"database_backup_{timestamp}.db"
     dest_path = os.path.join(BACKUP_DIR, filename)
     
+    secondary_msg = ""
     try:
         src = sqlite3.connect(DB_PATH)
         dest = sqlite3.connect(dest_path)
         with dest:
             src.backup(dest)
         dest.close()
+        
+        # Attempt secondary backup to thumbdrive
+        if os.path.exists("F:\\"):
+            try:
+                os.makedirs(SECONDARY_BACKUP_DIR, exist_ok=True)
+                thumb_dest_path = os.path.join(SECONDARY_BACKUP_DIR, filename)
+                dest_thumb = sqlite3.connect(thumb_dest_path)
+                with dest_thumb:
+                    src.backup(dest_thumb)
+                dest_thumb.close()
+                secondary_msg = " (Also saved to F: drive)"
+                
+                # Maintain rolling window of 10 backups on thumbdrive
+                all_thumb = sorted([f for f in os.listdir(SECONDARY_BACKUP_DIR) if f.startswith('database_backup_') and f.endswith('.db')])
+                if len(all_thumb) > 10:
+                    for old_file in all_thumb[:-10]:
+                        try:
+                            os.remove(os.path.join(SECONDARY_BACKUP_DIR, old_file))
+                        except OSError:
+                            pass
+            except Exception as e:
+                secondary_msg = f" (Thumbdrive save failed: {e})"
+        else:
+            secondary_msg = " (F: drive not found, skipped secondary backup)"
+            
         src.close()
         
-        # Maintain rolling window of maximum 10 backups
+        # Maintain rolling window of maximum 10 backups on primary
         all_files = sorted([f for f in os.listdir(BACKUP_DIR) if f.startswith('database_backup_') and f.endswith('.db')])
         if len(all_files) > 10:
             for old_file in all_files[:-10]:
@@ -50,7 +78,7 @@ def run_backup_logic():
                 except OSError:
                     pass
                     
-        return True, filename
+        return True, filename + secondary_msg
     except Exception as e:
         return False, str(e)
 
