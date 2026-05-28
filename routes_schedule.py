@@ -36,16 +36,27 @@ def schedule_portal():
         ''', (selected_date,)).fetchall()
         
     daily_loads = []
-    total_loads = 0 # <--- Start counter at 0
+    total_loads = 0 
+    unit35_loads = 0
     
     for row in daily_loads_raw:
         load = dict(row)
         
         # --- EFFICIENCY: Add to total_loads in memory ---
         try: 
-            total_loads += int(load.get('load_count') or 1)
+            count = int(load.get('load_count') or 1)
         except: 
-            total_loads += 1
+            count = 1
+            
+        total_loads += count
+        
+        # Calculate Unit 35 total (All except CNOS, CCS, and Drum)
+        prof_str = str(load.get('profile_number', '')).upper()
+        win_str = str(load.get('routing_code', '')).upper()
+        is_stu = 'CCS' in prof_str or 'CCS' in win_str or 'DRUM' in prof_str or 'DRUM' in win_str
+        is_u31 = not is_stu and ('CNOS' in prof_str or 'CNOS' in win_str)
+        if not is_stu and not is_u31:
+            unit35_loads += count
         
         # --- Clean Logic ---
         load['is_las'] = calculate_las_status(load)
@@ -86,7 +97,7 @@ def schedule_portal():
         -x['id']                # 5. Fallback safety
     ))
 
-    return render_template('schedule.html', daily_loads=standard_loads, blcb_loads=blcb_loads, selected_date=selected_date, total_loads=total_loads)
+    return render_template('schedule.html', daily_loads=standard_loads, blcb_loads=blcb_loads, selected_date=selected_date, total_loads=total_loads, unit35_loads=unit35_loads)
 
 
 @schedule_bp.route('/update_schedule_order', methods=['POST'])
