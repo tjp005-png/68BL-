@@ -11,8 +11,10 @@ from routes_schedule import schedule_bp
 from routes_stu import stu_bp
 from routes_approvals import approvals_bp
 from shared_state import socketio
+from routes_backups import backups_bp, start_backup_scheduler
 
 app = Flask(__name__)
+app.secret_key = 'clh-secret-session-key-2026'
 socketio.init_app(app)
 
 
@@ -23,6 +25,8 @@ app.register_blueprint(reports_bp)
 app.register_blueprint(schedule_bp)
 app.register_blueprint(stu_bp)
 app.register_blueprint(approvals_bp)
+app.register_blueprint(backups_bp)
+
 
 # ==========================================
 #        CONFIGURATION & HELPER VARS
@@ -214,5 +218,7 @@ def portal_hub():
     return render_template('index.html')
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5001, debug=True)
+    start_backup_scheduler(app)
+    socketio.run(app, host='0.0.0.0', port=5002, debug=True)
+
 

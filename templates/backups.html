@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clean Harbors - Database Backup Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .ch-red-bg { background-color: #970000 !important; color: white; }
+        .ch-dark-red-border { border-top: 5px solid #5a0000 !important; }
+        .btn-ch-red { background-color: #970000; color: white; font-weight: bold; border: none; }
+        .btn-ch-red:hover { background-color: #5a0000; color: white; }
+        body { background-color: #f4f6f9; }
+        .stat-card { border: none; border-radius: 8px; }
+        .table-card { border: none; border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="/">
+                <span class="fs-4 fw-bold">Clean Harbors Operations</span>
+            </a>
+            <div class="ms-auto d-flex align-items-center gap-2">
+                <a href="/" class="btn btn-outline-light btn-sm fw-bold">🏠 Back to Hub</a>
+                <form action="{{ url_for('backups_bp.logout') }}" method="POST" class="m-0">
+                    <button type="submit" class="btn btn-danger btn-sm fw-bold">🚪 Sign Out</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        
+        <div class="row align-items-center mb-4">
+            <div class="col-md-8">
+                <h1 class="fw-bold mb-0">📁 Database Backups Manager</h1>
+                <p class="text-muted">Manage automated and manual SQLite database backups for disaster recovery.</p>
+            </div>
+            <div class="col-md-4 text-md-end">
+                <form action="{{ url_for('backups_bp.create_backup') }}" method="POST" id="createBackupForm">
+                    <button type="submit" class="btn btn-ch-red btn-lg py-2 px-4 shadow-sm" id="btnBackupNow">
+                        <span id="spinnerBackup" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                        📥 Backup Database Now
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-6 col-lg-3">
+                <div class="card shadow-sm stat-card p-3 h-100">
+                    <div class="text-muted small fw-bold text-uppercase">Backups Folder</div>
+                    <div class="fs-6 fw-bold mt-1 text-truncate" title="{{ backup_dir }}">{{ backup_dir }}</div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="card shadow-sm stat-card p-3 h-100">
+                    <div class="text-muted small fw-bold text-uppercase">Last Backup</div>
+                    <div class="fs-4 fw-bold mt-1 text-primary">{{ last_backup_time }}</div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="card shadow-sm stat-card p-3 h-100">
+                    <div class="text-muted small fw-bold text-uppercase">Backup Files Count</div>
+                    <div class="fs-4 fw-bold mt-1 text-success">{{ total_backups }} <span class="fs-6 text-muted">/ 10 max</span></div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="card shadow-sm stat-card p-3 h-100">
+                    <div class="text-muted small fw-bold text-uppercase">Total Disk Usage</div>
+                    <div class="fs-4 fw-bold mt-1 text-warning">{{ total_size }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm table-card border-0">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0 fw-bold">Recent Backups</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if backups %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-4">Filename</th>
+                                    <th>Backup Date</th>
+                                    <th>Size</th>
+                                    <th class="text-end pe-4">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for b in backups %}
+                                    <tr>
+                                        <td class="ps-4 fw-semibold text-truncate" style="max-width: 250px;">{{ b.filename }}</td>
+                                        <td>{{ b.date }}</td>
+                                        <td><span class="badge bg-secondary">{{ b.size }}</span></td>
+                                        <td class="text-end pe-4">
+                                            <div class="d-inline-flex gap-2">
+                                                <a href="{{ url_for('backups_bp.download_backup', filename=b.filename) }}" class="btn btn-outline-primary btn-sm fw-bold">
+                                                    ⬇️ Download
+                                                </a>
+                                                <button type="button" class="btn btn-outline-warning btn-sm fw-bold btn-restore" data-filename="{{ b.filename }}">
+                                                    🔄 Restore
+                                                </button>
+                                                <form action="{{ url_for('backups_bp.delete_backup', filename=b.filename) }}" method="POST" class="m-0 d-inline" onsubmit="return confirm('Are you sure you want to permanently delete this backup file?');">
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm fw-bold">
+                                                        🗑️ Delete
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else: %}
+                    <div class="text-center py-5 text-muted">
+                        <div class="fs-3 mb-2">📂</div>
+                        <p class="mb-0">No backup files found. Click "Backup Database Now" to create your first backup.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="text-center mt-5 text-muted small fw-bold">
+            Clean Harbors Buttonwillow Operations Management Portal
+        </div>
+    </div>
+
+    <!-- Restore Confirmation Modal -->
+    <div class="modal fade" id="restoreModal" tabindex="-1" aria-labelledby="restoreModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-warning text-dark py-3">
+                    <h5 class="modal-title fw-bold" id="restoreModalLabel">⚠️ Confirm Database Restoration</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 text-center">
+                    <p class="fs-5">You are about to restore the database from backup file:</p>
+                    <div class="alert alert-secondary py-2 fw-bold fs-6" id="restoreFilenameDisplay">filename.db</div>
+                    <div class="alert alert-danger mb-0 text-start border-0">
+                        <h6 class="fw-bold">🚨 WARNING:</h6>
+                        <p class="mb-0 small">This action will **overwrite the current database**. All data entered since this backup was created will be permanently lost.</p>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top-0 d-flex justify-content-between p-3">
+                    <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                    <form action="" method="POST" id="restoreForm" class="m-0">
+                        <button type="submit" class="btn btn-danger px-4 fw-bold" id="btnConfirmRestore">
+                            <span id="spinnerRestore" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                            Yes, Overwrite & Restore
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const restoreModalElement = document.getElementById('restoreModal');
+            const restoreModal = new bootstrap.Modal(restoreModalElement);
+            const restoreForm = document.getElementById('restoreForm');
+            const restoreFilenameDisplay = document.getElementById('restoreFilenameDisplay');
+            const btnConfirmRestore = document.getElementById('btnConfirmRestore');
+            const spinnerRestore = document.getElementById('spinnerRestore');
+            
+            // Handle restore button clicks
+            document.querySelectorAll('.btn-restore').forEach(button => {
+                button.addEventListener('click', () => {
+                    const filename = button.getAttribute('data-filename');
+                    restoreFilenameDisplay.textContent = filename;
+                    restoreForm.action = `/backups/restore/${encodeURIComponent(filename)}`;
+                    restoreModal.show();
+                });
+            });
+
+            // Loading spinner on Restore confirmation submit
+            restoreForm.addEventListener('submit', () => {
+                btnConfirmRestore.disabled = true;
+                spinnerRestore.classList.remove('d-none');
+            });
+
+            // Loading spinner on Backup creation
+            const createBackupForm = document.getElementById('createBackupForm');
+            const btnBackupNow = document.getElementById('btnBackupNow');
+            const spinnerBackup = document.getElementById('spinnerBackup');
+            if (createBackupForm) {
+                createBackupForm.addEventListener('submit', () => {
+                    btnBackupNow.disabled = true;
+                    spinnerBackup.classList.remove('d-none');
+                });
+            }
+        });
+    </script>
+</body>
+</html>
