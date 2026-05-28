@@ -182,8 +182,8 @@
                             </div>
 
                             <div class="d-flex align-items-center gap-2">
-                                <div class="badge bg-primary text-white px-3 py-2 shadow-sm rounded-pill" style="cursor: default;" title="Unit 37 (All except CNOS, CCS, and Drum loads)">
-                                    <span class="small fw-semibold text-uppercase">Unit 37:</span> <span id="count-unit37" class="fw-bold fs-6 ms-1">0</span>
+                                <div class="badge bg-primary text-white px-3 py-2 shadow-sm rounded-pill" style="cursor: default;" title="Unit 35 (All except CNOS, CCS, and Drum loads)">
+                                    <span class="small fw-semibold text-uppercase">Unit 35:</span> <span id="count-unit35" class="fw-bold fs-6 ms-1">0</span>
                                 </div>
                                 <div class="badge bg-warning text-dark px-3 py-2 shadow-sm rounded-pill" style="cursor: default;" title="Unit 31 (All CNOS loads)">
                                     <span class="small fw-semibold text-dark text-uppercase">Unit 31:</span> <span id="count-unit31" class="fw-bold fs-6 ms-1">0</span>
@@ -526,7 +526,7 @@
         <div id="limitToast" class="toast text-bg-danger border-0 shadow-lg mb-2" role="alert" data-bs-autohide="false">
             <div class="d-flex">
                 <div class="toast-body fw-bold text-white">
-                    ⚠️ WARNING: Total scheduled truck count (<span id="toast-limit-count">0</span>) exceeds the daily limit of 170. Please contact Waste Acceptance for approval.
+                    ⚠️ WARNING: Total scheduled Unit 35 truck count (<span id="toast-limit-count">0</span>) exceeds the daily limit of 170. Please contact Waste Acceptance for approval.
                 </div>
                 <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
             </div>
@@ -581,11 +581,11 @@
         }
 
         // Capacity Limit Check on Page Load
-        const currentTotalLoads = {{ total_loads | default(0) }};
-        if (currentTotalLoads > 170) {
+        const currentUnit35Loads = {{ unit35_loads | default(0) }};
+        if (currentUnit35Loads > 170) {
             const limitToastEl = document.getElementById('limitToast');
             if (limitToastEl) {
-                document.getElementById('toast-limit-count').innerText = currentTotalLoads;
+                document.getElementById('toast-limit-count').innerText = currentUnit35Loads;
                 bootstrap.Toast.getOrCreateInstance(limitToastEl).show();
             }
         }
@@ -652,7 +652,7 @@
         }
 
         function updateTruckCounts() {
-            let u37 = 0;
+            let u35 = 0;
             let u31 = 0;
             let stu = 0;
             let total = 0;
@@ -672,17 +672,17 @@
                 } else if (isU31) {
                     u31 += count;
                 } else {
-                    u37 += count;
+                    u35 += count;
                 }
                 total += count;
             });
 
-            const elU37 = document.getElementById('count-unit37');
+            const elU35 = document.getElementById('count-unit35');
             const elU31 = document.getElementById('count-unit31');
             const elStu = document.getElementById('count-stu');
             const elTotal = document.getElementById('count-total');
 
-            if (elU37) elU37.innerText = u37;
+            if (elU35) elU35.innerText = u35;
             if (elU31) elU31.innerText = u31;
             if (elStu) elStu.innerText = stu;
             if (elTotal) elTotal.innerText = total;
@@ -785,18 +785,34 @@
 
         // 6. DUPLICATE CHECK INTERCEPTOR & CAPACITY LIMIT INTERCEPTOR
         document.getElementById('addScheduleForm').addEventListener('submit', function(e) {
-            e.preventDefault(); 
+            let requestedLoads = parseInt(document.getElementById('load_count').value) || 1;
             
+            // Re-calculate the specific Unit 35 totals before evaluating the limit
+            let profileVal = (document.getElementById('profile_number').value || '').toUpperCase();
+            let winVal = (document.getElementById('routing_code').value || '').toUpperCase();
+            let isSTU = profileVal.includes('CCS') || winVal.includes('CCS') || profileVal.includes('DRUM') || winVal.includes('DRUM');
+            let isU31 = !isSTU && (profileVal.includes('CNOS') || winVal.includes('CNOS'));
+            let isU35 = !isSTU && !isU31;
+            
+            if (isU35) {
+                const currentUnit35 = parseInt(document.getElementById('count-unit35').innerText) || {{ unit35_loads | default(0) }};
+                let newTotal = currentUnit35 + requestedLoads;
+                if (newTotal > 170) {
+                    if (!confirm(`⚠️ CAPACITY WARNING!\n\nAdding ${requestedLoads} Unit 35 loads will put the total scheduled Unit 35 truck count at ${newTotal}, which exceeds the daily limit of 170.\n\nPlease contact Waste Acceptance for approval.\n\nDo you still want to proceed with scheduling?`)) {
+                        e.preventDefault();
+                        return;
+                    }
+                }
+            }
+
             let form = this;
             let selectedDatesRaw = document.getElementById('multiDateSelector').value;
             
             if(!selectedDatesRaw) {
                 alert("Please select at least one date from the calendar.");
+                e.preventDefault();
                 return;
             }
-
-            let requestedLoads = parseInt(form.querySelector('input[name="load_count"]').value) || 1;
-            let newTotal = currentTotalLoads + requestedLoads;
 
             function proceedWithAdd() {
                 let profileVal = (document.getElementById('profile_number').value || '').toUpperCase();
@@ -836,14 +852,9 @@
                     form.submit(); // Failsafe: submit anyway if network issue
                 });
             }
-
-            if (newTotal > 170) {
-                if (confirm(`⚠️ CAPACITY WARNING!\n\nAdding ${requestedLoads} loads will put the total scheduled truck count at ${newTotal}, which exceeds the daily limit of 170.\n\nPlease contact Waste Acceptance for approval.\n\nDo you still want to proceed with scheduling?`)) {
-                    proceedWithAdd();
-                }
-            } else {
-                proceedWithAdd();
-            }
+            
+            e.preventDefault();
+            proceedWithAdd();
         });
 
         // 7. Multi-user Ping & non-disruptive Toast Notification
@@ -949,18 +960,20 @@
                 }
             }
 
-            let countInput = document.getElementById('edit_count');
-            if (countInput) {
-                let newLoads = parseInt(countInput.value) || 0;
-                let actionUrl = this.action;
-                let rowId = actionUrl.split('/').pop();
-                let rowEl = document.querySelector(`tr[data-id="${rowId}"]`);
-                let oldLoads = rowEl ? parseInt(rowEl.getAttribute('data-count')) || 0 : 0;
-                
-                let difference = newLoads - oldLoads;
-                if (difference > 0 && (currentTotalLoads + difference) > 170) {
-                    if (!confirm(`⚠️ CAPACITY WARNING!\n\nUpdating this load to ${newLoads} will put the total scheduled truck count at ${currentTotalLoads + difference}, which exceeds the daily limit of 170.\n\nPlease contact Waste Acceptance for approval.\n\nDo you still want to save changes?`)) {
+            const oldLoads = parseInt(document.getElementById('edit_count').getAttribute('value')) || parseInt(document.getElementById('edit_count').value);
+            const newLoads = parseInt(document.getElementById('edit_count').value) || 0;
+            const difference = newLoads - oldLoads;
+            
+            let isSTU = profileVal.includes('CCS') || winVal.includes('CCS') || profileVal.includes('DRUM') || winVal.includes('DRUM');
+            let isU31 = !isSTU && (profileVal.includes('CNOS') || winVal.includes('CNOS'));
+            let isU35 = !isSTU && !isU31;
+            
+            if (isU35 && difference > 0) {
+                const currentUnit35 = parseInt(document.getElementById('count-unit35').innerText) || {{ unit35_loads | default(0) }};
+                if ((currentUnit35 + difference) > 170) {
+                    if (!confirm(`⚠️ CAPACITY WARNING!\n\nUpdating this load to ${newLoads} will put the total scheduled Unit 35 truck count at ${currentUnit35 + difference}, which exceeds the daily limit of 170.\n\nPlease contact Waste Acceptance for approval.\n\nDo you still want to save changes?`)) {
                         e.preventDefault();
+                        return;
                     }
                 }
             }
