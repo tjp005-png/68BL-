@@ -9,7 +9,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 backups_bp = Blueprint('backups_bp', __name__)
 
 DEFAULT_PASSWORD = "CleanHarbors2026!"
-BACKUP_DIR = 'backups'
+BACKUP_DIR = os.environ.get("BACKUP_DIR", "backups")
 DB_PATH = 'database.db'
 
 def get_admin_password():
