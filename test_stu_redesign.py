@@ -32,6 +32,7 @@ class TestSTURedesignFlow(unittest.TestCase):
             conn.execute("DELETE FROM profiles")
             conn.execute("DELETE FROM drum_inventory")
             conn.execute("DELETE FROM drum_lab_queue")
+            conn.execute("DELETE FROM daily_schedule")
             conn.commit()
         except sqlite3.OperationalError:
             pass

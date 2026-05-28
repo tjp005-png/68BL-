@@ -5,7 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Daily Reports</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
+        #reportsTab .nav-link {
+            color: #495057;
+            background-color: transparent;
+            border: none;
+            transition: all 0.3s ease;
+        }
+        #reportsTab .nav-link.active {
+            color: white !important;
+            background-color: #00126b !important;
+            box-shadow: 0 4px 10px rgba(0, 18, 107, 0.2);
+        }
+        #reportsTab .nav-link:hover:not(.active) {
+            background-color: rgba(0, 18, 107, 0.05);
+            color: #00126b;
+        }
         .clickable-row:hover { background-color: #f1f3f5 !important; transition: background-color 0.2s ease; }
         .shadow-inner { box-shadow: inset 0 3px 5px rgba(0,0,0,0.05); }
         
@@ -106,7 +123,36 @@
                 
                 <div class="d-flex align-items-center">
                     <a href="/export?date={{ selected_date }}" class="btn btn-outline-success fw-bold shadow-sm me-2">📥 Export Excel</a>
+                    <button class="btn btn-outline-danger fw-bold shadow-sm me-2" onclick="downloadPDFReport()">📄 Save PDF Report</button>
                     <button class="btn btn-outline-secondary fw-bold shadow-sm" onclick="window.print()">🖨️ Print Ticket Log</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 🔍 ADVANCED FILTER PANEL -->
+        <div class="card shadow-sm border-0 mb-4 bg-white d-print-none">
+            <div class="card-body p-3">
+                <div class="row align-items-center g-3">
+                    <div class="col-md-5">
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-muted border-secondary">🔍</span>
+                            <input type="text" id="filterSearch" class="form-control border-secondary" placeholder="Search by Profile, Manifest, Load #, or Generator..." oninput="applyFilters()">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <select id="filterStatus" class="form-select border-secondary fw-bold" onchange="applyFilters()">
+                            <option value="">📋 All Statuses</option>
+                            <option value="COMPLETED">✅ Completed Only</option>
+                            <option value="ON SITE">🟡 On Site (Weighed In)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <select id="filterUnit" class="form-select border-secondary fw-bold" onchange="applyFilters()">
+                            <option value="">🏢 All WMUs / Cells</option>
+                            <option value="35">🚛 Unit 35 (Landfill)</option>
+                            <option value="31">🛢️ Unit 31 (Decon)</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
@@ -137,8 +183,23 @@
     </div>
 </div>
 
-        <div class="card shadow-sm mt-4 mb-5 d-print-none">
-            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+        <!-- 🗂️ REPORTS NAVIGATION TABS -->
+        <ul class="nav nav-pills nav-justified mb-4 d-print-none" id="reportsTab" role="tablist" style="border: 1px solid #dee2e6; padding: 5px; border-radius: 50px; background-color: #f8f9fa;">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active fw-bold text-uppercase px-4 py-2" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary-tab-pane" type="button" role="tab" aria-controls="summary-tab-pane" aria-selected="true" style="border-radius: 50px;">📊 Summary Table</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold text-uppercase px-4 py-2" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs-tab-pane" type="button" role="tab" aria-controls="logs-tab-pane" aria-selected="false" style="border-radius: 50px;">📋 Flat Detailed Logs</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold text-uppercase px-4 py-2" id="charts-tab" data-bs-toggle="tab" data-bs-target="#charts-tab-pane" type="button" role="tab" aria-controls="charts-tab-pane" aria-selected="false" style="border-radius: 50px;">📈 Visual Insights</button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="reportsTabContent">
+            <div class="tab-pane fade show active" id="summary-tab-pane" role="tabpanel" aria-labelledby="summary-tab">
+                <div class="card shadow-sm mt-2 mb-5 d-print-none">
+                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0 fw-bold">Variance by Profile & Detailed Logs</h5>
                 <span class="badge bg-light text-dark small shadow-sm">CLICK A ROW TO VIEW TRUCKS</span>
             </div>
@@ -168,7 +229,7 @@
                             {% endif %}
                         {% endfor %}
                         
-                        <tr data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}" class="clickable-row border-bottom {% if ns.has_grid_issue %}table-danger{% endif %}" style="cursor: pointer;">
+                        <tr data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}" data-profile="{{ prof }}" class="clickable-row border-bottom summary-profile-row {% if ns.has_grid_issue %}table-danger{% endif %}" style="cursor: pointer;">
                             <td class="fw-bold text-primary ps-3">
                                 {% if trucks|length > 0 %}
                                     <span class="text-muted small me-2">🔽</span>
@@ -293,6 +354,142 @@
                 </table>
             </div>
         </div>
+    </div> <!-- End of summary-tab-pane -->
+
+            <!-- Tab 2 Pane: Flat Detailed Logs -->
+            <div class="tab-pane fade" id="logs-tab-pane" role="tabpanel" aria-labelledby="logs-tab">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 fw-bold">Detailed Truck Logs</h5>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" id="flatLogsTable">
+                            <thead style="background-color: #f8f9fa;">
+                                <tr>
+                                    <th class="ps-4">Load #</th>
+                                    <th>Profile Number</th>
+                                    <th>Manifest Number</th>
+                                    <th>SO Number</th>
+                                    <th>Generator</th>
+                                    <th class="text-end">Net Weight (tons)</th>
+                                    <th class="text-center">Status</th>
+                                    <th>WMU / Grid</th>
+                                    <th>Time In</th>
+                                    <th class="pe-4">Time Out</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white">
+                                {% for truck in all_trucks %}
+                                {% set is_void = truck.profile_number == 'VOID / NOT ISSUED' or truck.profile_number == 'SYSTEM SAFEGUARD' %}
+                                {% set wmu = truck.cell_location | string | trim %}
+                                {% set grid = truck.grid_location | string | trim | upper %}
+                                {% set status = truck.test_status %}
+                                {% set net_tons = truck.net_weight %}
+                                
+                                <tr class="clickable-row border-bottom detailed-log-row" 
+                                    data-profile="{{ truck.profile_number }}"
+                                    data-manifest="{{ truck.manifest_number }}"
+                                    data-load="{{ truck.load_number }}"
+                                    data-generator="{{ truck.generator | upper }}"
+                                    data-status="{{ status }}"
+                                    data-wmu="{{ wmu }}"
+                                    data-id="{{ truck.id }}"
+                                    data-date="{{ selected_date }}"
+                                    data-gross="{{ truck.gross_weight }}"
+                                    data-tare="{{ truck.exit_weight }}"
+                                    data-grid="{{ truck.grid_location }}"
+                                    data-timein="{{ truck.time_in }}"
+                                    data-timeout="{{ truck.time_out }}"
+                                    {% if not is_void %}onclick="populateEditTruckModal(this)" style="cursor: pointer;"{% endif %}>
+                                    
+                                    <td class="fw-bold ps-4">{{ truck.load_number }}</td>
+                                    <td class="fw-bold text-primary">{{ truck.profile_number }}</td>
+                                    <td>{{ truck.manifest_number or '---' }}</td>
+                                    <td class="text-muted fw-bold">{{ truck.sales_order or '---' }}</td>
+                                    <td class="text-truncate text-muted" style="max-width: 200px;" title="{{ truck.generator }}">{{ truck.generator or '---' }}</td>
+                                    <td class="text-end fw-bold">
+                                        {% if is_void %}
+                                            ---
+                                        {% else %}
+                                            {{ "%.2f"|format(net_tons) if net_tons else '0.00' }} tons
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if is_void %}
+                                            <span class="badge bg-secondary">VOID</span>
+                                        {% elif status == 'COMPLETED' %}
+                                            <span class="badge bg-success">COMPLETED</span>
+                                        {% elif status == 'LAB COMPLETED' %}
+                                            <span class="badge bg-info text-dark">LAB DONE</span>
+                                        {% elif status == 'WEIGHED IN' %}
+                                            <span class="badge bg-warning text-dark">ON SITE</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if is_void %}
+                                            ---
+                                        {% else %}
+                                            <span class="fw-bold">{{ truck.cell_location or 'TBD' }}</span>
+                                            <span class="text-muted small ms-1">/ {% if wmu == '31' %}N/A{% else %}{{ grid or 'TBD' }}{% endif %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ truck.time_in or '---' }}</td>
+                                    <td class="pe-4">{{ truck.time_out or '---' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div> <!-- End of logs-tab-pane -->
+
+            <!-- Tab 3 Pane: Visual Insights -->
+            <div class="tab-pane fade" id="charts-tab-pane" role="tabpanel" aria-labelledby="charts-tab">
+                <div class="row g-4 mb-5">
+                    <!-- Chart 1: Scale & Lab Efficiency -->
+                    <div class="col-md-12">
+                        <div class="card shadow-sm border-0">
+                            <div class="card-header bg-white py-3">
+                                <h6 class="mb-0 fw-bold text-uppercase text-muted">⏱️ Scale & Lab Efficiency (Arrivals vs Turnaround Time)</h6>
+                            </div>
+                            <div class="card-body">
+                                <div style="position: relative; height: 350px;">
+                                    <canvas id="chartEfficiency"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Chart 2: Top Generators -->
+                    <div class="col-md-6">
+                        <div class="card shadow-sm border-0">
+                            <div class="card-header bg-white py-3">
+                                <h6 class="mb-0 fw-bold text-uppercase text-muted">🏢 Top Generators by Volume</h6>
+                            </div>
+                            <div class="card-body">
+                                <div style="position: relative; height: 350px;">
+                                    <canvas id="chartGenerators"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Chart 3: WMU Utilization -->
+                    <div class="col-md-6">
+                        <div class="card shadow-sm border-0">
+                            <div class="card-header bg-white py-3">
+                                <h6 class="mb-0 fw-bold text-uppercase text-muted">🚜 WMU Cell Utilization</h6>
+                            </div>
+                            <div class="card-body">
+                                <div style="position: relative; height: 350px;">
+                                    <canvas id="chartWmu"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div> <!-- End of charts-tab-pane -->
+        </div> <!-- End of tab-content -->
 
         <div class="d-none d-print-block mt-2">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid black; padding-bottom: 10px; margin-bottom: 15px;">
@@ -588,6 +785,334 @@
             socket.on('truck_update', checkAndReload);
             socket.on('lab_update', checkAndReload);
         {% endif %}
+
+        // --- ADVANCED FILTERING LOGIC ---
+        function applyFilters() {
+            const searchQuery = document.getElementById('filterSearch').value.trim().toUpperCase();
+            const statusQuery = document.getElementById('filterStatus').value.toUpperCase();
+            const unitQuery = document.getElementById('filterUnit').value.toUpperCase();
+
+            // 1. Filter Flat Detailed Logs Table
+            const detailedRows = document.querySelectorAll('.detailed-log-row');
+            detailedRows.forEach(row => {
+                const profile = (row.getAttribute('data-profile') || '').toUpperCase();
+                const manifest = (row.getAttribute('data-manifest') || '').toUpperCase();
+                const load = (row.getAttribute('data-load') || '').toUpperCase();
+                const generator = (row.getAttribute('data-generator') || '').toUpperCase();
+                const status = (row.getAttribute('data-status') || '').toUpperCase();
+                const wmu = (row.getAttribute('data-wmu') || '').toUpperCase();
+
+                const matchSearch = !searchQuery || 
+                                    profile.includes(searchQuery) || 
+                                    manifest.includes(searchQuery) || 
+                                    load.includes(searchQuery) || 
+                                    generator.includes(searchQuery);
+
+                const matchStatus = !statusQuery || 
+                                    (statusQuery === 'COMPLETED' && (status === 'COMPLETED' || status === 'LAB COMPLETED' || status === 'LAB DONE')) ||
+                                    (statusQuery === 'ON SITE' && status === 'WEIGHED IN');
+
+                const matchUnit = !unitQuery || 
+                                  (unitQuery === '35' && wmu.startsWith('35')) ||
+                                  (unitQuery === '31' && wmu === '31');
+
+                if (matchSearch && matchStatus && matchUnit) {
+                    row.style.setProperty('display', '', 'important');
+                } else {
+                    row.style.setProperty('display', 'none', 'important');
+                }
+            });
+
+            // 2. Filter Summary Table Profile Groups
+            const summaryRows = document.querySelectorAll('.summary-profile-row');
+            summaryRows.forEach(row => {
+                const profile = (row.getAttribute('data-profile') || '').toUpperCase();
+                const collapseId = row.getAttribute('data-bs-target');
+                const collapseRow = document.querySelector(collapseId);
+                
+                let matchAnySubRow = false;
+                let subRows = collapseRow ? collapseRow.querySelectorAll('.clickable-row') : [];
+                
+                subRows.forEach(sub => {
+                    const subProf = (sub.getAttribute('data-profile') || '').toUpperCase();
+                    const subMan = (sub.getAttribute('data-manifest') || '').toUpperCase();
+                    const subLoad = (sub.getAttribute('data-load') || '').toUpperCase();
+                    const subGen = (sub.getAttribute('data-generator') || '').toUpperCase();
+                    const subStatus = (sub.getAttribute('data-status') || '').toUpperCase();
+                    const subWmu = (sub.getAttribute('data-wmu') || '').toUpperCase();
+                    
+                    const mSearch = !searchQuery || 
+                                    subProf.includes(searchQuery) || 
+                                    subMan.includes(searchQuery) || 
+                                    subLoad.includes(searchQuery) || 
+                                    subGen.includes(searchQuery);
+
+                    const mStatus = !statusQuery || 
+                                    (statusQuery === 'COMPLETED' && (subStatus === 'COMPLETED' || subStatus === 'LAB COMPLETED' || subStatus === 'LAB DONE')) ||
+                                    (statusQuery === 'ON SITE' && subStatus === 'WEIGHED IN');
+
+                    const mUnit = !unitQuery || 
+                                  (unitQuery === '35' && subWmu.startsWith('35')) ||
+                                  (unitQuery === '31' && subWmu === '31');
+                                  
+                    if (mSearch && mStatus && mUnit) {
+                        sub.style.setProperty('display', '', 'important');
+                        matchAnySubRow = true;
+                    } else {
+                        sub.style.setProperty('display', 'none', 'important');
+                    }
+                });
+                
+                const directProfileMatch = !searchQuery || profile.includes(searchQuery);
+                const statusOrUnitApplied = !!statusQuery || !!unitQuery;
+                const showParent = statusOrUnitApplied ? matchAnySubRow : (directProfileMatch || matchAnySubRow);
+                
+                if (showParent) {
+                    row.style.setProperty('display', '', 'important');
+                    if (collapseRow) {
+                        collapseRow.style.setProperty('display', '', 'important');
+                    }
+                } else {
+                    row.style.setProperty('display', 'none', 'important');
+                    if (collapseRow) {
+                        collapseRow.classList.remove('show');
+                        collapseRow.style.setProperty('display', 'none', 'important');
+                    }
+                }
+            });
+
+            // Re-render charts with filtered data if tab is active
+            if (document.getElementById('charts-tab-pane').classList.contains('show')) {
+                initializeCharts();
+            }
+        }
+
+        // --- CHARTJS INTERACTIVE CHARTS ---
+        let charts = {};
+
+        function initializeCharts() {
+            Object.values(charts).forEach(c => c.destroy());
+            charts = {};
+
+            const arrivalHours = Array(24).fill(0);
+            const turnaroundSums = Array(24).fill(0);
+            const turnaroundCounts = Array(24).fill(0);
+
+            const generatorVolumes = {};
+            let wmu35Tons = 0;
+            let wmu31Tons = 0;
+
+            const detailedRows = document.querySelectorAll('.detailed-log-row');
+            
+            function parseTime(timeStr) {
+                if (!timeStr || !timeStr.includes(':')) return null;
+                const parts = timeStr.split(':');
+                return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+            }
+
+            detailedRows.forEach(row => {
+                if (row.style.display === 'none') return;
+                
+                const timeInStr = row.getAttribute('data-timein');
+                const timeOutStr = row.getAttribute('data-timeout');
+                
+                let hourIndex = -1;
+                if (timeInStr && timeInStr.includes(':')) {
+                    hourIndex = parseInt(timeInStr.split(':')[0], 10);
+                    if (hourIndex >= 0 && hourIndex < 24) {
+                        arrivalHours[hourIndex]++;
+                    }
+                }
+                
+                if (hourIndex >= 0 && timeInStr && timeOutStr) {
+                    const tIn = parseTime(timeInStr);
+                    const tOut = parseTime(timeOutStr);
+                    if (tIn !== null && tOut !== null && tOut >= tIn) {
+                        turnaroundSums[hourIndex] += (tOut - tIn);
+                        turnaroundCounts[hourIndex]++;
+                    }
+                }
+
+                // Generator & WMU
+                const gen = row.getAttribute('data-generator') || 'Unknown';
+                const tonsText = row.children[5].textContent.replace('tons', '').trim();
+                const tons = parseFloat(tonsText) || 0;
+                
+                if (tons > 0) {
+                    generatorVolumes[gen] = (generatorVolumes[gen] || 0) + tons;
+                    
+                    const wmu = (row.getAttribute('data-wmu') || '').trim();
+                    if (wmu.startsWith('35')) {
+                        wmu35Tons += tons;
+                    } else if (wmu === '31') {
+                        wmu31Tons += tons;
+                    }
+                }
+            });
+
+            // Prepare Data: Efficiency
+            const startHour = 6;
+            const endHour = 18;
+            const hourlyLabels = [];
+            const hourlyArrivals = [];
+            const hourlyTurnaround = [];
+            
+            for (let h = startHour; h <= endHour; h++) {
+                const label = h === 12 ? '12 PM' : (h > 12 ? (h - 12) + ' PM' : h + ' AM');
+                hourlyLabels.push(label);
+                hourlyArrivals.push(arrivalHours[h]);
+                
+                const avgTurnaround = turnaroundCounts[h] > 0 ? (turnaroundSums[h] / turnaroundCounts[h]) : 0;
+                hourlyTurnaround.push(Math.round(avgTurnaround));
+            }
+
+            // Prepare Data: Generators
+            const sortedGens = Object.keys(generatorVolumes).sort((a, b) => generatorVolumes[b] - generatorVolumes[a]).slice(0, 7);
+            const genLabels = [];
+            const genData = [];
+            sortedGens.forEach(g => {
+                // Trucate long names
+                genLabels.push(g.length > 25 ? g.substring(0, 22) + '...' : g);
+                genData.push(generatorVolumes[g]);
+            });
+
+            // 1. Efficiency Chart (Dual Axis)
+            const ctx1 = document.getElementById('chartEfficiency').getContext('2d');
+            charts.efficiency = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: hourlyLabels,
+                    datasets: [
+                        {
+                            type: 'line',
+                            label: 'Avg Turnaround (Minutes)',
+                            data: hourlyTurnaround,
+                            borderColor: '#dc3545',
+                            backgroundColor: '#dc3545',
+                            borderWidth: 3,
+                            tension: 0.3,
+                            yAxisID: 'y1'
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Trucks Arrived',
+                            data: hourlyArrivals,
+                            backgroundColor: 'rgba(0, 18, 107, 0.7)',
+                            borderColor: '#00126b',
+                            borderWidth: 1,
+                            borderRadius: 4,
+                            yAxisID: 'y'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { 
+                            beginAtZero: true, 
+                            position: 'left',
+                            title: { display: true, text: 'Trucks' }
+                        },
+                        y1: {
+                            beginAtZero: true,
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            title: { display: true, text: 'Wait Time (Mins)' }
+                        }
+                    }
+                }
+            });
+
+            // 2. Generators Chart
+            const ctx2 = document.getElementById('chartGenerators').getContext('2d');
+            charts.generators = new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: genLabels,
+                    datasets: [{
+                        label: 'Total Tonnage',
+                        data: genData,
+                        backgroundColor: 'rgba(25, 135, 84, 0.8)',
+                        borderColor: '#198754',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } }
+                }
+            });
+
+            // 3. WMU Chart
+            const ctx3 = document.getElementById('chartWmu').getContext('2d');
+            charts.wmu = new Chart(ctx3, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Unit 35 (Landfill)', 'Unit 31 (Decon)'],
+                    datasets: [{
+                        data: [wmu35Tons, wmu31Tons],
+                        backgroundColor: ['#00126b', '#ffc107'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+
+        // --- Tab Change Listener to render charts cleanly ---
+        document.getElementById('charts-tab').addEventListener('shown.bs.tab', function () {
+            initializeCharts();
+        });
+
+        // --- CLIENT SIDE PDF EXPORT ---
+        function downloadPDFReport() {
+            const activePane = document.querySelector('.tab-pane.active');
+            let element = activePane;
+            let filename = 'Daily_Report_' + '{{ selected_date }}' + '.pdf';
+            let orientation = 'landscape';
+            
+            if (activePane.id === 'summary-tab-pane') {
+                element = document.querySelector('.container');
+                filename = 'Daily_Report_Summary_' + '{{ selected_date }}' + '.pdf';
+            } else if (activePane.id === 'logs-tab-pane') {
+                element = document.querySelector('#flatLogsTable');
+                filename = 'Daily_Report_Detailed_' + '{{ selected_date }}' + '.pdf';
+            } else if (activePane.id === 'charts-tab-pane') {
+                element = document.querySelector('#charts-tab-pane');
+                filename = 'Daily_Report_Visuals_' + '{{ selected_date }}' + '.pdf';
+            }
+
+            const opt = {
+                margin:       [0.3, 0.3, 0.3, 0.3],
+                filename:     filename,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: orientation }
+            };
+
+            // Hide non-printable widgets
+            const hideList = document.querySelectorAll('.d-print-none, #reportsTab, .card.bg-white.d-print-none');
+            hideList.forEach(el => el.style.setProperty('display', 'none', 'important'));
+
+            // Generate
+            html2pdf().set(opt).from(element).save().then(() => {
+                hideList.forEach(el => el.style.setProperty('display', '', ''));
+                applyFilters();
+            }).catch(err => {
+                console.error("PDF download error:", err);
+                hideList.forEach(el => el.style.setProperty('display', '', ''));
+            });
+        }
     </script>
 </body>
 </html>

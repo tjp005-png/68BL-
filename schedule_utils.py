@@ -34,7 +34,7 @@ def calculate_las_status(load):
 
     # 3. No Date Check
     if clean_exp in ['nodate', '', 'blank']:
-        if prof_status == 'A':
+        if prof_status.startswith('A'):
             return False  # Active and no date = Safe
         else:
             return True   # Inactive and no date = LAS

@@ -106,65 +106,90 @@
                 </div>
             </div>
 
-            <div class="col-md-8 mb-4">
-                <div class="card shadow h-100">
-                    <div class="card-header bg-white border-bottom pt-3 pb-2 d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0 fw-bold" style="color: #970000;">Active Master Profiles</h4>
-                        
-                        <form action="/approvals" method="GET" class="m-0 d-flex w-50">
-                            <input type="text" name="search" class="form-control form-control-sm border-danger shadow-sm me-2" 
-                                   placeholder="🔍 DB Search (Profile, Generator, WIN)..." value="{{ search_query }}">
-                            
-                            <button type="submit" class="btn btn-sm text-white fw-bold shadow-sm" style="background-color: #970000;">Search</button>
-                            
-                            {% if search_query %}
-                                <a href="/approvals" class="btn btn-sm btn-outline-secondary fw-bold ms-2">Clear</a>
-                            {% endif %}
-                        </form>
-                    </div>
-                    
-                    <div class="card-body p-0 bg-light">
-                        <div class="table-responsive" style="max-height: 800px; overflow-y: auto;">
-                            <table class="table table-hover table-striped align-middle mb-0">
-                                <thead class="table-dark sticky-top">
-                                    <tr>
-                                        <th class="py-3 px-3">Profile #</th>
-                                        <th>Generator</th>
-                                        <th>State / pH / Flash</th>
-                                        <th>WIN/Form</th>
-                                        <th>VOC %</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for p in profiles %}
-                                    <tr>
-                                        <td class="fw-bold text-primary px-3">{{ p.profile_number }}</td>
-                                        <td class="fw-bold small">{{ p.generator_name }}</td>
-                                        <td class="small">
-                                            <span class="text-muted fw-bold">{{ p.physical_appearance or 'N/A' }}</span><br>
-                                            pH: {{ p.ph_range or '--' }} | FP: {{ p.flash_point or '--' }}
-                                        </td>
-                                        <td class="fw-bold">{{ p.win_code }}</td>
-                                        <td>
-                                            {% if p.voc_percentage > 0 %}
-                                                <span class="badge bg-danger">{{ p.voc_percentage }}%</span>
-                                            {% else %}
-                                                <span class="badge bg-secondary">0.0%</span>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                    {% else %}
-                                    <tr>
-                                        <td colspan="5" class="text-center text-muted py-5">
-                                            <em>No profiles loaded in the database yet.</em>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
+            <div class="col-md-8 mb-4 d-flex flex-column gap-3">
+                
+                <!-- Search Bar -->
+                <div class="card shadow-sm border-danger">
+                    <div class="card-body">
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text bg-light text-muted border-secondary">🔍</span>
+                            <input type="text" id="ajaxSearchInput" class="form-control border-secondary fw-bold" placeholder="Instant Search: Profile, Generator, Lab #, WIN...">
+                        </div>
+                        <!-- Search Results Dropdown -->
+                        <div id="searchResults" class="list-group mt-2 shadow-sm d-none" style="max-height: 250px; overflow-y: auto;">
                         </div>
                     </div>
                 </div>
+
+                <!-- Profile Dashboard (Hidden initially) -->
+                <div id="profileDashboard" class="d-none flex-column gap-3">
+                    
+                    <!-- Profile Header -->
+                    <div class="card shadow border-0" style="border-left: 6px solid #970000 !important;">
+                        <div class="card-body d-flex justify-content-between align-items-center pb-2">
+                            <div>
+                                <h3 id="dashProfileNum" class="fw-bold text-primary mb-1">---</h3>
+                                <h6 id="dashGenerator" class="text-muted fw-bold mb-0">---</h6>
+                            </div>
+                            <div class="text-end">
+                                <span id="dashStatus" class="badge bg-secondary mb-1">---</span><br>
+                                <small class="text-muted fw-bold">Exp: <span id="dashExp">---</span></small>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-light py-2 d-flex gap-4 border-0">
+                            <span class="fw-bold text-muted small">WIN/Form: <span id="dashWin" class="text-dark">---</span></span>
+                            <span class="fw-bold text-muted small">Lab #: <span id="dashLab" class="text-dark">---</span></span>
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <!-- File Cabinet -->
+                        <div class="col-md-6">
+                            <div class="card shadow-sm h-100 border-secondary">
+                                <div class="card-header bg-dark text-white fw-bold py-2">
+                                    📁 File Cabinet (PDFs/Docs)
+                                </div>
+                                <div class="card-body bg-light p-3">
+                                    <div class="mb-3">
+                                        <input class="form-control form-control-sm border-secondary mb-2" type="file" id="fileUploader" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg">
+                                        <button class="btn btn-sm text-white w-100 fw-bold shadow-sm" id="btnUpload" style="background-color: #5a0000;" onclick="uploadAttachment()">Upload & Attach</button>
+                                    </div>
+                                    <h6 class="fw-bold text-muted mb-2 border-bottom pb-1">Saved Attachments:</h6>
+                                    <ul id="attachmentList" class="list-group list-group-flush rounded border" style="max-height: 250px; overflow-y: auto;">
+                                        <li class="list-group-item text-muted small text-center">Select a profile first</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Historical Loads -->
+                        <div class="col-md-6">
+                            <div class="card shadow-sm h-100 border-secondary">
+                                <div class="card-header text-white fw-bold py-2" style="background-color: #00126b;">
+                                    🚛 Historical Loads
+                                </div>
+                                <div class="card-body p-0">
+                                    <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
+                                        <table class="table table-hover table-sm table-striped align-middle mb-0">
+                                            <thead class="table-dark sticky-top small">
+                                                <tr>
+                                                    <th>Date</th>
+                                                    <th>Manifest</th>
+                                                    <th>Load #</th>
+                                                    <th>Weight</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="historyTableBody" class="small">
+                                                <tr><td colspan="4" class="text-center text-muted py-3">Select a profile first</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div> <!-- End Profile Dashboard -->
+                
             </div>
         </div>
     </div>
@@ -216,6 +241,164 @@
                 alert('A network error occurred while processing the PDF.');
             });
         });
+
+        // --- DASHBOARD AJAX LOGIC ---
+        let currentProfile = null;
+        let searchTimeout = null;
+
+        const searchInput = document.getElementById('ajaxSearchInput');
+        const searchResults = document.getElementById('searchResults');
+        const dashboard = document.getElementById('profileDashboard');
+
+        // Dynamic Search
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            const query = this.value.trim();
+            if (query.length < 2) {
+                searchResults.classList.add('d-none');
+                return;
+            }
+
+            searchTimeout = setTimeout(() => {
+                fetch(`/api/profile/search?q=${encodeURIComponent(query)}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        searchResults.innerHTML = '';
+                        if (data.length === 0) {
+                            searchResults.innerHTML = '<div class="list-group-item text-muted">No matches found.</div>';
+                        } else {
+                            data.forEach(p => {
+                                const btn = document.createElement('button');
+                                btn.className = 'list-group-item list-group-item-action py-2';
+                                btn.innerHTML = `
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1 fw-bold text-primary">${p.profile_number}</h6>
+                                        <small class="${p.status === 'ACTIVE' ? 'text-success' : 'text-muted'} fw-bold">${p.status || 'UNKNOWN'}</small>
+                                    </div>
+                                    <p class="mb-1 small text-truncate" style="max-width:300px;">${p.generator || 'No Generator'}</p>
+                                    <small class="text-muted">Lab: ${p.lab_number || '---'} | WIN: ${p.win_code || '---'}</small>
+                                `;
+                                btn.onclick = () => selectProfile(p);
+                                searchResults.appendChild(btn);
+                            });
+                        }
+                        searchResults.classList.remove('d-none');
+                    });
+            }, 300);
+        });
+
+        // Select Profile and load dashboard
+        function selectProfile(p) {
+            currentProfile = p.profile_number;
+            
+            // Hide dropdown and clear search
+            searchResults.classList.add('d-none');
+            searchInput.value = p.profile_number;
+
+            // Show Dashboard
+            dashboard.classList.remove('d-none');
+            dashboard.classList.add('d-flex');
+
+            // Populate Meta Data
+            document.getElementById('dashProfileNum').innerText = p.profile_number;
+            document.getElementById('dashGenerator').innerText = p.generator || '---';
+            document.getElementById('dashStatus').innerText = p.status || 'UNKNOWN';
+            document.getElementById('dashStatus').className = `badge mb-1 ${p.status === 'ACTIVE' ? 'bg-success' : 'bg-secondary'}`;
+            document.getElementById('dashExp').innerText = p.expiration_date || 'No Date';
+            document.getElementById('dashWin').innerText = p.win_code || '---';
+            document.getElementById('dashLab').innerText = p.lab_number || '---';
+
+            // Fetch History and Attachments
+            loadHistory();
+            loadAttachments();
+        }
+
+        function loadHistory() {
+            const tbody = document.getElementById('historyTableBody');
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Loading...</td></tr>';
+            
+            fetch(`/api/profile/${currentProfile}/history`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No historical loads found.</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = '';
+                    data.forEach(load => {
+                        const row = `<tr>
+                            <td class="text-muted">${load.import_date || '---'}</td>
+                            <td class="fw-bold">${load.manifest || '---'}</td>
+                            <td>${load.job_id || '---'}</td>
+                            <td class="text-end">${load.weight ? parseFloat(load.weight).toFixed(2) : '0.00'}</td>
+                        </tr>`;
+                        tbody.innerHTML += row;
+                    });
+                });
+        }
+
+        function loadAttachments() {
+            const list = document.getElementById('attachmentList');
+            list.innerHTML = '<li class="list-group-item text-muted small text-center">Loading...</li>';
+            
+            fetch(`/api/profile/${currentProfile}/attachments`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.length === 0) {
+                        list.innerHTML = '<li class="list-group-item text-muted small text-center py-3">No files attached yet.</li>';
+                        return;
+                    }
+                    list.innerHTML = '';
+                    data.forEach(file => {
+                        list.innerHTML += `
+                            <li class="list-group-item d-flex justify-content-between align-items-center py-2">
+                                <a href="/uploads/profiles/${encodeURIComponent(file.file_path)}" target="_blank" class="text-decoration-none small text-truncate fw-bold" style="max-width: 250px;">
+                                    📄 ${file.filename}
+                                </a>
+                                <small class="text-muted" style="font-size: 0.7rem;">${file.upload_date.split(' ')[0]}</small>
+                            </li>
+                        `;
+                    });
+                });
+        }
+
+        function uploadAttachment() {
+            if (!currentProfile) return;
+            const fileInput = document.getElementById('fileUploader');
+            if (fileInput.files.length === 0) {
+                alert('Please select a file to upload.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            const btn = document.getElementById('btnUpload');
+            btn.disabled = true;
+            btn.innerText = 'Uploading...';
+
+            fetch(`/api/profile/${currentProfile}/upload`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.innerText = 'Upload & Attach';
+                if (data.success) {
+                    fileInput.value = '';
+                    loadAttachments();
+                } else {
+                    alert('Upload failed: ' + data.error);
+                }
+            })
+            .catch(e => {
+                btn.disabled = false;
+                btn.innerText = 'Upload & Attach';
+                alert('Network error during upload.');
+            });
+        }
+
     </script>
 </body>
 </html>

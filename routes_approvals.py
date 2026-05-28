@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, jsonify, send_from_directory
+import os
+from werkzeug.utils import secure_filename
 from datetime import date
 from contextlib import closing
 import pdfplumber
@@ -11,26 +13,7 @@ approvals_bp = Blueprint('approvals_bp', __name__)
 
 @approvals_bp.route('/approvals')
 def approvals_portal():
-    search_query = request.args.get('search', '').strip()
-    with closing(get_db_connection()) as conn:
-        if search_query:
-            query = f"%{search_query}%"
-            # We select generator as generator_name to match approvals.html
-            profiles = conn.execute('''
-                SELECT profile_number, generator AS generator_name, waste_description, win_code, 
-                       voc_percentage, special_handling, ph_range, physical_appearance, flash_point, expiration_date
-                FROM profiles
-                WHERE profile_number LIKE ? OR generator LIKE ? OR win_code LIKE ?
-                ORDER BY profile_number ASC
-            ''', (query, query, query)).fetchall()
-        else:
-            profiles = conn.execute('''
-                SELECT profile_number, generator AS generator_name, waste_description, win_code, 
-                       voc_percentage, special_handling, ph_range, physical_appearance, flash_point, expiration_date
-                FROM profiles
-                ORDER BY profile_number ASC
-            ''').fetchall()
-    return render_template('approvals.html', profiles=profiles, search_query=search_query)
+    return render_template('approvals.html')
 
 @approvals_bp.route('/waste_acceptance')
 def waste_acceptance():
@@ -156,22 +139,38 @@ def waste_acceptance_finalize_load():
 
 @approvals_bp.route('/api/parse_profile_pdf', methods=['POST'])
 def parse_profile_pdf():
-    if 'pdf_file' not in request.files: return jsonify({'error': 'No file uploaded'}), 400
+    if 'pdf_file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
     file = request.files['pdf_file']
-    if file.filename == '': return jsonify({'error': 'No file selected'}), 400
-
-    extracted_data = {'profile_number': '', 'generator': '', 'waste_description': '', 'win_code': '', 'special_handling': ''}
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+        
+    extracted_data = {'profile_number': '', 'generator_name': '', 'waste_description': '', 'win_code': '', 'special_handling': '', 'physical_appearance': ''}
     try:
         with pdfplumber.open(file) as pdf:
-            full_text = "".join([page.extract_text() + "\n" for page in pdf.pages[:2]])
-            prof_match = re.search(r'Clean Harbors Profile No\.\s*([A-Z0-9]+)', full_text)
+            full_text = "".join([page.extract_text() + "\n" for page in pdf.pages[:2] if page.extract_text()])
+            
+            # More resilient Profile Number match
+            prof_match = re.search(r'(?:Profile No\.|Profile:)\s*([A-Z0-9]+)', full_text, re.IGNORECASE)
             if prof_match: extracted_data['profile_number'] = prof_match.group(1).strip()
-            gen_match = re.search(r'GENERATOR NAME:\s*(.*?)\n', full_text)
-            if gen_match: extracted_data['generator'] = gen_match.group(1).strip()
-            desc_match = re.search(r'CUSTOMER WASTE DESCRIPTION:\s*(.*?)\n', full_text)
+            
+            # Fix Generator Name missing (and make it case insensitive)
+            gen_match = re.search(r'GENERATOR(?: NAME)?:\s*(.*?)\n', full_text, re.IGNORECASE)
+            if gen_match: extracted_data['generator_name'] = gen_match.group(1).strip()
+            
+            desc_match = re.search(r'WASTE DESCRIPTION:\s*(.*?)\n', full_text, re.IGNORECASE)
             if desc_match: extracted_data['waste_description'] = desc_match.group(1).strip()
-            form_code_match = re.search(r'SPECIFY THE FORM CODE.*?([A-Z][0-9]{3})', full_text, re.IGNORECASE | re.DOTALL)
+            
+            handling_match = re.search(r'SPECIAL HANDLING.*?:\s*(.*?)\n', full_text, re.IGNORECASE)
+            if handling_match: extracted_data['special_handling'] = handling_match.group(1).strip()
+            
+            form_code_match = re.search(r'(?:FORM CODE|WIN|Routing).*?([A-Z][0-9]{3})', full_text, re.IGNORECASE | re.DOTALL)
             if form_code_match: extracted_data['win_code'] = form_code_match.group(1).strip()
+            
+            # Attempt to find physical state checkmarks (look for Solid, Liquid, Sludge near a checkmark 'X' or unicode checkbox)
+            state_match = re.search(r'(?:X|☒|☑|\u2611|\u2713|\[X\])\s*(Solid|Liquid|Sludge|Gas|Powder|Debris)', full_text, re.IGNORECASE)
+            if state_match: extracted_data['physical_appearance'] = state_match.group(1).strip().capitalize()
+            
         return jsonify(extracted_data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -228,3 +227,73 @@ def auto_sync_profiles():
             SCHEDULE_UPDATES[date_str] = time.time()
             
     return jsonify({'updated': updates_made})
+
+UPLOAD_FOLDER = r'C:\Users\PEREIRT446445\OneDrive - cleanharbors.com\Desktop\Truck_Log_App_Dev\uploads\profiles'
+
+@approvals_bp.route('/api/profile/search')
+def api_profile_search():
+    query = request.args.get('q', '').strip()
+    if not query:
+        return jsonify([])
+        
+    with closing(get_db_connection()) as conn:
+        like_query = f"%{query}%"
+        profiles = conn.execute('''
+            SELECT profile_number, generator, status, expiration_date, lab_number, win_code
+            FROM profiles
+            WHERE profile_number LIKE ? OR generator LIKE ? OR lab_number LIKE ? OR win_code LIKE ?
+            ORDER BY profile_number ASC
+            LIMIT 50
+        ''', (like_query, like_query, like_query, like_query)).fetchall()
+        
+    return jsonify([dict(p) for p in profiles])
+
+@approvals_bp.route('/api/profile/<profile_number>/history')
+def api_profile_history(profile_number):
+    with closing(get_db_connection()) as conn:
+        loads = conn.execute('''
+            SELECT manifest, job_id, import_date, weight, process_type, ph, voc_ppm
+            FROM drum_inventory
+            WHERE inb_prof = ?
+            ORDER BY import_date DESC
+        ''', (profile_number,)).fetchall()
+    return jsonify([dict(l) for l in loads])
+
+@approvals_bp.route('/api/profile/<profile_number>/upload', methods=['POST'])
+def api_profile_upload(profile_number):
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+        
+    if file:
+        filename = secure_filename(file.filename)
+        # Prepend profile number to ensure uniqueness in the folder
+        save_name = f"{secure_filename(profile_number)}_{filename}"
+        file_path = os.path.join(UPLOAD_FOLDER, save_name)
+        file.save(file_path)
+        
+        with closing(get_db_connection()) as conn:
+            conn.execute('''
+                INSERT INTO profile_attachments (profile_number, filename, file_path)
+                VALUES (?, ?, ?)
+            ''', (profile_number, filename, save_name))
+            conn.commit()
+            
+        return jsonify({'success': True, 'filename': filename})
+
+@approvals_bp.route('/api/profile/<profile_number>/attachments')
+def api_profile_attachments(profile_number):
+    with closing(get_db_connection()) as conn:
+        attachments = conn.execute('''
+            SELECT id, filename, file_path, upload_date 
+            FROM profile_attachments
+            WHERE profile_number = ?
+            ORDER BY upload_date DESC
+        ''', (profile_number,)).fetchall()
+    return jsonify([dict(a) for a in attachments])
+
+@approvals_bp.route('/uploads/profiles/<path:filename>')
+def serve_profile_upload(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)

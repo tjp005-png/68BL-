@@ -128,7 +128,7 @@ def submit_truck():
             
             # 1. No Date -> Check the Status!
             if clean_exp in ['nodate', '', 'blank']:
-                if prof_status == 'A':
+                if prof_status.startswith('A'):
                     is_las_profile = False  # Active + No Date = Safe
                 else:
                     is_las_profile = True   # Not Active + No Date = LAS
