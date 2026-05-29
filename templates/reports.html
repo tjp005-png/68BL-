@@ -150,7 +150,7 @@
                         <select id="filterUnit" class="form-select border-secondary fw-bold" onchange="applyFilters()">
                             <option value="">🏢 All WMUs / Cells</option>
                             <option value="35">🚛 Unit 35 (Landfill)</option>
-                            <option value="31">🛢️ Unit 31 (Decon)</option>
+                            <option value="31">🛢️ Unit 31 (Pond)</option>
                         </select>
                     </div>
                 </div>
@@ -1081,7 +1081,7 @@
             charts.wmu = new Chart(ctx3, {
                 type: 'doughnut',
                 data: {
-                    labels: ['Unit 35 (Landfill)', 'Unit 31 (Decon)'],
+                    labels: ['Unit 35 (Landfill)', 'Unit 31 (Pond)'],
                     datasets: [{
                         data: [wmu35Tons, wmu31Tons],
                         backgroundColor: ['#00126b', '#ffc107'],
