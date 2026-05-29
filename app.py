@@ -79,6 +79,7 @@ def upgrade_db():
         if not column_exists(cursor, 'truck_logs', 'voc_pass_fail'): cursor.execute('ALTER TABLE truck_logs ADD COLUMN voc_pass_fail TEXT DEFAULT "N/A"')
         if not column_exists(cursor, 'truck_logs', 'shipping_mode'): cursor.execute("ALTER TABLE truck_logs ADD COLUMN shipping_mode TEXT DEFAULT 'Solid'")
         if not column_exists(cursor, 'truck_logs', 'job_type'): cursor.execute("ALTER TABLE truck_logs ADD COLUMN job_type TEXT DEFAULT 'Standard'")
+        if not column_exists(cursor, 'truck_logs', 'container_type'): cursor.execute("ALTER TABLE truck_logs ADD COLUMN container_type TEXT DEFAULT 'End Dump'")
 
         # 2. MASTER PROFILES 
         cursor.execute('''

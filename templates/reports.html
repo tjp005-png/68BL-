@@ -299,6 +299,7 @@
                                                 data-labresults="{{ truck.lab_results or '' }}"
                                                 data-shippingmode="{{ truck.shipping_mode or 'Solid' }}"
                                                 data-jobtype="{{ truck.job_type or 'Standard' }}"
+                                                data-containertype="{{ truck.container_type or 'End Dump' }}"
                                                 onclick="populateEditTruckModal(this)">
                                                 
                                                 <td class="fw-bold ps-3">{{ truck.load_number }}</td>
@@ -404,6 +405,7 @@
                                     data-timeout="{{ truck.time_out }}"
                                     data-shippingmode="{{ truck.shipping_mode or 'Solid' }}"
                                     data-jobtype="{{ truck.job_type or 'Standard' }}"
+                                    data-containertype="{{ truck.container_type or 'End Dump' }}"
                                     {% if not is_void %}onclick="populateEditTruckModal(this)" style="cursor: pointer;"{% endif %}>
                                     
                                     <td class="fw-bold ps-4">{{ truck.load_number }}</td>
@@ -638,7 +640,7 @@
                         </div>
 
                         <div class="row mb-3">
-                            <div class="col-6">
+                            <div class="col-4">
                                 <label class="form-label text-muted small fw-bold mb-0">Shipping Mode</label>
                                 <select class="form-select border-secondary fw-bold" id="edit_truck_shipping_mode" name="shipping_mode">
                                     <option value="Solid">Solid</option>
@@ -646,11 +648,18 @@
                                     <option value="Pneumatic">Pneumatic</option>
                                 </select>
                             </div>
-                            <div class="col-6">
+                            <div class="col-4">
                                 <label class="form-label text-muted small fw-bold mb-0">Job Type</label>
                                 <select class="form-select border-secondary fw-bold" id="edit_truck_job_type" name="job_type">
                                     <option value="Standard">Standard Bulk</option>
-                                    <option value="Large Bulk">Large Bulk (20+)</option>
+                                    <option value="Large Bulk">Large Bulk (10+)</option>
+                                </select>
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label text-muted small fw-bold mb-0">Container Type</label>
+                                <select class="form-select border-secondary fw-bold" id="edit_truck_container_type" name="container_type">
+                                    <option value="End Dump">End Dump</option>
+                                    <option value="Bin">Bin (Roll-off/Tote)</option>
                                 </select>
                             </div>
                         </div>
@@ -775,6 +784,9 @@
 
             let jobType = row.getAttribute('data-jobtype');
             document.getElementById('edit_truck_job_type').value = (jobType && jobType !== 'None') ? jobType : 'Standard';
+
+            let containerType = row.getAttribute('data-containertype');
+            document.getElementById('edit_truck_container_type').value = (containerType && containerType !== 'None') ? containerType : 'End Dump';
 
             // Populate Lab Results Fields
             let sg = row.getAttribute('data-sg');

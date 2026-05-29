@@ -135,7 +135,7 @@ def determine_wap_parameters(profile_number, received_date, conn):
         except:
             pass
             
-    if total_loads >= 20:
+    if total_loads >= 10:
         job_type = 'Large Bulk'
         
     return shipping_mode, job_type
@@ -167,6 +167,7 @@ def submit_truck():
         
     shipping_mode_req = request.form.get('shipping_mode', '').strip()
     job_type_req = request.form.get('job_type', '').strip()
+    container_type = request.form.get('container_type', 'End Dump').strip()
     
     with closing(get_db_connection()) as conn:
         # Check for duplicates on check-in
@@ -265,18 +266,21 @@ def submit_truck():
         # Apply WAP Rules
         if shipping_mode in ['Liquid', 'Pneumatic']:
             test_assigned = base_sample_type
+        elif container_type == 'Bin':
+            test_assigned = f"{base_sample_type} (Bin)"
         elif job_type == 'Standard':
             if overall_count < 10:
                 test_assigned = f"{base_sample_type} (First 10)"
-            elif daily_count < 3:
-                test_assigned = f"{base_sample_type} (Daily First 3)"
             else:
-                test_assigned = 'VISUAL'
+                test_assigned = f"{base_sample_type} (Daily < 10)"
         else: # Large Bulk
-            if random.random() < 0.20:
-                test_assigned = f"{base_sample_type} (Random 20%)"
+            if overall_count < 10:
+                test_assigned = f"{base_sample_type} (First 10)"
             else:
-                test_assigned = 'VISUAL'
+                if random.random() < 0.20:
+                    test_assigned = f"{base_sample_type} (Random 20%)"
+                else:
+                    test_assigned = 'VISUAL'
 
         # High VOC Override Rule
         if voc_percentage >= 50:
@@ -315,23 +319,23 @@ def submit_truck():
                     truck_id, profile_number, manifest_number, load_number, 
                     gross_weight, exit_weight, net_weight, cell_location, grid_location,
                     manifest_weight, manifest_units, extra_fees, test_assigned, test_status, 
-                    date_received, sales_order, time_in, time_out, shipping_mode, job_type
+                    date_received, sales_order, time_in, time_out, shipping_mode, job_type, container_type
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, ?, ?, ?)
             ''', (truck_id, profile_number, manifest_number, load_number, 
                   gross_weight, exit_weight, net_weight_tons, cell_location, grid_location,
                   manifest_weight, manifest_units, extra_fees, test_assigned, 
-                  received_date, sales_order, time_in, time_out, shipping_mode, job_type))
+                  received_date, sales_order, time_in, time_out, shipping_mode, job_type, container_type))
         else:
             # Added sales_order and time_in to the INSERT statement
             conn.execute('''
                 INSERT INTO truck_logs (
                     truck_id, profile_number, manifest_number, load_number, 
                     gross_weight, test_assigned, test_status, date_received, 
-                    sales_order, time_in, shipping_mode, job_type
+                    sales_order, time_in, shipping_mode, job_type, container_type
                 )
-                VALUES (?, ?, ?, ?, ?, ?, 'WEIGHED IN', ?, ?, ?, ?, ?)
-            ''', (truck_id, profile_number, manifest_number, load_number, gross_weight, test_assigned, received_date, sales_order, time_in, shipping_mode, job_type))
+                VALUES (?, ?, ?, ?, ?, ?, 'WEIGHED IN', ?, ?, ?, ?, ?, ?)
+            ''', (truck_id, profile_number, manifest_number, load_number, gross_weight, test_assigned, received_date, sales_order, time_in, shipping_mode, job_type, container_type))
             
         conn.commit()
         socketio.emit('truck_update', {'date': received_date})
@@ -401,6 +405,7 @@ def edit_truck(log_id):
     
     shipping_mode_req = request.form.get('shipping_mode', '').strip()
     job_type_req = request.form.get('job_type', '').strip()
+    container_type = request.form.get('container_type', 'End Dump').strip()
     
     try: gross_weight = float(request.form.get('gross_weight', '0').replace(',', ''))
     except: gross_weight = 0.0
@@ -490,19 +495,21 @@ def edit_truck(log_id):
             # Apply WAP rules
             if shipping_mode in ['Liquid', 'Pneumatic']:
                 test_assigned = base_sample_type
+            elif container_type == 'Bin':
+                test_assigned = f"{base_sample_type} (Bin)"
             elif job_type == 'Standard':
                 if overall_count < 10:
                     test_assigned = f"{base_sample_type} (First 10)"
-                elif daily_count < 3:
-                    test_assigned = f"{base_sample_type} (Daily First 3)"
                 else:
-                    test_assigned = 'VISUAL'
+                    test_assigned = f"{base_sample_type} (Daily < 10)"
             else: # Large Bulk
-                # Since this is an edit and it's active, we evaluate 20% random
-                if random.random() < 0.20:
-                    test_assigned = f"{base_sample_type} (Random 20%)"
+                if overall_count < 10:
+                    test_assigned = f"{base_sample_type} (First 10)"
                 else:
-                    test_assigned = 'VISUAL'
+                    if random.random() < 0.20:
+                        test_assigned = f"{base_sample_type} (Random 20%)"
+                    else:
+                        test_assigned = 'VISUAL'
 
             # High VOC override rule
             if voc_percentage >= 50:
@@ -514,9 +521,9 @@ def edit_truck(log_id):
             conn.execute('''
                 UPDATE truck_logs 
                 SET manifest_number = ?, load_number = ?, profile_number = ?, gross_weight = ?, time_in = ?,
-                    shipping_mode = ?, job_type = ?, test_assigned = ?
+                    shipping_mode = ?, job_type = ?, container_type = ?, test_assigned = ?
                 WHERE id = ?
-            ''', (manifest_number, load_number, profile_number, gross_weight, time_in, shipping_mode, job_type, test_assigned, log_id))
+            ''', (manifest_number, load_number, profile_number, gross_weight, time_in, shipping_mode, job_type, container_type, test_assigned, log_id))
             conn.commit()
             socketio.emit('truck_update', {'date': received_date})
             return redirect(url_for('receiving_bp.home'))
@@ -579,13 +586,13 @@ def edit_truck(log_id):
                     time_in = ?, time_out = ?,
                     specific_gravity = ?, measured_ph = ?, measured_flashpoint = ?,
                     measured_sulfides = ?, measured_cyanide = ?, measured_free_liquids = ?,
-                    shipping_mode = ?, job_type = ?
+                    shipping_mode = ?, job_type = ?, container_type = ?
                 WHERE id = ?
             ''', (manifest_number, load_number, profile_number, gross_weight, exit_weight, net_weight_tons, 
                   cell_location, grid_location, time_in, time_out, 
                   specific_gravity, measured_ph, measured_flashpoint, 
                   measured_sulfides, measured_cyanide, measured_free_liquids, 
-                  shipping_mode, job_type, log_id))
+                  shipping_mode, job_type, container_type, log_id))
             conn.commit()
             socketio.emit('truck_update', {'date': date_received})
             return redirect(url_for('reports_bp.reports', date=date_received))
