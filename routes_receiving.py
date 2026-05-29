@@ -70,7 +70,8 @@ def check_truck_duplicate():
             SELECT load_number, manifest_number 
             FROM truck_logs 
             WHERE date_received = ? AND test_status != 'REJECTED' 
-            AND (manifest_number = ? OR load_number = ?)
+              AND TRIM(UPPER(manifest_number)) = TRIM(UPPER(?)) 
+              AND TRIM(UPPER(load_number)) = TRIM(UPPER(?))
         ''', (check_date, manifest, load)).fetchone()
 
         if existing:
@@ -168,6 +169,16 @@ def submit_truck():
     job_type_req = request.form.get('job_type', '').strip()
     
     with closing(get_db_connection()) as conn:
+        # Check for duplicates on check-in
+        duplicate = conn.execute('''
+            SELECT id FROM truck_logs 
+            WHERE date_received = ? AND test_status != 'REJECTED'
+              AND TRIM(UPPER(manifest_number)) = TRIM(UPPER(?)) 
+              AND TRIM(UPPER(load_number)) = TRIM(UPPER(?))
+        ''', (received_date, manifest_number, load_number)).fetchone()
+        if duplicate:
+            return f"Error: A truck with Manifest {manifest_number} and Load {load_number} has already been checked in today.", 400
+
         if not shipping_mode_req or not job_type_req:
             shipping_mode, job_type = determine_wap_parameters(profile_number, received_date, conn)
             if shipping_mode_req:
@@ -403,6 +414,17 @@ def edit_truck(log_id):
             received_date = truck['date_received'] if truck else date.today().isoformat()
             old_profile = truck['profile_number'] if truck else ''
             
+            # Check for duplicates on edit
+            duplicate = conn.execute('''
+                SELECT id FROM truck_logs 
+                WHERE date_received = ? AND test_status != 'REJECTED'
+                  AND TRIM(UPPER(manifest_number)) = TRIM(UPPER(?)) 
+                  AND TRIM(UPPER(load_number)) = TRIM(UPPER(?))
+                  AND id != ?
+            ''', (received_date, manifest_number, load_number, log_id)).fetchone()
+            if duplicate:
+                return f"Error: A truck with Manifest {manifest_number} and Load {load_number} has already been checked in today.", 400
+                
             if profile_number != old_profile:
                 shipping_mode, job_type = determine_wap_parameters(profile_number, received_date, conn)
             else:
@@ -505,12 +527,6 @@ def edit_truck(log_id):
             date_received_db = truck['date_received'] if truck else date.today().isoformat()
             old_profile = truck['profile_number'] if truck else ''
             
-            if profile_number != old_profile:
-                shipping_mode, job_type = determine_wap_parameters(profile_number, date_received_db, conn)
-            else:
-                shipping_mode = shipping_mode_req if shipping_mode_req else 'Solid'
-                job_type = job_type_req if job_type_req else 'Standard'
-                
             exit_weight_raw = request.form.get('exit_weight', '0')
             try: exit_weight = float(exit_weight_raw.replace(',', '')) if exit_weight_raw.strip() else 0.0
             except: exit_weight = 0.0
@@ -518,6 +534,23 @@ def edit_truck(log_id):
             cell_location = request.form.get('cell_location', '')
             grid_location = request.form.get('grid_location', '')
             date_received = request.form.get('date_received', date.today().isoformat())
+            
+            # Check for duplicates on edit
+            duplicate = conn.execute('''
+                SELECT id FROM truck_logs 
+                WHERE date_received = ? AND test_status != 'REJECTED'
+                  AND TRIM(UPPER(manifest_number)) = TRIM(UPPER(?)) 
+                  AND TRIM(UPPER(load_number)) = TRIM(UPPER(?))
+                  AND id != ?
+            ''', (date_received, manifest_number, load_number, log_id)).fetchone()
+            if duplicate:
+                return f"Error: A truck with Manifest {manifest_number} and Load {load_number} has already been checked in today.", 400
+                
+            if profile_number != old_profile:
+                shipping_mode, job_type = determine_wap_parameters(profile_number, date_received_db, conn)
+            else:
+                shipping_mode = shipping_mode_req if shipping_mode_req else 'Solid'
+                job_type = job_type_req if job_type_req else 'Standard'
             
             net_weight_tons = (gross_weight - exit_weight) / 2000.0 if exit_weight > 0 else 0.0
             

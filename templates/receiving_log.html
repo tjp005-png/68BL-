@@ -704,6 +704,40 @@
                         }
                     }
                 }
+
+                // Check for duplicates
+                if (!form.dataset.verifiedDuplicate) {
+                    e.preventDefault();
+                    const manifestInput = form.querySelector('input[name="manifest_number"]');
+                    const loadInput = form.querySelector('input[name="load_number"]');
+                    const dateInput = form.querySelector('input[name="date_received"]') || { value: '' };
+                    
+                    const manifest = manifestInput ? manifestInput.value.trim() : '';
+                    const load = loadInput ? loadInput.value.trim() : '';
+                    const dateVal = dateInput.value ? dateInput.value : new Date().toISOString().split('T')[0];
+                    
+                    if (!manifest || !load) {
+                        form.dataset.verifiedDuplicate = "true";
+                        form.submit();
+                        return;
+                    }
+                    
+                    fetch(`/api/check_truck_duplicate?manifest=${encodeURIComponent(manifest)}&load=${encodeURIComponent(load)}&date=${dateVal}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.exists) {
+                                alert(`❌ Error: A truck with Manifest "${manifest}" and Load "${load}" has already been checked in today!`);
+                            } else {
+                                form.dataset.verifiedDuplicate = "true";
+                                form.submit();
+                            }
+                        })
+                        .catch(err => {
+                            form.dataset.verifiedDuplicate = "true";
+                            form.submit();
+                        });
+                    return;
+                }
             }
 
             // Prevent double submission by disabling the submit button
