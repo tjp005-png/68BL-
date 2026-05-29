@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, jsonif
 from datetime import date, datetime
 from contextlib import closing
 import re
+import random
 from database import get_db_connection
 from shared_state import socketio
 
@@ -91,12 +92,35 @@ def submit_truck():
     if not received_date:
         received_date = date.today().isoformat()
         
-    # Capture the exact check-in time
-    time_in = datetime.now().strftime('%H:%M')
+    is_retroactive = request.form.get('is_retroactive') in ['true', 'on', True]
+    
+    if is_retroactive:
+        time_in = request.form.get('time_in', '').strip()
+        if not time_in:
+            time_in = datetime.now().strftime('%H:%M')
+    else:
+        # Capture the exact check-in time
+        time_in = datetime.now().strftime('%H:%M')
+        
+    shipping_mode = request.form.get('shipping_mode', 'Solid').strip()
+    job_type = request.form.get('job_type', 'Standard').strip()
     
     with closing(get_db_connection()) as conn:
         profile = conn.execute('SELECT * FROM profiles WHERE profile_number = ?', (profile_number,)).fetchone()
-        previous_trucks = conn.execute('SELECT COUNT(*) FROM truck_logs WHERE profile_number = ?', (profile_number,)).fetchone()[0]
+        
+        # Count non-rejected loads overall for the profile
+        overall_count = conn.execute('''
+            SELECT COUNT(*) FROM truck_logs 
+            WHERE TRIM(UPPER(profile_number)) = TRIM(UPPER(?)) AND test_status != 'REJECTED'
+        ''', (profile_number,)).fetchone()[0]
+        
+        # Count non-rejected loads daily for the profile
+        daily_count = conn.execute('''
+            SELECT COUNT(*) FROM truck_logs 
+            WHERE TRIM(UPPER(profile_number)) = TRIM(UPPER(?)) 
+              AND date_received = ? 
+              AND test_status != 'REJECTED'
+        ''', (profile_number, received_date)).fetchone()[0]
         
         # Auto-fetch the Sales Order from today's schedule
         schedule_entry = conn.execute('''
@@ -105,7 +129,6 @@ def submit_truck():
         ''', (profile_number, received_date)).fetchone()
         sales_order = schedule_entry['sales_order'] if schedule_entry else 'UNSCHEDULED'
         
-        test_assigned = 'FINGERPRINT' 
         try: voc_percentage = float(profile['voc_percentage']) if profile and profile['voc_percentage'] is not None else 0.0
         except: voc_percentage = 0.0
 
@@ -151,21 +174,82 @@ def submit_truck():
         if is_asbestos or profile_number == 'BLCBPNONEB':
             is_las_profile = False
 
-        if is_las_profile and previous_trucks == 0:
-            test_assigned = 'LAS'
+        # Determine the base sample type (LAS or FINGERPRINT)
+        base_sample_type = 'FINGERPRINT'
+        if is_las_profile and overall_count == 0:
+            base_sample_type = 'LAS'
 
+        # Apply WAP Rules
+        if shipping_mode in ['Liquid', 'Pneumatic']:
+            test_assigned = base_sample_type
+        elif job_type == 'Standard':
+            if overall_count < 10:
+                test_assigned = f"{base_sample_type} (First 10)"
+            elif daily_count < 3:
+                test_assigned = f"{base_sample_type} (Daily First 3)"
+            else:
+                test_assigned = 'VISUAL'
+        else: # Large Bulk
+            if random.random() < 0.20:
+                test_assigned = f"{base_sample_type} (Random 20%)"
+            else:
+                test_assigned = 'VISUAL'
+
+        # High VOC Override Rule
         if voc_percentage >= 50:
-            if (previous_trucks + 1) % 10 == 0: test_assigned += " + VOC TEST"
+            if (overall_count + 1) % 10 == 0:
+                if not test_assigned.startswith(base_sample_type):
+                    test_assigned = f"{base_sample_type} (VOC Force)"
+                test_assigned += " + VOC TEST"
             
-        # Added sales_order and time_in to the INSERT statement
-        conn.execute('''
-            INSERT INTO truck_logs (
-                truck_id, profile_number, manifest_number, load_number, 
-                gross_weight, test_assigned, test_status, date_received, 
-                sales_order, time_in
-            )
-            VALUES (?, ?, ?, ?, ?, ?, 'WEIGHED IN', ?, ?, ?)
-        ''', (truck_id, profile_number, manifest_number, load_number, gross_weight, test_assigned, received_date, sales_order, time_in))
+        if is_retroactive:
+            exit_weight_raw = request.form.get('exit_weight', '0').replace(',', '')
+            try: exit_weight = float(exit_weight_raw) if exit_weight_raw.strip() != '' else 0.0
+            except: exit_weight = 0.0
+            
+            if exit_weight >= gross_weight and exit_weight > 0:
+                return "Critical Error: Tare weight cannot be greater than or equal to Gross weight.", 400
+                
+            net_weight_tons = (gross_weight - exit_weight) / 2000.0
+            
+            cell_location = request.form.get('cell_location', '')
+            grid_location = request.form.get('grid_location', '')
+            manifest_units = request.form.get('manifest_units', 'Pounds')
+            
+            manifest_wt_raw = request.form.get('manifest_weight', '0').replace(',', '')
+            try: manifest_weight = float(manifest_wt_raw) if manifest_wt_raw.strip() != '' else 0.0
+            except: manifest_weight = 0.0
+            
+            extra_fees_list = request.form.getlist('extra_fees')
+            extra_fees = ", ".join(extra_fees_list) if extra_fees_list else "None"
+            
+            time_out = request.form.get('time_out', '').strip()
+            if not time_out:
+                time_out = datetime.now().strftime('%H:%M')
+                
+            conn.execute('''
+                INSERT INTO truck_logs (
+                    truck_id, profile_number, manifest_number, load_number, 
+                    gross_weight, exit_weight, net_weight, cell_location, grid_location,
+                    manifest_weight, manifest_units, extra_fees, test_assigned, test_status, 
+                    date_received, sales_order, time_in, time_out, shipping_mode, job_type
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, ?, ?)
+            ''', (truck_id, profile_number, manifest_number, load_number, 
+                  gross_weight, exit_weight, net_weight_tons, cell_location, grid_location,
+                  manifest_weight, manifest_units, extra_fees, test_assigned, 
+                  received_date, sales_order, time_in, time_out, shipping_mode, job_type))
+        else:
+            # Added sales_order and time_in to the INSERT statement
+            conn.execute('''
+                INSERT INTO truck_logs (
+                    truck_id, profile_number, manifest_number, load_number, 
+                    gross_weight, test_assigned, test_status, date_received, 
+                    sales_order, time_in, shipping_mode, job_type
+                )
+                VALUES (?, ?, ?, ?, ?, ?, 'WEIGHED IN', ?, ?, ?, ?, ?)
+            ''', (truck_id, profile_number, manifest_number, load_number, gross_weight, test_assigned, received_date, sales_order, time_in, shipping_mode, job_type))
+            
         conn.commit()
         socketio.emit('truck_update', {'date': received_date})
         
@@ -232,6 +316,9 @@ def edit_truck(log_id):
     time_in = request.form.get('time_in', '').strip()
     time_out = request.form.get('time_out', '').strip()
     
+    shipping_mode = request.form.get('shipping_mode', 'Solid').strip()
+    job_type = request.form.get('job_type', 'Standard').strip()
+    
     try: gross_weight = float(request.form.get('gross_weight', '0').replace(',', ''))
     except: gross_weight = 0.0
     
@@ -242,11 +329,93 @@ def edit_truck(log_id):
             # --- ACTIVE TRUCK EDIT (RECEIVING SCREEN) ---
             truck = conn.execute('SELECT date_received FROM truck_logs WHERE id = ?', (log_id,)).fetchone()
             received_date = truck['date_received'] if truck else date.today().isoformat()
+            
+            # Re-evaluate WAP logic for test_assigned
+            profile = conn.execute('SELECT * FROM profiles WHERE profile_number = ?', (profile_number,)).fetchone()
+            
+            overall_count = conn.execute('''
+                SELECT COUNT(*) FROM truck_logs 
+                WHERE TRIM(UPPER(profile_number)) = TRIM(UPPER(?)) AND test_status != 'REJECTED' AND id != ?
+            ''', (profile_number, log_id)).fetchone()[0]
+            
+            daily_count = conn.execute('''
+                SELECT COUNT(*) FROM truck_logs 
+                WHERE TRIM(UPPER(profile_number)) = TRIM(UPPER(?)) 
+                  AND date_received = ? 
+                  AND test_status != 'REJECTED'
+                  AND id != ?
+            ''', (profile_number, received_date, log_id)).fetchone()[0]
+            
+            try: voc_percentage = float(profile['voc_percentage']) if profile and profile['voc_percentage'] is not None else 0.0
+            except: voc_percentage = 0.0
+
+            is_las_profile = False
+            is_asbestos = False
+            
+            if profile:
+                p_dict = dict(profile)
+                win_code = str(p_dict.get('win_code', '')).strip().upper()
+                if 'CNIA' in win_code or 'CNIA' in profile_number:
+                    is_asbestos = True
+                
+                raw_exp = str(p_dict.get('expiration_date') or '').strip().lower()
+                clean_exp = re.sub(r'[^a-z0-9]', '', raw_exp)
+                prof_status = str(p_dict.get('status') or '').strip().upper()
+                
+                if clean_exp in ['nodate', '', 'blank']:
+                    if prof_status.startswith('A'):
+                        is_las_profile = False
+                    else:
+                        is_las_profile = True
+                elif clean_exp in ['none', 'nan', 'nat', 'null', 'na', 'tbd', '0', 'false']:
+                    is_las_profile = False
+                else:
+                    if any(char.isdigit() for char in raw_exp):
+                        try:
+                            import pandas as pd
+                            exp_date = pd.to_datetime(raw_exp, errors='coerce')
+                            if pd.notna(exp_date) and exp_date < datetime.now():
+                                is_las_profile = True
+                        except: 
+                            pass
+
+            if is_asbestos or profile_number == 'BLCBPNONEB':
+                is_las_profile = False
+
+            base_sample_type = 'FINGERPRINT'
+            if is_las_profile and overall_count == 0:
+                base_sample_type = 'LAS'
+
+            # Apply WAP rules
+            if shipping_mode in ['Liquid', 'Pneumatic']:
+                test_assigned = base_sample_type
+            elif job_type == 'Standard':
+                if overall_count < 10:
+                    test_assigned = f"{base_sample_type} (First 10)"
+                elif daily_count < 3:
+                    test_assigned = f"{base_sample_type} (Daily First 3)"
+                else:
+                    test_assigned = 'VISUAL'
+            else: # Large Bulk
+                # Since this is an edit and it's active, we evaluate 20% random
+                if random.random() < 0.20:
+                    test_assigned = f"{base_sample_type} (Random 20%)"
+                else:
+                    test_assigned = 'VISUAL'
+
+            # High VOC override rule
+            if voc_percentage >= 50:
+                if (overall_count + 1) % 10 == 0:
+                    if not test_assigned.startswith(base_sample_type):
+                        test_assigned = f"{base_sample_type} (VOC Force)"
+                    test_assigned += " + VOC TEST"
+
             conn.execute('''
                 UPDATE truck_logs 
-                SET manifest_number = ?, load_number = ?, profile_number = ?, gross_weight = ?, time_in = ?
+                SET manifest_number = ?, load_number = ?, profile_number = ?, gross_weight = ?, time_in = ?,
+                    shipping_mode = ?, job_type = ?, test_assigned = ?
                 WHERE id = ?
-            ''', (manifest_number, load_number, profile_number, gross_weight, time_in, log_id))
+            ''', (manifest_number, load_number, profile_number, gross_weight, time_in, shipping_mode, job_type, test_assigned, log_id))
             conn.commit()
             socketio.emit('truck_update', {'date': received_date})
             return redirect(url_for('receiving_bp.home'))
@@ -287,12 +456,14 @@ def edit_truck(log_id):
                     gross_weight = ?, exit_weight = ?, net_weight = ?, cell_location = ?, grid_location = ?,
                     time_in = ?, time_out = ?,
                     specific_gravity = ?, measured_ph = ?, measured_flashpoint = ?,
-                    measured_sulfides = ?, measured_cyanide = ?, measured_free_liquids = ?
+                    measured_sulfides = ?, measured_cyanide = ?, measured_free_liquids = ?,
+                    shipping_mode = ?, job_type = ?
                 WHERE id = ?
             ''', (manifest_number, load_number, profile_number, gross_weight, exit_weight, net_weight_tons, 
                   cell_location, grid_location, time_in, time_out, 
                   specific_gravity, measured_ph, measured_flashpoint, 
-                  measured_sulfides, measured_cyanide, measured_free_liquids, log_id))
+                  measured_sulfides, measured_cyanide, measured_free_liquids, 
+                  shipping_mode, job_type, log_id))
             conn.commit()
             socketio.emit('truck_update', {'date': date_received})
             return redirect(url_for('reports_bp.reports', date=date_received))

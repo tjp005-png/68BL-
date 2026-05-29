@@ -297,6 +297,8 @@
                                                 data-cyanide="{{ truck.measured_cyanide or '' }}"
                                                 data-free-liquids="{{ truck.measured_free_liquids or '' }}"
                                                 data-labresults="{{ truck.lab_results or '' }}"
+                                                data-shippingmode="{{ truck.shipping_mode or 'Solid' }}"
+                                                data-jobtype="{{ truck.job_type or 'Standard' }}"
                                                 onclick="populateEditTruckModal(this)">
                                                 
                                                 <td class="fw-bold ps-3">{{ truck.load_number }}</td>
@@ -400,6 +402,8 @@
                                     data-grid="{{ truck.grid_location }}"
                                     data-timein="{{ truck.time_in }}"
                                     data-timeout="{{ truck.time_out }}"
+                                    data-shippingmode="{{ truck.shipping_mode or 'Solid' }}"
+                                    data-jobtype="{{ truck.job_type or 'Standard' }}"
                                     {% if not is_void %}onclick="populateEditTruckModal(this)" style="cursor: pointer;"{% endif %}>
                                     
                                     <td class="fw-bold ps-4">{{ truck.load_number }}</td>
@@ -633,6 +637,24 @@
                             </div>
                         </div>
 
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-0">Shipping Mode</label>
+                                <select class="form-select border-secondary fw-bold" id="edit_truck_shipping_mode" name="shipping_mode">
+                                    <option value="Solid">Solid</option>
+                                    <option value="Liquid">Liquid</option>
+                                    <option value="Pneumatic">Pneumatic</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-0">Job Type</label>
+                                <select class="form-select border-secondary fw-bold" id="edit_truck_job_type" name="job_type">
+                                    <option value="Standard">Standard Bulk</option>
+                                    <option value="Large Bulk">Large Bulk (20+)</option>
+                                </select>
+                            </div>
+                        </div>
+
                         <!-- 🧪 Lab Results -->
                         <div class="border-top pt-3 mt-3">
                             <h6 class="fw-bold text-dark mb-3">🧪 Lab Results</h6>
@@ -746,6 +768,13 @@
 
             let timeOut = row.getAttribute('data-timeout');
             document.getElementById('edit_truck_time_out').value = (timeOut && timeOut !== 'None') ? timeOut : '';
+
+            // Populate Shipping Mode & Job Type
+            let shippingMode = row.getAttribute('data-shippingmode');
+            document.getElementById('edit_truck_shipping_mode').value = (shippingMode && shippingMode !== 'None') ? shippingMode : 'Solid';
+
+            let jobType = row.getAttribute('data-jobtype');
+            document.getElementById('edit_truck_job_type').value = (jobType && jobType !== 'None') ? jobType : 'Standard';
 
             // Populate Lab Results Fields
             let sg = row.getAttribute('data-sg');

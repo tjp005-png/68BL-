@@ -68,9 +68,111 @@
                                 <input type="text" class="form-control border-secondary" name="manifest_number" required>
                             </div>
 
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-1">SHIPPING MODE</label>
+                                    <select class="form-select border-secondary fw-bold" name="shipping_mode" id="shipping_mode">
+                                        <option value="Solid" selected>Solid</option>
+                                        <option value="Liquid">Liquid</option>
+                                        <option value="Pneumatic">Pneumatic</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-1">JOB TYPE</label>
+                                    <select class="form-select border-secondary fw-bold" name="job_type" id="job_type">
+                                        <option value="Standard" selected>Standard Bulk</option>
+                                        <option value="Large Bulk">Large Bulk (20+)</option>
+                                    </select>
+                                </div>
+                            </div>
+
                             <div class="mb-4">
                                 <label class="form-label text-muted small fw-bold mb-1">GROSS WEIGHT (LBS)</label>
                                 <input type="number" class="form-control border-secondary" name="gross_weight" required>
+                            </div>
+
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="is_retroactive" name="is_retroactive">
+                                <label class="form-check-label text-muted small fw-bold" for="is_retroactive">⚡ RETROACTIVE ENTRY (Paperwork Done)</label>
+                            </div>
+
+                            <!-- Retroactive Fields Collapse -->
+                            <div class="collapse" id="retroactive-fields-collapse">
+                                <div class="card card-body border-secondary mb-3 mt-3 p-3 shadow-sm" style="background-color: #fcfcfd; border-left: 4px solid #3860b2;">
+                                    <h6 class="fw-bold mb-3 text-dark border-bottom pb-2" style="color: #00126b !important;">📋 Retroactive Details</h6>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label text-muted small fw-bold mb-1">DATE RECEIVED</label>
+                                        <input type="date" class="form-control border-secondary" name="date_received" id="retro_date_received" value="{{ today_str }}">
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-6 mb-3">
+                                            <label class="form-label text-muted small fw-bold mb-1">TIME IN</label>
+                                            <input type="time" class="form-control border-secondary" name="time_in" id="retro_time_in">
+                                        </div>
+                                        <div class="col-6 mb-3">
+                                            <label class="form-label text-muted small fw-bold mb-1">TIME OUT</label>
+                                            <input type="time" class="form-control border-secondary" name="time_out" id="retro_time_out">
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label text-muted small fw-bold mb-1">TARE / EXIT WEIGHT (LBS)</label>
+                                        <input type="number" class="form-control border-secondary exit-weight-input" name="exit_weight" id="retro_exit_weight">
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-6 mb-3">
+                                            <label class="form-label text-muted small fw-bold mb-1">MANIFEST WT</label>
+                                            <input type="number" class="form-control border-secondary manifest-weight-input" name="manifest_weight" id="retro_manifest_weight">
+                                        </div>
+                                        <div class="col-6 mb-3">
+                                            <label class="form-label text-muted small fw-bold mb-1">MANIFEST UNITS</label>
+                                            <select class="form-select border-secondary manifest-units-select" name="manifest_units" id="retro_manifest_units">
+                                                <option value="Pounds" selected>Pounds</option>
+                                                <option value="Tons">Tons</option>
+                                                <option value="Yards">Yards (No Math)</option>
+                                                <option value="Gallons">Gallons</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="alert alert-danger d-none discrepancy-alert fw-bold py-2 shadow-sm" role="alert" style="font-size: 0.85rem;"></div>
+
+                                    <div class="row">
+                                        <div class="col-6 mb-3">
+                                            <label class="form-label text-muted small fw-bold mb-1">CELL (WMU)</label>
+                                            <input type="text" class="form-control border-secondary wmu-input" id="retro_cell_location" name="cell_location">
+                                        </div>
+                                        <div class="col-6 mb-3">
+                                            <label class="form-label text-muted small fw-bold mb-1">GRID</label>
+                                            <input type="text" class="form-control border-secondary grid-input" id="retro_grid_location" name="grid_location">
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2">
+                                        <label class="form-label text-dark fw-bold mb-1" style="font-size: 0.85rem;">Extra Fees:</label>
+                                        <div class="d-flex flex-wrap gap-2">
+                                            <div class="form-check me-2">
+                                                <input class="form-check-input border-secondary" type="checkbox" name="extra_fees" value="Bin Top / Solidification" id="retro_fee1">
+                                                <label class="form-check-label small fw-bold text-muted" for="retro_fee1" style="font-size: 0.75rem;">Bin Top</label>
+                                            </div>
+                                            <div class="form-check me-2">
+                                                <input class="form-check-input border-secondary" type="checkbox" name="extra_fees" value="Offload" id="retro_fee2">
+                                                <label class="form-check-label small fw-bold text-muted" for="retro_fee2" style="font-size: 0.75rem;">Offload</label>
+                                            </div>
+                                            <div class="form-check me-2">
+                                                <input class="form-check-input border-secondary" type="checkbox" name="extra_fees" value="Washout" id="retro_fee3">
+                                                <label class="form-check-label small fw-bold text-muted" for="retro_fee3" style="font-size: 0.75rem;">Washout</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input border-secondary" type="checkbox" name="extra_fees" value="Unscheduled" id="retro_fee4">
+                                                <label class="form-check-label small fw-bold text-muted" for="retro_fee4" style="font-size: 0.75rem;">Unsch.</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <button type="submit" class="btn text-white w-100 fw-bold py-2" style="background-color: #3860b2;">
@@ -101,6 +203,8 @@
                                         data-manifest="{{ truck.manifest_number }}"
                                         data-profile="{{ truck.profile_number }}"
                                         data-gross="{{ truck.gross_weight }}"
+                                        data-shippingmode="{{ truck.shipping_mode or 'Solid' }}"
+                                        data-jobtype="{{ truck.job_type or 'Standard' }}"
                                         onclick="if(!event.target.closest('button') && !event.target.closest('a') && !event.target.closest('.modal')) populateEditModal(this);"
                                         title="Click anywhere on row to fix typos">
                                         
@@ -130,9 +234,9 @@
                                             {% if truck.test_status == 'LAB COMPLETED' %}
                                                 <span class="badge bg-info text-dark shadow-sm">LAB COMPLETED</span>
                                             {% elif 'LAS' in truck.test_assigned %}
-                                                <span class="badge bg-danger">LAS</span>
+                                                <span class="badge bg-danger">{{ truck.test_assigned }}</span>
                                             {% elif 'FINGERPRINT' in truck.test_assigned %}
-                                                <span class="badge bg-warning text-dark">FINGERPRINT</span>
+                                                <span class="badge bg-warning text-dark">{{ truck.test_assigned }}</span>
                                             {% else %}
                                                 <span class="badge bg-success">VISUAL</span>
                                             {% endif %}
@@ -383,9 +487,26 @@
                             <label class="form-label text-muted small fw-bold mb-0">Profile #</label>
                             <input type="text" class="form-control border-secondary fw-bold text-primary" id="edit_profile" name="profile_number" required>
                         </div>
-                        <div class="mb-4">
+                        <div class="mb-3">
                             <label class="form-label text-muted small fw-bold mb-0">Gross Weight (LBS)</label>
                             <input type="number" class="form-control border-secondary" id="edit_gross" name="gross_weight" required>
+                        </div>
+                        <div class="row mb-4">
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-0">Shipping Mode</label>
+                                <select class="form-select border-secondary fw-bold" id="edit_shipping_mode" name="shipping_mode">
+                                    <option value="Solid">Solid</option>
+                                    <option value="Liquid">Liquid</option>
+                                    <option value="Pneumatic">Pneumatic</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-0">Job Type</label>
+                                <select class="form-select border-secondary fw-bold" id="edit_job_type" name="job_type">
+                                    <option value="Standard">Standard Bulk</option>
+                                    <option value="Large Bulk">Large Bulk (20+)</option>
+                                </select>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -429,37 +550,84 @@
             document.getElementById('edit_manifest').value = row.getAttribute('data-manifest');
             document.getElementById('edit_profile').value = row.getAttribute('data-profile');
             document.getElementById('edit_gross').value = row.getAttribute('data-gross');
+            document.getElementById('edit_shipping_mode').value = row.getAttribute('data-shippingmode') || 'Solid';
+            document.getElementById('edit_job_type').value = row.getAttribute('data-jobtype') || 'Standard';
 
             const editModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('editTruckModal'));
             editModal.show();
+        }
+
+        // 2b. Retroactive checkbox handler
+        const retroCheckbox = document.getElementById('is_retroactive');
+        if (retroCheckbox) {
+            const retroCollapse = new bootstrap.Collapse(document.getElementById('retroactive-fields-collapse'), { toggle: false });
+            retroCheckbox.addEventListener('change', function() {
+                const dateRec = document.getElementById('retro_date_received');
+                const exitWt = document.getElementById('retro_exit_weight');
+                const cellLoc = document.getElementById('retro_cell_location');
+                const gridLoc = document.getElementById('retro_grid_location');
+                
+                if (this.checked) {
+                    retroCollapse.show();
+                    if (dateRec) dateRec.setAttribute('required', 'true');
+                    if (exitWt) exitWt.setAttribute('required', 'true');
+                    if (cellLoc) cellLoc.setAttribute('required', 'true');
+                    if (gridLoc && cellLoc.value !== '31') gridLoc.setAttribute('required', 'true');
+                    
+                    // Prepopulate current time
+                    const now = new Date();
+                    const pad = (n) => String(n).padStart(2, '0');
+                    const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+                    document.getElementById('retro_time_in').value = timeStr;
+                    document.getElementById('retro_time_out').value = timeStr;
+                } else {
+                    retroCollapse.hide();
+                    if (dateRec) dateRec.removeAttribute('required');
+                    if (exitWt) exitWt.removeAttribute('required');
+                    if (cellLoc) cellLoc.removeAttribute('required');
+                    if (gridLoc) gridLoc.removeAttribute('required');
+                }
+            });
         }
 
         // 3. Unit 31 Grey-out & Check-Out Math Listener
         document.addEventListener('input', function(e) {
             
             if (e.target && e.target.classList.contains('wmu-input')) {
-                const targetId = e.target.id.replace('checkout-wmu', 'checkout-grid');
-                const gridInput = document.getElementById(targetId);
+                let targetId;
+                if (e.target.id.startsWith('checkout-wmu')) {
+                    targetId = e.target.id.replace('checkout-wmu', 'checkout-grid');
+                } else if (e.target.id === 'retro_cell_location') {
+                    targetId = 'retro_grid_location';
+                }
                 
-                if (gridInput) {
-                    if (e.target.value.trim() === '31') {
-                        gridInput.value = '';
-                        gridInput.setAttribute('readonly', true);
-                        gridInput.removeAttribute('required'); // Prevent form block
-                        gridInput.style.backgroundColor = '#e9ecef';
-                        gridInput.placeholder = 'N/A for Unit 31';
-                    } else {
-                        gridInput.removeAttribute('readonly');
-                        gridInput.setAttribute('required', true); // Require for other units
-                        gridInput.style.backgroundColor = '';
-                        gridInput.placeholder = '';
+                if (targetId) {
+                    const gridInput = document.getElementById(targetId);
+                    if (gridInput) {
+                        if (e.target.value.trim() === '31') {
+                            gridInput.value = '';
+                            gridInput.setAttribute('readonly', true);
+                            gridInput.removeAttribute('required'); // Prevent form block
+                            gridInput.style.backgroundColor = '#e9ecef';
+                            gridInput.placeholder = 'N/A for Unit 31';
+                        } else {
+                            gridInput.removeAttribute('readonly');
+                            if (e.target.id.startsWith('checkout-wmu')) {
+                                gridInput.setAttribute('required', true); // Require for other units
+                            } else if (e.target.id === 'retro_cell_location' && document.getElementById('is_retroactive').checked) {
+                                gridInput.setAttribute('required', true);
+                            }
+                            gridInput.style.backgroundColor = '';
+                            gridInput.placeholder = '';
+                        }
                     }
                 }
             }
 
             if (e.target && (e.target.classList.contains('exit-weight-input') || 
                              e.target.classList.contains('manifest-weight-input') || 
-                             e.target.classList.contains('manifest-units-select'))) {
+                             e.target.classList.contains('manifest-units-select') ||
+                             e.target.name === 'gross_weight')) {
                 
                 const form = e.target.closest('form');
                 if (!form) return;
@@ -476,7 +644,13 @@
                 const exitVal = exitInput.value.replace(/,/g, '');
                 const manifestVal = manifestWtInput.value.replace(/,/g, '');
 
-                const grossWeight = parseFloat(exitInput.dataset.gross) || 0;
+                let grossWeight = 0;
+                if (exitInput.id === 'retro_exit_weight') {
+                    const grossInput = form.querySelector('input[name="gross_weight"]');
+                    grossWeight = grossInput ? (parseFloat(grossInput.value) || 0) : 0;
+                } else {
+                    grossWeight = parseFloat(exitInput.dataset.gross) || 0;
+                }
                 const exitWeight = parseFloat(exitVal) || 0;
                 const manifestWeight = parseFloat(manifestVal) || 0;
                 const units = manifestUnitSelect.value;
@@ -526,6 +700,25 @@
                         e.preventDefault(); // Physically blocks the form from sending
                         alert("❌ Tare weight cannot be greater than or equal to Gross weight!");
                         return; // Stop here if invalid
+                    }
+                }
+            }
+
+            // Check for /submit_truck validation when retroactive is enabled
+            if (form.getAttribute('action') === '/submit_truck') {
+                const isRetroactive = document.getElementById('is_retroactive') && document.getElementById('is_retroactive').checked;
+                if (isRetroactive) {
+                    const grossInput = form.querySelector('input[name="gross_weight"]');
+                    const exitInput = form.querySelector('#retro_exit_weight');
+                    if (grossInput && exitInput) {
+                        const grossVal = parseFloat(grossInput.value.replace(/,/g, '')) || 0;
+                        const exitVal = parseFloat(exitInput.value.replace(/,/g, '')) || 0;
+                        
+                        if (exitVal >= grossVal && exitVal > 0) {
+                            e.preventDefault();
+                            alert("❌ Tare weight cannot be greater than or equal to Gross weight!");
+                            return;
+                        }
                     }
                 }
             }
