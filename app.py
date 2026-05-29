@@ -967,6 +967,7 @@ def schedule_portal():
 
     standard_loads = []
     blcb_loads = []
+    unit35_loads = 0
     
     for load in daily_loads:
         try: load['order_index'] = int(load.get('order_index') or 0)
@@ -980,6 +981,14 @@ def schedule_portal():
 
         try: load['is_pinned'] = int(load.get('is_pinned') or 0)
         except: load['is_pinned'] = 0
+
+        # Calculate Unit 35 total (All except CNOS, CCS, and Drum)
+        prof_str = str(load.get('profile_number', '')).upper()
+        win_str = str(load.get('routing_code', '')).upper()
+        is_stu = 'CCS' in prof_str or 'CCS' in win_str or 'DRUM' in prof_str or 'DRUM' in win_str
+        is_u31 = not is_stu and ('CNOS' in prof_str or 'CNOS' in win_str)
+        if not is_stu and not is_u31:
+            unit35_loads += load['load_count']
 
         if str(load['profile_number']).strip().upper() == 'BLCBPNONEB':
             blcb_loads.append(load)
@@ -995,7 +1004,7 @@ def schedule_portal():
         -x['id']                # 5. Fallback safety
     ))
 
-    return render_template('schedule.html', daily_loads=standard_loads, blcb_loads=blcb_loads, selected_date=selected_date, total_loads=total_loads)
+    return render_template('schedule.html', daily_loads=standard_loads, blcb_loads=blcb_loads, selected_date=selected_date, total_loads=total_loads, unit35_loads=unit35_loads)
 
 @app.route('/update_schedule_order', methods=['POST'])
 def update_schedule_order():

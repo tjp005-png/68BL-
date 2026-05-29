@@ -127,7 +127,7 @@
                             <div class="row mb-3">
                                 <div class="col-6">
                                     <label class="form-label text-muted small fw-bold mb-1">Loads</label>
-                                    <input type="number" class="form-control border-secondary px-2" name="load_count" value="1" min="1" required>
+                                    <input type="number" class="form-control border-secondary px-2" id="load_count" name="load_count" value="1" min="1" required>
                                 </div>
                                 <div class="col-6">
                                     <label class="form-label text-muted small fw-bold mb-1">VOC</label>
@@ -895,6 +895,7 @@
             document.getElementById('edit_waste').value = row.getAttribute('data-waste');
             document.getElementById('edit_sales').value = row.getAttribute('data-sales');
             document.getElementById('edit_count').value = row.getAttribute('data-count');
+            document.getElementById('edit_count').setAttribute('value', row.getAttribute('data-count'));
             document.getElementById('edit_win').value = row.getAttribute('data-win');
             document.getElementById('edit_voc').value = row.getAttribute('data-voc');
             document.getElementById('edit_initials').value = row.getAttribute('data-initials');
