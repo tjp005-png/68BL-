@@ -274,13 +274,10 @@ def submit_truck():
             else:
                 test_assigned = f"{base_sample_type} (Daily < 10)"
         else: # Large Bulk
-            if overall_count < 10:
-                test_assigned = f"{base_sample_type} (First 10)"
+            if random.random() < 0.20:
+                test_assigned = f"{base_sample_type} (Random 20%)"
             else:
-                if random.random() < 0.20:
-                    test_assigned = f"{base_sample_type} (Random 20%)"
-                else:
-                    test_assigned = 'VISUAL'
+                test_assigned = 'VISUAL'
 
         # High VOC Override Rule
         if voc_percentage >= 50:
@@ -503,13 +500,10 @@ def edit_truck(log_id):
                 else:
                     test_assigned = f"{base_sample_type} (Daily < 10)"
             else: # Large Bulk
-                if overall_count < 10:
-                    test_assigned = f"{base_sample_type} (First 10)"
+                if random.random() < 0.20:
+                    test_assigned = f"{base_sample_type} (Random 20%)"
                 else:
-                    if random.random() < 0.20:
-                        test_assigned = f"{base_sample_type} (Random 20%)"
-                    else:
-                        test_assigned = 'VISUAL'
+                    test_assigned = 'VISUAL'
 
             # High VOC override rule
             if voc_percentage >= 50:

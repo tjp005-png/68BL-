@@ -16,9 +16,9 @@ def run_wap_tests():
     print("Inserting test profiles and schedule entries...")
     with closing(get_db_connection()) as conn:
         # Delete if already existing from a crash/previous run
-        conn.execute("DELETE FROM profiles WHERE profile_number IN ('TEST-WAP-LOW', 'TEST-WAP-HIGH')")
-        conn.execute("DELETE FROM truck_logs WHERE profile_number IN ('TEST-WAP-LOW', 'TEST-WAP-HIGH')")
-        conn.execute("DELETE FROM daily_schedule WHERE profile_number IN ('TEST-WAP-LOW', 'TEST-WAP-HIGH')")
+        conn.execute("DELETE FROM profiles WHERE profile_number IN ('TEST-WAP-LOW', 'TEST-WAP-HIGH', 'TEST-WAP-LARGE')")
+        conn.execute("DELETE FROM truck_logs WHERE profile_number IN ('TEST-WAP-LOW', 'TEST-WAP-HIGH', 'TEST-WAP-LARGE')")
+        conn.execute("DELETE FROM daily_schedule WHERE profile_number IN ('TEST-WAP-LOW', 'TEST-WAP-HIGH', 'TEST-WAP-LARGE')")
         
         # Insert test profiles
         conn.execute("""
@@ -29,11 +29,15 @@ def run_wap_tests():
             INSERT INTO profiles (profile_number, generator, status, expiration_date, voc_percentage, win_code)
             VALUES ('TEST-WAP-HIGH', 'WAP TEST GEN', 'ACTIVE', 'none', 55.0, 'N')
         """)
+        conn.execute("""
+            INSERT INTO profiles (profile_number, generator, status, expiration_date, voc_percentage, win_code)
+            VALUES ('TEST-WAP-LARGE', 'WAP TEST GEN', 'ACTIVE', 'none', 0.0, 'N')
+        """)
         
-        # Insert schedule entry for Large Bulk test on TEST-WAP-LOW for 2026-05-30 (10 loads scheduled)
+        # Insert schedule entry for Large Bulk test on TEST-WAP-LARGE for 2026-05-30 (10 loads scheduled)
         conn.execute("""
             INSERT INTO daily_schedule (schedule_date, start_time, end_time, profile_number, load_count, generator, sales_order, routing_code, scheduler_initials, special_notes)
-            VALUES ('2026-05-30', '08:00', '16:00', 'TEST-WAP-LOW', 10, 'WAP TEST GEN', 'SO-12345', 'D80', 'TST', 'Test notes')
+            VALUES ('2026-05-30', '08:00', '16:00', 'TEST-WAP-LARGE', 10, 'WAP TEST GEN', 'SO-12345', 'D80', 'TST', 'Test notes')
         """)
         conn.commit()
 
@@ -104,14 +108,15 @@ def run_wap_tests():
                 assert row['test_assigned'] in ['FINGERPRINT', 'LAS'], f"Mode {mode} should be sampled, got: {row['test_assigned']}"
 
         # 5. Test Large Bulk Volumes (10+ Loads Job on 2026-05-30) - 20% random sampling
-        print("\n--- Testing Large Bulk (10+ Job) 20% random sampling ---")
+        # We also verify that "First 10" rule is NOT applied (so even the first 10 loads are subject to random 20% rule).
+        print("\n--- Testing Large Bulk (10+ Job) 20% random sampling (First 10 overall NOT applied) ---")
         sampled_count = 0
         total_large_bulk = 50
         for i in range(1, total_large_bulk + 1):
             load_num = f"L-LARGE-{i}"
             res = client.post('/submit_truck', data={
                 'load_number': load_num,
-                'profile_number': 'TEST-WAP-LOW',
+                'profile_number': 'TEST-WAP-LARGE',
                 'manifest_number': f"M-LARGE-{i}",
                 'gross_weight': '80000',
                 'shipping_mode': 'Solid',
@@ -121,6 +126,8 @@ def run_wap_tests():
             assert res.status_code == 302
             with closing(get_db_connection()) as conn:
                 row = conn.execute("SELECT test_assigned FROM truck_logs WHERE load_number = ?", (load_num,)).fetchone()
+                assert "First 10" not in row['test_assigned'], f"Load {i} should NOT be 'First 10' for Large Bulk, got: {row['test_assigned']}"
+                
                 if "Random 20%" in row['test_assigned']:
                     sampled_count += 1
                 else:
@@ -160,11 +167,9 @@ def run_wap_tests():
         # Cleanup
         print("\nCleaning up test records...")
         with closing(get_db_connection()) as conn:
-            conn.execute("DELETE FROM profiles WHERE profile_number IN ('TEST-WAP-LOW', 'TEST-WAP-HIGH')")
-            conn.execute("DELETE FROM truck_logs WHERE profile_number IN ('TEST-WAP-LOW', 'TEST-WAP-HIGH')")
-            # Also clean up the Large Bulk test records
-            conn.execute("DELETE FROM truck_logs WHERE profile_number = 'TEST-WAP-LOW'")
-            conn.execute("DELETE FROM daily_schedule WHERE profile_number IN ('TEST-WAP-LOW', 'TEST-WAP-HIGH')")
+            conn.execute("DELETE FROM profiles WHERE profile_number IN ('TEST-WAP-LOW', 'TEST-WAP-HIGH', 'TEST-WAP-LARGE')")
+            conn.execute("DELETE FROM truck_logs WHERE profile_number IN ('TEST-WAP-LOW', 'TEST-WAP-HIGH', 'TEST-WAP-LARGE')")
+            conn.execute("DELETE FROM daily_schedule WHERE profile_number IN ('TEST-WAP-LOW', 'TEST-WAP-HIGH', 'TEST-WAP-LARGE')")
             conn.commit()
         print("Cleanup done.")
 
