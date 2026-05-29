@@ -77,6 +77,68 @@ def check_truck_duplicate():
             return jsonify({'exists': True, 'load': existing['load_number'], 'manifest': existing['manifest_number']})
         return jsonify({'exists': False})
 
+def determine_wap_parameters(profile_number, received_date, conn):
+    shipping_mode = 'Solid'
+    job_type = 'Standard'
+    
+    profile_number = str(profile_number or '').strip().upper()
+    
+    # 1. Check if CNOS profile (Liquid)
+    is_cnos = False
+    if 'CNOS' in profile_number:
+        is_cnos = True
+    else:
+        profile = conn.execute('SELECT win_code FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (profile_number,)).fetchone()
+        if profile and profile['win_code'] and 'CNOS' in str(profile['win_code']).upper():
+            is_cnos = True
+            
+    if is_cnos:
+        shipping_mode = 'Liquid'
+    else:
+        # 2. Check for Pneumatic
+        is_pneumatic = False
+        
+        schedule_entries = conn.execute('''
+            SELECT special_notes FROM daily_schedule 
+            WHERE TRIM(UPPER(profile_number)) = ? AND schedule_date = ?
+        ''', (profile_number, received_date)).fetchall()
+        
+        for row in schedule_entries:
+            notes = str(row['special_notes'] or '').lower()
+            if 'pneumatic' in notes or 'pneum' in notes:
+                is_pneumatic = True
+                break
+                
+        if not is_pneumatic:
+            profile = conn.execute('SELECT physical_appearance, special_handling, comments, waste_description, waste_name FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (profile_number,)).fetchone()
+            if profile:
+                for col in ['physical_appearance', 'special_handling', 'comments', 'waste_description', 'waste_name']:
+                    val = str(profile[col] or '').lower()
+                    if 'pneumatic' in val or 'pneum' in val:
+                        is_pneumatic = True
+                        break
+                        
+        if is_pneumatic:
+            shipping_mode = 'Pneumatic'
+            
+    # 3. Determine Job Type from total load count scheduled
+    schedule_entries = conn.execute('''
+        SELECT load_count FROM daily_schedule 
+        WHERE TRIM(UPPER(profile_number)) = ? AND schedule_date = ?
+    ''', (profile_number, received_date)).fetchall()
+    
+    total_loads = 0
+    for row in schedule_entries:
+        try:
+            total_loads += int(row['load_count'] or 0)
+        except:
+            pass
+            
+    if total_loads >= 20:
+        job_type = 'Large Bulk'
+        
+    return shipping_mode, job_type
+
 @receiving_bp.route('/submit_truck', methods=['POST'])
 def submit_truck():
     # We removed truck_id from the UI, so we default it to empty string to prevent errors
@@ -102,10 +164,20 @@ def submit_truck():
         # Capture the exact check-in time
         time_in = datetime.now().strftime('%H:%M')
         
-    shipping_mode = request.form.get('shipping_mode', 'Solid').strip()
-    job_type = request.form.get('job_type', 'Standard').strip()
+    shipping_mode_req = request.form.get('shipping_mode', '').strip()
+    job_type_req = request.form.get('job_type', '').strip()
     
     with closing(get_db_connection()) as conn:
+        if not shipping_mode_req or not job_type_req:
+            shipping_mode, job_type = determine_wap_parameters(profile_number, received_date, conn)
+            if shipping_mode_req:
+                shipping_mode = shipping_mode_req
+            if job_type_req:
+                job_type = job_type_req
+        else:
+            shipping_mode = shipping_mode_req
+            job_type = job_type_req
+
         profile = conn.execute('SELECT * FROM profiles WHERE profile_number = ?', (profile_number,)).fetchone()
         
         # Count non-rejected loads overall for the profile
@@ -316,8 +388,8 @@ def edit_truck(log_id):
     time_in = request.form.get('time_in', '').strip()
     time_out = request.form.get('time_out', '').strip()
     
-    shipping_mode = request.form.get('shipping_mode', 'Solid').strip()
-    job_type = request.form.get('job_type', 'Standard').strip()
+    shipping_mode_req = request.form.get('shipping_mode', '').strip()
+    job_type_req = request.form.get('job_type', '').strip()
     
     try: gross_weight = float(request.form.get('gross_weight', '0').replace(',', ''))
     except: gross_weight = 0.0
@@ -327,8 +399,15 @@ def edit_truck(log_id):
     with closing(get_db_connection()) as conn:
         if source == 'receiving':
             # --- ACTIVE TRUCK EDIT (RECEIVING SCREEN) ---
-            truck = conn.execute('SELECT date_received FROM truck_logs WHERE id = ?', (log_id,)).fetchone()
+            truck = conn.execute('SELECT date_received, profile_number FROM truck_logs WHERE id = ?', (log_id,)).fetchone()
             received_date = truck['date_received'] if truck else date.today().isoformat()
+            old_profile = truck['profile_number'] if truck else ''
+            
+            if profile_number != old_profile:
+                shipping_mode, job_type = determine_wap_parameters(profile_number, received_date, conn)
+            else:
+                shipping_mode = shipping_mode_req if shipping_mode_req else 'Solid'
+                job_type = job_type_req if job_type_req else 'Standard'
             
             # Re-evaluate WAP logic for test_assigned
             profile = conn.execute('SELECT * FROM profiles WHERE profile_number = ?', (profile_number,)).fetchone()
@@ -422,6 +501,16 @@ def edit_truck(log_id):
             
         else:
             # --- COMPLETED TRUCK EDIT (REPORTS SCREEN) ---
+            truck = conn.execute('SELECT date_received, profile_number FROM truck_logs WHERE id = ?', (log_id,)).fetchone()
+            date_received_db = truck['date_received'] if truck else date.today().isoformat()
+            old_profile = truck['profile_number'] if truck else ''
+            
+            if profile_number != old_profile:
+                shipping_mode, job_type = determine_wap_parameters(profile_number, date_received_db, conn)
+            else:
+                shipping_mode = shipping_mode_req if shipping_mode_req else 'Solid'
+                job_type = job_type_req if job_type_req else 'Standard'
+                
             exit_weight_raw = request.form.get('exit_weight', '0')
             try: exit_weight = float(exit_weight_raw.replace(',', '')) if exit_weight_raw.strip() else 0.0
             except: exit_weight = 0.0
