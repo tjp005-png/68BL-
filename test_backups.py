@@ -83,11 +83,14 @@ class TestDatabaseBackups(unittest.TestCase):
         # Perform backup
         success, filename = routes_backups.run_backup_logic()
         self.assertTrue(success)
-        self.assertTrue(filename.startswith('database_backup_'))
-        self.assertTrue(filename.endswith('.db'))
+        
+        # Extract base filename (excluding status messages appended at work)
+        base_filename = filename.split(' ')[0]
+        self.assertTrue(base_filename.startswith('database_backup_'))
+        self.assertTrue(base_filename.endswith('.db'))
         
         # Verify file exists on disk
-        backup_path = os.path.join(TEST_BACKUP_DIR, filename)
+        backup_path = os.path.join(TEST_BACKUP_DIR, base_filename)
         self.assertTrue(os.path.exists(backup_path))
         
         # Verify it is a valid SQLite DB by connecting to it
@@ -109,13 +112,14 @@ class TestDatabaseBackups(unittest.TestCase):
         # Run backup logic which will add 1 real backup and clean up older ones
         success, filename = routes_backups.run_backup_logic()
         self.assertTrue(success)
+        base_filename = filename.split(' ')[0]
         
         # The rolling window should keep exactly 10 backups
         files = [f for f in os.listdir(TEST_BACKUP_DIR) if f.startswith('database_backup_') and f.endswith('.db')]
         self.assertEqual(len(files), 10)
         
         # Verify the new backup is in the list
-        self.assertIn(filename, files)
+        self.assertIn(base_filename, files)
 
     def test_dashboard_route(self):
         # Create a backup
@@ -129,21 +133,23 @@ class TestDatabaseBackups(unittest.TestCase):
     def test_download_backup(self):
         # Create backup
         success, filename = routes_backups.run_backup_logic()
+        base_filename = filename.split(' ')[0]
         self.login()
         
-        response = self.client.get(f'/backups/download/{filename}')
+        response = self.client.get(f'/backups/download/{base_filename}')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers.get('Content-Disposition'), f'attachment; filename={filename}')
+        self.assertEqual(response.headers.get('Content-Disposition'), f'attachment; filename={base_filename}')
 
     def test_delete_backup(self):
         # Create backup
         success, filename = routes_backups.run_backup_logic()
-        backup_path = os.path.join(TEST_BACKUP_DIR, filename)
+        base_filename = filename.split(' ')[0]
+        backup_path = os.path.join(TEST_BACKUP_DIR, base_filename)
         self.assertTrue(os.path.exists(backup_path))
         
         self.login()
         # Call delete route
-        response = self.client.post(f'/backups/delete/{filename}', follow_redirects=True)
+        response = self.client.post(f'/backups/delete/{base_filename}', follow_redirects=True)
         self.assertIn(b'deleted successfully', response.data)
         self.assertFalse(os.path.exists(backup_path))
 
@@ -157,6 +163,7 @@ class TestDatabaseBackups(unittest.TestCase):
         # Backup the database with this entry
         success, filename = routes_backups.run_backup_logic()
         self.assertTrue(success)
+        base_filename = filename.split(' ')[0]
         
         # Modify the database (delete the record)
         conn = original_connect(TEST_DB_PATH)
@@ -169,7 +176,7 @@ class TestDatabaseBackups(unittest.TestCase):
         
         self.login()
         # Call restore route
-        response = self.client.post(f'/backups/restore/{filename}', follow_redirects=True)
+        response = self.client.post(f'/backups/restore/{base_filename}', follow_redirects=True)
         self.assertIn(b'restored successfully', response.data)
         
         # Verify the record is restored
