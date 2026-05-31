@@ -222,14 +222,18 @@
                                         </td>
                                         
                                         <td>
-                                            {% if truck.test_status == 'LAB COMPLETED' %}
-                                                <span class="badge bg-info text-dark shadow-sm">LAB COMPLETED</span>
-                                            {% elif 'LAS' in truck.test_assigned %}
-                                                <span class="badge bg-danger">{{ truck.test_assigned }}</span>
-                                            {% elif 'FINGERPRINT' in truck.test_assigned %}
-                                                <span class="badge bg-warning text-dark">{{ truck.test_assigned }}</span>
+                                            {% if truck.display_status %}
+                                                <span class="badge {{ truck.badge_class }} shadow-sm">{{ truck.display_status }}</span>
                                             {% else %}
-                                                <span class="badge bg-success">VISUAL</span>
+                                                {% if truck.test_status == 'LAB COMPLETED' %}
+                                                    <span class="badge bg-info text-dark shadow-sm">LAB COMPLETED</span>
+                                                {% elif 'LAS' in truck.test_assigned %}
+                                                    <span class="badge bg-danger">{{ truck.test_assigned }}</span>
+                                                {% elif 'FINGERPRINT' in truck.test_assigned %}
+                                                    <span class="badge bg-warning text-dark">{{ truck.test_assigned }}</span>
+                                                {% else %}
+                                                    <span class="badge bg-success">VISUAL</span>
+                                                {% endif %}
                                             {% endif %}
 
                                             {% if 'VOC TEST' in truck.test_assigned %}

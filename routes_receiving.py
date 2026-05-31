@@ -13,7 +13,51 @@ receiving_bp = Blueprint('receiving_bp', __name__)
 def home():
     today_str = date.today().isoformat() 
     with closing(get_db_connection()) as conn:
-        pending_trucks = conn.execute("SELECT * FROM truck_logs WHERE exit_weight IS NULL AND test_status != 'REJECTED' ORDER BY id DESC").fetchall()
+        pending_trucks_raw = conn.execute("SELECT * FROM truck_logs WHERE exit_weight IS NULL AND test_status != 'REJECTED' ORDER BY id DESC").fetchall()
+        
+        # Get active (weighed in) LAS profile numbers
+        active_las_profiles = {row['profile_number'].strip().upper() for row in conn.execute(
+            "SELECT DISTINCT profile_number FROM truck_logs WHERE test_assigned LIKE 'LAS%' AND test_status = 'WEIGHED IN'"
+        ).fetchall() if row['profile_number']}
+        
+        # Get released (LAB COMPLETED) LAS profile numbers
+        released_las_profiles = {row['profile_number'].strip().upper() for row in conn.execute(
+            "SELECT DISTINCT profile_number FROM truck_logs WHERE test_assigned LIKE 'LAS%' AND test_status = 'LAB COMPLETED'"
+        ).fetchall() if row['profile_number']}
+
+        pending_trucks = []
+        for row in pending_trucks_raw:
+            truck = dict(row)
+            prof_upper = str(truck['profile_number']).strip().upper()
+            is_las_truck = str(truck['test_assigned']).startswith('LAS')
+
+            if is_las_truck:
+                if truck['test_status'] == 'LAB COMPLETED':
+                    truck['display_status'] = 'RELEASED'
+                    truck['badge_class'] = 'bg-success text-white'
+                else:
+                    truck['display_status'] = truck['test_assigned']
+                    truck['badge_class'] = 'bg-danger text-white'
+            else:
+                if truck['test_status'] == 'LAB COMPLETED':
+                    if prof_upper in active_las_profiles:
+                        truck['display_status'] = 'WAITING FOR LAS'
+                        truck['badge_class'] = 'bg-warning text-dark'
+                    elif prof_upper in released_las_profiles:
+                        truck['display_status'] = 'OK TO RELEASE'
+                        truck['badge_class'] = 'bg-success text-white'
+                    else:
+                        truck['display_status'] = 'LAB COMPLETED'
+                        truck['badge_class'] = 'bg-info text-dark'
+                else:
+                    # WEIGHED IN: Always show standard test assignment first so it undergoes testing
+                    truck['display_status'] = truck['test_assigned']
+                    if 'FINGERPRINT' in truck['test_assigned']:
+                        truck['badge_class'] = 'bg-warning text-dark'
+                    else:
+                        truck['badge_class'] = 'bg-success text-white'
+            pending_trucks.append(truck)
+
         flagged_query = conn.execute("SELECT DISTINCT profile_number FROM daily_schedule WHERE schedule_date = ? AND is_unscheduled = 1", (today_str,)).fetchall()
         scheduled_query = conn.execute("SELECT DISTINCT profile_number FROM daily_schedule WHERE schedule_date = ?", (today_str,)).fetchall()
         
@@ -111,9 +155,9 @@ def determine_wap_parameters(profile_number, received_date, conn):
                 break
                 
         if not is_pneumatic:
-            profile = conn.execute('SELECT physical_appearance, special_handling, comments, waste_description, waste_name FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (profile_number,)).fetchone()
+            profile = conn.execute('SELECT physical_appearance, special_handling, waste_description FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (profile_number,)).fetchone()
             if profile:
-                for col in ['physical_appearance', 'special_handling', 'comments', 'waste_description', 'waste_name']:
+                for col in ['physical_appearance', 'special_handling', 'waste_description']:
                     val = str(profile[col] or '').lower()
                     if 'pneumatic' in val or 'pneum' in val:
                         is_pneumatic = True
@@ -274,10 +318,13 @@ def submit_truck():
             else:
                 test_assigned = f"{base_sample_type} (Daily < 10)"
         else: # Large Bulk
-            if random.random() < 0.20:
-                test_assigned = f"{base_sample_type} (Random 20%)"
+            if base_sample_type == 'LAS':
+                test_assigned = 'LAS (Large Bulk)'
             else:
-                test_assigned = 'VISUAL'
+                if random.random() < 0.20:
+                    test_assigned = f"{base_sample_type} (Random 20%)"
+                else:
+                    test_assigned = 'VISUAL'
 
         # High VOC Override Rule
         if voc_percentage >= 50:

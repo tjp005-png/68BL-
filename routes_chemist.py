@@ -234,6 +234,7 @@ def chemist_dashboard():
             LEFT JOIN profile_wvi w ON TRIM(UPPER(tl.profile_number)) = TRIM(UPPER(w.profile))
             LEFT JOIN profiles p ON TRIM(UPPER(tl.profile_number)) = TRIM(UPPER(p.profile_number))
             WHERE (tl.test_assigned LIKE '%FINGERPRINT%' OR tl.test_assigned LIKE '%VOC TEST%') 
+              AND tl.test_assigned NOT LIKE 'LAS%'
               AND tl.test_status = 'WEIGHED IN'
         ''').fetchall()
         

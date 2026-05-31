@@ -75,12 +75,26 @@ def stu_hub():
         last_upload_row = conn.execute('SELECT MAX(import_date) FROM drum_inventory').fetchone()
         last_upload = last_upload_row[0] if last_upload_row else 'NO DATA'
         
+        # Get active LAS bulk trucks pending release (Load As Sample)
+        # Select parameters directly from the profiles table in the database
+        las_trucks_raw = conn.execute('''
+            SELECT tl.*, 
+                   p.generator, p.waste_description, p.win_code, p.voc_percentage, p.special_handling,
+                   p.ph_range, p.physical_appearance, p.flash_point, p.expiration_date
+            FROM truck_logs tl
+            LEFT JOIN profiles p ON TRIM(UPPER(tl.profile_number)) = TRIM(UPPER(p.profile_number))
+            WHERE tl.test_assigned LIKE 'LAS%' AND tl.test_status = 'WEIGHED IN'
+            ORDER BY tl.id DESC
+        ''').fetchall()
+        las_trucks = [dict(t) for t in las_trucks_raw]
+        
     return render_template('stu_hub.html', 
                            pipeline_loads=pipeline_loads, 
                            drums=drums, 
                            view=view, 
                            category=category, 
-                           last_upload=last_upload)
+                           last_upload=last_upload,
+                           las_trucks=las_trucks)
 
 @stu_bp.route('/stu/inventory')
 def stu_inventory():

@@ -218,7 +218,25 @@ upgrade_db()
 
 @app.route('/')
 def portal_hub(): 
-    return render_template('index.html')
+    with closing(get_db_connection()) as conn:
+        logistics_count = conn.execute("SELECT COUNT(*) FROM truck_logs WHERE exit_weight IS NULL AND test_status != 'REJECTED'").fetchone()[0]
+        drums_count = conn.execute("SELECT COUNT(*) FROM drum_inventory WHERE process_type = 'PENDING SAMPLING'").fetchone()[0]
+        
+        lab_bulk = conn.execute("SELECT COUNT(*) FROM truck_logs WHERE test_status = 'WEIGHED IN' AND test_assigned NOT LIKE 'LAS%'").fetchone()[0]
+        lab_drums = conn.execute("SELECT COUNT(*) FROM drum_lab_queue WHERE status = 'PENDING'").fetchone()[0]
+        lab_total = lab_bulk + lab_drums
+        
+        las_count = conn.execute("SELECT COUNT(*) FROM truck_logs WHERE test_assigned LIKE 'LAS%' AND test_status = 'WEIGHED IN'").fetchone()[0]
+        drum_jobs_count = conn.execute("SELECT COUNT(DISTINCT job_id) FROM drum_lab_queue WHERE status != 'FINAL CODED' AND job_id IS NOT NULL").fetchone()[0]
+        approvals_total = las_count + drum_jobs_count
+        
+    return render_template('index.html', 
+                           logistics_count=logistics_count, 
+                           drums_count=drums_count, 
+                           lab_total=lab_total, 
+                           approvals_total=approvals_total,
+                           las_count=las_count,
+                           drum_jobs_count=drum_jobs_count)
 
 if __name__ == '__main__':
     start_backup_scheduler(app)

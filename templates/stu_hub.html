@@ -125,6 +125,168 @@
                     </div>
                 </div>
             </div>
+
+            <!-- LAS Bulk Trucks (Load As Sample) Pending Release -->
+            <div class="col-12 mt-4">
+                <div class="card shadow">
+                    <div class="card-header text-white py-3 ch-red-bg d-flex justify-content-between align-items-center" style="border-bottom: 4px solid #5a0000;">
+                        <h4 class="mb-0 fw-bold">🚛 LAS Bulk Trucks (Pending Waste Acceptance Release)</h4>
+                        <span class="badge bg-white text-dark fs-6" id="total-las-badge">{{ las_trucks|length }} Pending Release</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0 text-nowrap">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="ps-4">Load #</th>
+                                        <th>Manifest #</th>
+                                        <th>Profile</th>
+                                        <th>Test Assigned</th>
+                                        <th>Gross Weight</th>
+                                        <th class="text-end pe-4">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for truck in las_trucks %}
+                                    <tr>
+                                        <td class="fw-bold ps-4">{{ truck.load_number }}</td>
+                                        <td>{{ truck.manifest_number }}</td>
+                                        <td class="fw-bold text-primary">{{ truck.profile_number }}</td>
+                                        <td><span class="badge bg-danger">{{ truck.test_assigned }}</span></td>
+                                        <td>{{ truck.gross_weight }} lbs</td>
+                                        <td class="text-end pe-4">
+                                            <button type="button" class="btn btn-sm btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#lasModal{{ truck.id }}">
+                                                🔎 Review & Release
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% else %}
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-4">
+                                            <em>No pending LAS bulk trucks.</em>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% for truck in las_trucks %}
+            <!-- Modal for each truck -->
+            <div class="modal fade text-start" id="lasModal{{ truck.id }}" tabindex="-1" aria-labelledby="lasModalLabel{{ truck.id }}" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content text-dark">
+                        <div class="modal-header ch-red-bg">
+                            <h5 class="modal-title fw-bold" id="lasModalLabel{{ truck.id }}">📋 Waste Acceptance Review: Load {{ truck.load_number }}</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <form action="/release_las_truck" method="POST">
+                            <input type="hidden" name="log_id" value="{{ truck.id }}">
+                            <div class="modal-body p-4 text-dark" style="max-height: 70vh; overflow-y: auto;">
+                                
+                                <!-- Profile Specifications -->
+                                <h6 class="fw-bold mb-3 border-bottom pb-2 text-danger">📋 Accepted Profile Specifications (Profile DB)</h6>
+                                <div class="row g-3 mb-4 bg-light p-3 rounded border">
+                                    <div class="col-md-6">
+                                        <span class="text-muted small fw-bold d-block">GENERATOR</span>
+                                        <strong class="text-dark">{{ truck.generator or 'N/A' }}</strong>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <span class="text-muted small fw-bold d-block">WASTE DESCRIPTION</span>
+                                        <strong class="text-dark">{{ truck.waste_description or 'N/A' }}</strong>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <span class="text-muted small fw-bold d-block">WIN CODE</span>
+                                        <strong class="text-dark">{{ truck.win_code or 'N/A' }}</strong>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <span class="text-muted small fw-bold d-block">ACCEPTED pH RANGE</span>
+                                        <strong class="text-dark">{{ truck.ph_range or 'N/A' }}</strong>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <span class="text-muted small fw-bold d-block">ACCEPTED FLASH POINT</span>
+                                        <strong class="text-dark">{{ truck.flash_point or 'N/A' }}</strong>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <span class="text-muted small fw-bold d-block">VOC CONTENT (LIMIT 500 PPM FOR CCS)</span>
+                                        <strong class="text-dark">{{ truck.voc_percentage or 'N/A' }}%</strong>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <span class="text-muted small fw-bold d-block">SPECIAL HANDLING</span>
+                                        <strong class="text-dark">{{ truck.special_handling or 'None' }}</strong>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <span class="text-muted small fw-bold d-block">EXPIRATION DATE</span>
+                                        <strong class="text-dark">{{ truck.expiration_date or 'N/A' }}</strong>
+                                    </div>
+                                </div>
+
+                                <!-- Measured Verification Form -->
+                                <h6 class="fw-bold mb-3 border-bottom pb-2 text-primary">🧪 Measured Verification Form</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold text-dark">Measured pH <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control border-secondary" name="measured_ph" placeholder="e.g. 7.2" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold text-dark">Measured VOC (ppm) <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control border-secondary" name="measured_voc" placeholder="e.g. 15.0" required>
+                                    </div>
+                                    
+                                    {% set is_special = false %}
+                                    {% if truck.profile_number and ('CNOS' in truck.profile_number.upper() or 'CBPS' in truck.profile_number.upper()) %}
+                                        {% set is_special = true %}
+                                    {% elif truck.win_code and ('CNOS' in truck.win_code.upper() or 'CBPS' in truck.win_code.upper()) %}
+                                        {% set is_special = true %}
+                                    {% endif %}
+
+                                    {% if is_special %}
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold text-danger">Measured Sulfides <span class="text-danger">*</span></label>
+                                        <select class="form-select border-danger" name="measured_sulfides" required>
+                                            <option value="Negative" selected>Negative</option>
+                                            <option value="Positive">Positive</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold text-danger">Measured Cyanide <span class="text-danger">*</span></label>
+                                        <select class="form-select border-danger" name="measured_cyanide" required>
+                                            <option value="Negative" selected>Negative</option>
+                                            <option value="Positive">Positive</option>
+                                        </select>
+                                    </div>
+                                    {% endif %}
+
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold text-dark">Measured Flashpoint</label>
+                                        <input type="text" class="form-control border-secondary" name="measured_flashpoint" placeholder="e.g. >200F">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold text-dark">Free Liquids? <span class="text-danger">*</span></label>
+                                        <select class="form-select border-secondary" name="measured_free_liquids" required>
+                                            <option value="No" selected>No</option>
+                                            <option value="Yes">Yes</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label fw-bold text-dark">Reviewer Notes / Comments</label>
+                                        <textarea class="form-control border-secondary" name="notes" rows="3" placeholder="Enter comments or profile verification findings..."></textarea>
+                                    </div>
+                                </div>
+                                
+                            </div>
+                            <div class="modal-footer bg-light">
+                                <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-success fw-bold px-4">Verify & Release Load</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
             {% else %}
             <!-- ==================================================== -->
             <!--                 ACTIVE INVENTORY                     -->

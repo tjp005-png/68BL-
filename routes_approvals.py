@@ -297,3 +297,77 @@ def api_profile_attachments(profile_number):
 @approvals_bp.route('/uploads/profiles/<path:filename>')
 def serve_profile_upload(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
+
+@approvals_bp.route('/release_las_truck', methods=['POST'])
+def release_las_truck():
+    from shared_state import socketio
+    log_id = request.form.get('log_id')
+    measured_ph = request.form.get('measured_ph')
+    measured_voc = request.form.get('measured_voc')
+    measured_sulfides = request.form.get('measured_sulfides', 'Negative')
+    measured_cyanide = request.form.get('measured_cyanide', 'Negative')
+    measured_free_liquids = request.form.get('measured_free_liquids', 'No')
+    measured_flashpoint = request.form.get('measured_flashpoint', '')
+    notes = request.form.get('notes', '')
+
+    # Safely convert to float
+    try:
+        ph_val = float(measured_ph) if measured_ph else None
+    except ValueError:
+        ph_val = None
+
+    try:
+        voc_val = float(measured_voc) if measured_voc else None
+    except ValueError:
+        voc_val = None
+
+    with closing(get_db_connection()) as conn:
+        # Get the truck details to find profile number and date_received
+        truck = conn.execute('SELECT profile_number, date_received FROM truck_logs WHERE id = ?', (log_id,)).fetchone()
+        if not truck:
+            return "Truck log not found", 404
+        
+        profile_number = truck['profile_number']
+        received_date = truck['date_received'] or date.today().isoformat()
+
+        # Find the profile details
+        profile = conn.execute('SELECT win_code FROM profiles WHERE TRIM(UPPER(profile_number)) = TRIM(UPPER(?))', (profile_number,)).fetchone()
+        
+        is_ccs = False
+        if profile_number and 'CCS' in profile_number.upper():
+            is_ccs = True
+        elif profile and profile['win_code'] and 'CCS' in str(profile['win_code']).upper():
+            is_ccs = True
+
+        # CCS check
+        if is_ccs:
+            if voc_val is not None and voc_val > 500:
+                voc_pass_fail = 'FAIL'
+            else:
+                voc_pass_fail = 'PASS'
+        else:
+            voc_pass_fail = 'N/A'
+
+        release_note = f"Released by Waste Acceptance. {notes}".strip() if notes else "Released by Waste Acceptance."
+
+        conn.execute('''
+            UPDATE truck_logs
+            SET measured_ph = ?,
+                measured_voc = ?,
+                measured_sulfides = ?,
+                measured_cyanide = ?,
+                measured_free_liquids = ?,
+                measured_flashpoint = ?,
+                voc_pass_fail = ?,
+                lab_results = ?,
+                test_status = 'LAB COMPLETED'
+            WHERE id = ?
+        ''', (ph_val, voc_val, measured_sulfides, measured_cyanide, measured_free_liquids, measured_flashpoint, voc_pass_fail, release_note, log_id))
+        
+        conn.commit()
+
+        # Emit websocket updates to keep queues in sync
+        socketio.emit('lab_update', {'date': received_date})
+        socketio.emit('truck_update', {'date': received_date})
+
+    return redirect(url_for('stu_bp.stu_hub', view='pipeline'))
