@@ -75,6 +75,8 @@ def get_profile_details(profile_number):
     clean_profile = profile_number.strip().upper()
     
     with closing(get_db_connection()) as conn:
+        from database import ensure_profile_exists
+        ensure_profile_exists(conn, clean_profile)
         profile = conn.execute('SELECT * FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (clean_profile,)).fetchone()
     
     if profile:
@@ -127,6 +129,8 @@ def determine_wap_parameters(profile_number, received_date, conn):
     job_type = 'Standard'
     
     profile_number = str(profile_number or '').strip().upper()
+    from database import ensure_profile_exists
+    ensure_profile_exists(conn, profile_number)
     
     # 1. Check if CNOS profile (Liquid)
     is_cnos = False
@@ -234,6 +238,8 @@ def submit_truck():
             shipping_mode = shipping_mode_req
             job_type = job_type_req
 
+        from database import ensure_profile_exists
+        ensure_profile_exists(conn, profile_number)
         profile = conn.execute('SELECT * FROM profiles WHERE profile_number = ?', (profile_number,)).fetchone()
         
         # Count non-rejected loads overall for the profile
@@ -481,6 +487,8 @@ def edit_truck(log_id):
                 job_type = job_type_req if job_type_req else 'Standard'
             
             # Re-evaluate WAP logic for test_assigned
+            from database import ensure_profile_exists
+            ensure_profile_exists(conn, profile_number)
             profile = conn.execute('SELECT * FROM profiles WHERE profile_number = ?', (profile_number,)).fetchone()
             
             overall_count = conn.execute('''

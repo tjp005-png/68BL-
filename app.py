@@ -86,7 +86,7 @@ def upgrade_db():
             CREATE TABLE IF NOT EXISTS profiles (
                 profile_number TEXT PRIMARY KEY, generator TEXT, 
                 waste_description TEXT, win_code TEXT, voc_percentage REAL DEFAULT 0.0,
-                special_handling TEXT
+                special_handling TEXT, last_synced_mtime REAL
             )
         ''')
         if not column_exists(cursor, 'profiles', 'generator'): cursor.execute('ALTER TABLE profiles ADD COLUMN generator TEXT')
@@ -101,6 +101,8 @@ def upgrade_db():
             cursor.execute('ALTER TABLE profiles ADD COLUMN expiration_date TEXT')
         if not column_exists(cursor, 'profiles', 'status'):
             cursor.execute('ALTER TABLE profiles ADD COLUMN status TEXT DEFAULT "A"')
+        if not column_exists(cursor, 'profiles', 'last_synced_mtime'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN last_synced_mtime REAL')
 
         # 3. DAILY SCHEDULE 
         cursor.execute('''

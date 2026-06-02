@@ -179,10 +179,16 @@ def parse_profile_pdf():
 def add_master_profile():
     with closing(get_db_connection()) as conn:
         generator = request.form.get('generator') or request.form.get('generator_name') or ''
+        voc_pct = 0.0
+        try:
+            voc_pct = float(request.form.get('voc_percentage', 0.0) or 0.0)
+        except (ValueError, TypeError):
+            pass
+
         conn.execute('''
             REPLACE INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, special_handling, ph_range, physical_appearance, flash_point, expiration_date)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (request.form.get('profile_number').upper(), generator, request.form.get('waste_description', ''), request.form.get('win_code', ''), request.form.get('voc_percentage', 0.0), request.form.get('special_handling', ''), request.form.get('ph_range', ''), request.form.get('physical_appearance', ''), request.form.get('flash_point', ''), request.form.get('expiration_date', '')))
+        ''', (request.form.get('profile_number').upper(), generator, request.form.get('waste_description', ''), request.form.get('win_code', ''), voc_pct, request.form.get('special_handling', ''), request.form.get('ph_range', ''), request.form.get('physical_appearance', ''), request.form.get('flash_point', ''), request.form.get('expiration_date', '')))
         conn.commit()
     return redirect(url_for('approvals_bp.approvals_portal'))
 
@@ -197,6 +203,8 @@ def auto_sync_profiles():
             
             for s in schedules:
                 prof_num = str(s['profile_number']).strip().upper()
+                from database import ensure_profile_exists
+                ensure_profile_exists(conn, prof_num)
                 prof = conn.execute('''
                     SELECT voc_percentage, generator, win_code 
                     FROM profiles 
@@ -331,6 +339,8 @@ def release_las_truck():
         received_date = truck['date_received'] or date.today().isoformat()
 
         # Find the profile details
+        from database import ensure_profile_exists
+        ensure_profile_exists(conn, profile_number)
         profile = conn.execute('SELECT win_code FROM profiles WHERE TRIM(UPPER(profile_number)) = TRIM(UPPER(?))', (profile_number,)).fetchone()
         
         is_ccs = False

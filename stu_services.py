@@ -26,8 +26,14 @@ def evaluate_and_update_voc_requirement(conn, profile, drum_id, manifest, status
     today_str = datetime.now().strftime("%Y-%m-%d")
     trigger_alert = ""
     
+    from database import ensure_profile_exists
+    ensure_profile_exists(conn, profile)
+    
     master_row = conn.execute("SELECT voc_percentage FROM profiles WHERE profile_number = ?", (profile,)).fetchone()
-    baseline_voc = master_row[0] if master_row and master_row[0] is not None else -1.0
+    try:
+        baseline_voc = float(master_row[0]) if (master_row and master_row[0] is not None) else -1.0
+    except (ValueError, TypeError):
+        baseline_voc = -1.0
     cp_number = "________" 
 
     tracker_row = conn.execute("SELECT drums_since_last_test, last_voc_test_date FROM compliance_tracker WHERE profile = ?", (profile,)).fetchone()
@@ -36,7 +42,10 @@ def evaluate_and_update_voc_requirement(conn, profile, drum_id, manifest, status
         conn.execute("INSERT INTO compliance_tracker (profile, last_voc_test_date, drums_since_last_test) VALUES (?, ?, ?)", (profile, today_str, 1))
         drums_count = 1
     else:
-        drums_count = tracker_row[0] + 1
+        try:
+            drums_count = int(tracker_row[0]) + 1
+        except (ValueError, TypeError):
+            drums_count = 1
     
     if status == "NOT FOUND" or (not tracker_row and baseline_voc < 0):
         trigger_alert = f"NEW PROFILE CP1 / VOC (CP: {cp_number})"
@@ -81,7 +90,10 @@ def process_drums(conn, drums):
     processed_drums = []
     for d in drums:
         status = "VALID"
-        prof_row = conn.execute("SELECT expiration_date, special_handling FROM profiles WHERE profile_number = ?", (d.get('profile',''),)).fetchone()
+        profile_num = d.get('profile','')
+        from database import ensure_profile_exists
+        ensure_profile_exists(conn, profile_num)
+        prof_row = conn.execute("SELECT expiration_date, special_handling FROM profiles WHERE profile_number = ?", (profile_num,)).fetchone()
         
         if not prof_row: 
             status = "NOT FOUND"
@@ -152,8 +164,8 @@ def parse_drum_labels_from_pdf(file_stream):
                 
                 header_text = text[:800].upper()
                 
-                # UPGRADED: Allows CNIA through even if the routing code isn't BL
-                has_bl = re.search(rf'\b{TARGET_ROUTING_CODE}\b', header_text)
+                # UPGRADED: Allows CNIA through even if the routing code isn't BL, and supports 68BL style routing codes
+                has_bl = re.search(rf'\b\d*{TARGET_ROUTING_CODE}\b', header_text)
                 has_cnia = 'CNIA' in header_text
                 if not has_bl and not has_cnia: 
                     continue
@@ -213,7 +225,7 @@ def parse_drum_labels_from_pdf(file_stream):
                                 rest_of_line = line[idx:]
                                 line_num_match = re.search(r'^\s*([0-9]+[A-Z]?)', rest_of_line)
                                 if line_num_match: manifest_line_num = line_num_match.group(1)
-                                size_match = re.search(r'\b(?:(\d{1,4}\s?(?:DM|DF|CF|TP|GAL|G|TT))|((?:PAL|BAG|BA|CTN|BOX|CY|YARD|YD)))\b', rest_of_line, re.IGNORECASE)
+                                size_match = re.search(r'\b(?:(\d{1,4}\s?(?:DM|DF|DP|CF|TP|GAL|G|TT|FBIN|BIN))|((?:PAL|BAG|BA|CTN|BOX|CY|YARD|YD|FBIN|BIN)))\b', rest_of_line, re.IGNORECASE)
                                 if size_match: 
                                     container_size = (size_match.group(1) if size_match.group(1) else size_match.group(2)).upper()
                                     wc_match = re.search(r'\b([A-Z0-9]{3,4})\b', rest_of_line[size_match.end():].strip())
