@@ -222,6 +222,18 @@
             max-height: 450px;
             overflow-y: auto;
         }
+
+        /* Print styles for clean PDF export page breaks */
+        @media print {
+            #data-grid-card, .table-responsive-container, #data-table {
+                page-break-inside: auto !important;
+                break-inside: auto !important;
+            }
+            tr {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -252,7 +264,7 @@
                             <option value="traffic">📈 Truck check-in volume trends</option>
                             <option value="tonnage_ytd">⛰️ Cumulative Tonnage curves (YTD by Unit)</option>
                             <option value="timings">⏰ Hourly check-in volume distribution (Peak Timings)</option>
-                            <option value="norm">☢️ NORM Tracker (Naturally Occurring Radioactive Material)</option>
+                            <option value="norm">☢️ CNON Tracker ( Radioactive Material Profiles)</option>
                         </select>
                     </div>
                     <div class="col-md-5">
@@ -325,7 +337,23 @@
             <div class="loading-overlay" id="table-loader">
                 <div class="spinner-custom"></div>
             </div>
-            <div class="card-header bg-transparent border-0 pt-4 px-4 d-flex justify-content-between align-items-center">
+            
+            <!-- Dynamic PDF Print Header (hidden in browser, shown only in PDF) -->
+            <div id="pdf-print-header" class="d-none border-bottom pb-3 mb-4 mx-4 pt-4 align-items-center justify-content-between" style="color: black;">
+                <div class="d-flex align-items-center">
+                    <img src="{{ url_for('static', filename='CLH_BIG.png') }}" style="height: 50px; margin-right: 15px; background-color: white; padding: 2px; border-radius: 4px;" alt="Clean Harbors">
+                    <div>
+                        <h2 class="mb-0 fw-bold" style="font-size: 18pt;" id="pdf-report-title">Compliance Detail Report</h2>
+                        <p class="mb-0 text-muted fw-bold" id="pdf-report-date-range">Date Range</p>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <h5 class="mb-0 fw-bold text-muted text-uppercase" style="font-size: 10pt; letter-spacing: 0.05em;">Buttonwillow Facility</h5>
+                    <p class="mb-0 small text-muted">Generated on: <span id="pdf-report-gen-date"></span></p>
+                </div>
+            </div>
+
+            <div class="card-header bg-transparent border-0 pt-4 px-4 d-flex justify-content-between align-items-center" id="data-grid-header">
                 <h4 class="mb-0 fw-bold text-dark">Data Grid Detail</h4>
                 <button id="btn-export-pdf" class="btn btn-sm btn-outline-danger fw-bold d-flex align-items-center gap-1">
                     📄 Export PDF
@@ -823,31 +851,57 @@
 
         function exportTableToPDF() {
             const cardEl = document.getElementById("data-grid-card");
-            const exportBtn = document.getElementById("btn-export-pdf");
+            const cardHeader = document.getElementById("data-grid-header");
+            const printHeader = document.getElementById("pdf-print-header");
             const tableContainer = document.querySelector(".table-responsive-container");
-            const reportType = document.getElementById("report-type").value;
-            const dateRange = document.getElementById("date-range").value || "Report";
             
-            // Temporarily disable scroll constraints for clean PDF rendering
-            exportBtn.style.setProperty("display", "none", "important");
+            const dropdownEl = document.getElementById("report-type");
+            const selectedReportName = dropdownEl.options[dropdownEl.selectedIndex].text.split(" ").slice(1).join(" ");
+            const dateRange = document.getElementById("date-range").value || "Selected Range";
+            
+            // Populate dynamic print header values
+            document.getElementById("pdf-report-title").innerText = selectedReportName + " Report";
+            document.getElementById("pdf-report-date-range").innerText = `Reporting Period: ${dateRange}`;
+            document.getElementById("pdf-report-gen-date").innerText = new Date().toLocaleDateString();
+            
+            // Save original styles to restore them later
+            const originalShadow = cardEl.style.boxShadow;
+            const originalBorder = cardEl.style.border;
+            const originalBg = cardEl.style.backgroundColor;
+            
+            // Temporarily update elements for clean PDF styling
+            if (cardHeader) cardHeader.style.setProperty("display", "none", "important");
+            if (printHeader) printHeader.style.setProperty("display", "flex", "important");
+            
+            cardEl.style.boxShadow = "none";
+            cardEl.style.border = "none";
+            cardEl.style.backgroundColor = "transparent";
+            
             if (tableContainer) {
                 tableContainer.style.setProperty("max-height", "none", "important");
                 tableContainer.style.setProperty("overflow-y", "visible", "important");
             }
             
-            const filename = `Compliance_${reportType}_Detail_${dateRange.replace(/ to /g, "_")}.pdf`;
+            const filename = `Compliance_${dropdownEl.value}_Detail_${dateRange.replace(/ to /g, "_")}.pdf`;
 
             const opt = {
                 margin:       [0.4, 0.4, 0.4, 0.4],
                 filename:     filename,
                 image:        { type: 'jpeg', quality: 0.98 },
                 html2canvas:  { scale: 2, useCORS: true, logging: false },
-                jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' },
+                pagebreak:    { mode: ['css', 'legacy'] }
             };
 
             html2pdf().set(opt).from(cardEl).save().then(() => {
-                // Restore constraints
-                exportBtn.style.setProperty("display", "", "");
+                // Restore all styles and components
+                if (cardHeader) cardHeader.style.setProperty("display", "", "");
+                if (printHeader) printHeader.style.setProperty("display", "none", "important");
+                
+                cardEl.style.boxShadow = originalShadow;
+                cardEl.style.border = originalBorder;
+                cardEl.style.backgroundColor = originalBg;
+                
                 if (tableContainer) {
                     tableContainer.style.removeProperty("max-height");
                     tableContainer.style.removeProperty("overflow-y");
