@@ -219,6 +219,8 @@ def upgrade_db():
                 is_synced INTEGER DEFAULT 0
             )
         ''')
+        if not column_exists(cursor, 'profile_wvi', 'is_synced'):
+            cursor.execute('ALTER TABLE profile_wvi ADD COLUMN is_synced INTEGER DEFAULT 0')
         
         conn.commit()
 
