@@ -601,5 +601,65 @@ def compliance_data():
                 'table_data': table_data
             })
             
+        elif report_type == 'norm':
+            # Retrieve NORM loads (profiles with win_code = 'CNON')
+            rows = conn.execute('''
+                SELECT t.id, t.date_received, t.profile_number, t.load_number, t.manifest_number, 
+                       t.net_weight, t.cell_location, p.generator
+                FROM truck_logs t
+                LEFT JOIN profiles p ON TRIM(UPPER(t.profile_number)) = TRIM(UPPER(p.profile_number))
+                WHERE TRIM(UPPER(p.win_code)) = 'CNON'
+                  AND t.date_received BETWEEN ? AND ?
+                ORDER BY t.date_received ASC, CAST(t.load_number AS INTEGER) ASC
+            ''', (start_str, end_str)).fetchall()
+
+            labels = date_list
+            daily_counts = {d: 0 for d in labels}
+            total_tons = 0.0
+            unique_profiles = set()
+            
+            table_data = []
+            for r in rows:
+                d = r['date_received']
+                if d in daily_counts:
+                    daily_counts[d] += 1
+                unique_profiles.add(r['profile_number'])
+                total_tons += float(r['net_weight'] or 0.0)
+                
+                table_data.append({
+                    'date': d,
+                    'profile_number': r['profile_number'],
+                    'load_number': r['load_number'],
+                    'manifest_number': r['manifest_number'] or '---',
+                    'generator': r['generator'] or 'Unknown Generator',
+                    'weight': f"{float(r['net_weight'] or 0.0):.2f}",
+                    'cell_location': r['cell_location'] or '---'
+                })
+
+            counts = [daily_counts[d] for d in labels]
+            total_norm_loads = len(rows)
+            
+            busiest_day = 'N/A'
+            max_daily = max(counts) if counts else 0
+            if max_daily > 0:
+                busiest_idx = counts.index(max_daily)
+                busiest_day = labels[busiest_idx]
+
+            summary = {
+                'kpi1_val': total_norm_loads, 'kpi1_label': 'Total NORM Loads',
+                'kpi2_val': len(unique_profiles), 'kpi2_label': 'Unique Profiles',
+                'kpi3_val': f"{total_tons:,.2f} Tons", 'kpi3_label': 'Total NORM Tonnage',
+                'kpi4_val': busiest_day if max_daily > 0 else 'None', 'kpi4_label': 'Busiest NORM Day'
+            }
+
+            return jsonify({
+                'labels': labels,
+                'datasets': [
+                    {'label': 'NORM Loads Checked-in', 'data': counts}
+                ],
+                'summary': summary,
+                'table_data': table_data
+            })
+            
     return jsonify({'error': 'Invalid report type'}), 400
 

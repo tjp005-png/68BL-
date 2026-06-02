@@ -252,6 +252,7 @@
                             <option value="traffic">📈 Truck check-in volume trends</option>
                             <option value="tonnage_ytd">⛰️ Cumulative Tonnage curves (YTD by Unit)</option>
                             <option value="timings">⏰ Hourly check-in volume distribution (Peak Timings)</option>
+                            <option value="norm">☢️ NORM Tracker (Naturally Occurring Radioactive Material)</option>
                         </select>
                     </div>
                     <div class="col-md-5">
@@ -470,6 +471,9 @@
             } else if (type === "timings") {
                 kpi3Container.classList.add("kpi-var-pos");
                 kpi3ValEl.classList.add("text-success");
+            } else if (type === "norm") {
+                kpi3Container.classList.add("kpi-fourth");
+                kpi3ValEl.classList.add("text-primary");
             }
         }
 
@@ -615,6 +619,19 @@
                         barPercentage: 0.85
                     }
                 ];
+            } else if (type === "norm") {
+                chartType = "bar";
+                datasets = [
+                    {
+                        label: "NORM Loads Checked-in",
+                        data: apiData.datasets[0].data,
+                        backgroundColor: "rgba(139, 92, 246, 0.8)",
+                        borderColor: "rgb(139, 92, 246)",
+                        borderWidth: 1.5,
+                        borderRadius: 6,
+                        barPercentage: 0.85
+                    }
+                ];
             }
 
             chartInstance = new Chart(ctx, {
@@ -651,6 +668,8 @@
                 headers = ["Date", "WMU 35 YTD (Tons)", "WMU 31 YTD (Tons)", "STU/Decon YTD (Tons)", "Landfill/Other YTD (Tons)", "Total YTD (Tons)"];
             } else if (type === "timings") {
                 headers = ["Hour", "Check-in Count"];
+            } else if (type === "norm") {
+                headers = ["Date", "Profile Number", "Generator", "Manifest Number", "Load Number", "Weight (Tons)", "WMU"];
             }
 
             const trHead = document.createElement("tr");
@@ -755,6 +774,41 @@
                     
                     tr.appendChild(tdHour);
                     tr.appendChild(tdCount);
+                } else if (type === "norm") {
+                    const tdDate = document.createElement("td");
+                    tdDate.innerText = row.date;
+                    tdDate.classList.add("fw-bold");
+                    
+                    const tdProf = document.createElement("td");
+                    tdProf.innerText = row.profile_number;
+                    
+                    const tdGen = document.createElement("td");
+                    tdGen.innerText = row.generator;
+                    tdGen.classList.add("text-wrap");
+                    tdGen.style.maxWidth = "250px";
+                    
+                    const tdMan = document.createElement("td");
+                    tdMan.innerText = row.manifest_number;
+                    
+                    const tdLoad = document.createElement("td");
+                    tdLoad.innerText = row.load_number;
+                    tdLoad.classList.add("fw-semibold");
+                    
+                    const tdWt = document.createElement("td");
+                    tdWt.innerText = row.weight;
+                    tdWt.classList.add("text-end", "fw-bold");
+                    
+                    const tdLoc = document.createElement("td");
+                    tdLoc.innerText = row.cell_location;
+                    tdLoc.classList.add("text-end");
+                    
+                    tr.appendChild(tdDate);
+                    tr.appendChild(tdProf);
+                    tr.appendChild(tdGen);
+                    tr.appendChild(tdMan);
+                    tr.appendChild(tdLoad);
+                    tr.appendChild(tdWt);
+                    tr.appendChild(tdLoc);
                 }
                 
                 tableBody.appendChild(tr);
