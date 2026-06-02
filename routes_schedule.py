@@ -160,6 +160,8 @@ def clear_all_pins():
     return redirect(url_for('schedule_bp.schedule_portal', date=date_str))
 
 
+import uuid
+
 @schedule_bp.route('/add_schedule', methods=['POST'])
 def add_schedule():
     selected_dates_raw = request.form.get('selected_dates', '')     
@@ -168,20 +170,23 @@ def add_schedule():
     if not final_dates:
         return redirect(url_for('schedule_bp.schedule_portal'))
 
+    # Generate a unique series_id if this is a multi-date sequence
+    series_id = uuid.uuid4().hex if len(final_dates) > 1 else None
+
     with closing(get_db_connection()) as conn:
         for date_str in final_dates:
             conn.execute('''
                 INSERT INTO daily_schedule (
                     schedule_date, start_time, end_time, profile_number, load_count, 
-                    generator, waste_type, sales_order, routing_code, scheduler_initials, special_notes, voc_level, order_index, is_pinned
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
+                    generator, waste_type, sales_order, routing_code, scheduler_initials, special_notes, voc_level, order_index, is_pinned, series_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)
             ''', (
                 date_str, 'TBD', 'TBD', 
                 request.form.get('profile_number'), int(request.form.get('load_count', 1)),
                 request.form.get('generator'), request.form.get('waste_type', 'WASTE PICKUP'),
                 request.form.get('sales_order'), request.form.get('routing_code'),
                 request.form.get('scheduler_initials'), request.form.get('special_notes'),
-                request.form.get('voc_level', 0)
+                request.form.get('voc_level', 0), series_id
             ))
         for date_str in final_dates:
             SCHEDULE_UPDATES[date_str] = time.time()

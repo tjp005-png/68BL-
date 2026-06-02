@@ -240,6 +240,8 @@ class TestSTURedesignFlow(unittest.TestCase):
         self.assertEqual(rows[1]['schedule_date'], '2026-05-31')
         self.assertEqual(rows[0]['sales_order'], 'SO-1234')
         self.assertEqual(rows[0]['generator'], 'Test Generator')
+        self.assertIsNotNone(rows[0]['series_id'])
+        self.assertEqual(rows[0]['series_id'], rows[1]['series_id'])
         conn.close()
 
 if __name__ == '__main__':
