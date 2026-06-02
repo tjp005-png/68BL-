@@ -105,6 +105,14 @@ def upgrade_db():
             cursor.execute('ALTER TABLE profiles ADD COLUMN last_synced_mtime REAL')
         if not column_exists(cursor, 'profiles', 'epa_id'):
             cursor.execute('ALTER TABLE profiles ADD COLUMN epa_id TEXT')
+        if not column_exists(cursor, 'profiles', 'lab_number'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN lab_number TEXT')
+        if not column_exists(cursor, 'profiles', 'haz'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN haz TEXT')
+        if not column_exists(cursor, 'profiles', 'rcra'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN rcra TEXT')
+        if not column_exists(cursor, 'profiles', 'comments'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN comments TEXT')
 
         # 3. DAILY SCHEDULE 
         cursor.execute('''

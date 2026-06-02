@@ -110,6 +110,10 @@ def ensure_profile_exists(conn, profile_number):
                     pass
                     
         win_code = str(row_data.get('WIN CODE', '')).strip()
+        lab_number = str(row_data.get('LAB #', '')).strip()
+        haz = str(row_data.get('HAZ', '')).strip()
+        rcra = str(row_data.get('RCRA', '')).strip()
+        comments = str(row_data.get('COMMENTS', '')).strip()
         
         epa_id = ''
         if 'EPA ID' in df.columns:
@@ -122,17 +126,18 @@ def ensure_profile_exists(conn, profile_number):
                 UPDATE profiles 
                 SET generator = ?, status = ?, expiration_date = ?, 
                     waste_description = ?, voc_percentage = ?, win_code = ?,
-                    last_synced_mtime = ?, epa_id = ?
+                    last_synced_mtime = ?, epa_id = ?, lab_number = ?, haz = ?, rcra = ?, comments = ?
                 WHERE TRIM(UPPER(profile_number)) = ?
-            ''', (generator, status_val, exp_date, waste_name, voc_percentage, win_code, excel_mtime, epa_id, clean_profile))
+            ''', (generator, status_val, exp_date, waste_name, voc_percentage, win_code, excel_mtime, epa_id, lab_number, haz, rcra, comments, clean_profile))
         else:
             conn.execute('''
                 INSERT INTO profiles (
                     profile_number, generator, status, expiration_date, 
-                    waste_description, voc_percentage, win_code, last_synced_mtime, epa_id
+                    waste_description, voc_percentage, win_code, last_synced_mtime, epa_id,
+                    lab_number, haz, rcra, comments
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (clean_profile, generator, status_val, exp_date, waste_name, voc_percentage, win_code, excel_mtime, epa_id))
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (clean_profile, generator, status_val, exp_date, waste_name, voc_percentage, win_code, excel_mtime, epa_id, lab_number, haz, rcra, comments))
             
         conn.commit()
         
