@@ -185,10 +185,11 @@ def add_master_profile():
         except (ValueError, TypeError):
             pass
 
+        epa_id = request.form.get('epa_id', '').strip()
         conn.execute('''
-            REPLACE INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, special_handling, ph_range, physical_appearance, flash_point, expiration_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (request.form.get('profile_number').upper(), generator, request.form.get('waste_description', ''), request.form.get('win_code', ''), voc_pct, request.form.get('special_handling', ''), request.form.get('ph_range', ''), request.form.get('physical_appearance', ''), request.form.get('flash_point', ''), request.form.get('expiration_date', '')))
+            REPLACE INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, special_handling, ph_range, physical_appearance, flash_point, expiration_date, epa_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (request.form.get('profile_number').upper(), generator, request.form.get('waste_description', ''), request.form.get('win_code', ''), voc_pct, request.form.get('special_handling', ''), request.form.get('ph_range', ''), request.form.get('physical_appearance', ''), request.form.get('flash_point', ''), request.form.get('expiration_date', ''), epa_id))
         conn.commit()
     return redirect(url_for('approvals_bp.approvals_portal'))
 
@@ -247,12 +248,12 @@ def api_profile_search():
     with closing(get_db_connection()) as conn:
         like_query = f"%{query}%"
         profiles = conn.execute('''
-            SELECT profile_number, generator, status, expiration_date, lab_number, win_code
+            SELECT *
             FROM profiles
-            WHERE profile_number LIKE ? OR generator LIKE ? OR lab_number LIKE ? OR win_code LIKE ?
+            WHERE profile_number LIKE ? OR generator LIKE ? OR lab_number LIKE ? OR win_code LIKE ? OR epa_id LIKE ?
             ORDER BY profile_number ASC
             LIMIT 50
-        ''', (like_query, like_query, like_query, like_query)).fetchall()
+        ''', (like_query, like_query, like_query, like_query, like_query)).fetchall()
         
     return jsonify([dict(p) for p in profiles])
 

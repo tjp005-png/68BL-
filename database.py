@@ -111,22 +111,28 @@ def ensure_profile_exists(conn, profile_number):
                     
         win_code = str(row_data.get('WIN CODE', '')).strip()
         
+        epa_id = ''
+        if 'EPA ID' in df.columns:
+            epa_id = str(row_data.get('EPA ID', '')).strip()
+        elif 'EPA_ID' in df.columns:
+            epa_id = str(row_data.get('EPA_ID', '')).strip()
+        
         if row:
             conn.execute('''
                 UPDATE profiles 
                 SET generator = ?, status = ?, expiration_date = ?, 
                     waste_description = ?, voc_percentage = ?, win_code = ?,
-                    last_synced_mtime = ?
+                    last_synced_mtime = ?, epa_id = ?
                 WHERE TRIM(UPPER(profile_number)) = ?
-            ''', (generator, status_val, exp_date, waste_name, voc_percentage, win_code, excel_mtime, clean_profile))
+            ''', (generator, status_val, exp_date, waste_name, voc_percentage, win_code, excel_mtime, epa_id, clean_profile))
         else:
             conn.execute('''
                 INSERT INTO profiles (
                     profile_number, generator, status, expiration_date, 
-                    waste_description, voc_percentage, win_code, last_synced_mtime
+                    waste_description, voc_percentage, win_code, last_synced_mtime, epa_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (clean_profile, generator, status_val, exp_date, waste_name, voc_percentage, win_code, excel_mtime))
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (clean_profile, generator, status_val, exp_date, waste_name, voc_percentage, win_code, excel_mtime, epa_id))
             
         conn.commit()
         

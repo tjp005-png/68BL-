@@ -4,183 +4,427 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Waste Acceptance Portal</title>
+    <!-- Modern Typography & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-crimson: #970000;
+            --dark-crimson: #5a0000;
+            --accent-blue: #00126b;
+            --bg-light: #f8f9fa;
+            --border-color: #e2e8f0;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-main);
+            line-height: 1.5;
+        }
+
+        h1, h2, h3, h4, h5, h6, .font-heading {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+        }
+
+        /* Premium Header Card */
+        .header-card {
+            background: linear-gradient(135deg, var(--primary-crimson), var(--dark-crimson));
+            border: none;
+            border-bottom: 4px solid #3d0000;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        /* Sleek Cards */
+        .premium-card {
+            background-color: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.01);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+        }
+
+        .premium-card:hover {
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.04), 0 4px 6px -2px rgba(0,0,0,0.02);
+        }
+
+        .card-header-crimson {
+            background-color: var(--primary-crimson);
+            color: #ffffff;
+            font-weight: 600;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .card-header-dark {
+            background-color: #0f172a;
+            color: #ffffff;
+            font-weight: 600;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            font-family: 'Outfit', sans-serif;
+        }
+
+        /* Modern Form Inputs */
+        .form-control, .form-select {
+            font-size: 0.95rem;
+            padding: 0.6rem 0.8rem;
+            border-color: #cbd5e1;
+            border-radius: 8px;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary-crimson);
+            box-shadow: 0 0 0 3px rgba(151, 0, 0, 0.15);
+        }
+
+        /* Search input styling */
+        .search-group {
+            position: relative;
+        }
+
+        .search-input {
+            border-radius: 10px;
+            border: 2px solid #cbd5e1;
+            font-size: 1.1rem;
+            padding: 0.8rem 1rem 0.8rem 2.8rem;
+            background-color: #ffffff;
+            transition: all 0.2s ease;
+        }
+
+        .search-input:focus {
+            border-color: var(--primary-crimson);
+            box-shadow: 0 10px 15px -3px rgba(151,0,0,0.05);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 1.2rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 1.2rem;
+            z-index: 10;
+        }
+
+        /* Dropdown results list */
+        .search-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background-color: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+            max-height: 350px;
+            overflow-y: auto;
+        }
+
+        .search-item {
+            border: none;
+            border-bottom: 1px solid var(--bg-light);
+            transition: all 0.15s ease;
+        }
+
+        .search-item:hover {
+            background-color: rgba(151,0,0,0.03);
+        }
+
+        .search-item:last-child {
+            border-bottom: none;
+        }
+
+        /* Buttons styling */
+        .btn-crimson {
+            background-color: var(--primary-crimson);
+            color: #ffffff;
+            font-weight: 600;
+            border: none;
+            transition: all 0.2s ease;
+        }
+
+        .btn-crimson:hover {
+            background-color: var(--dark-crimson);
+            color: #ffffff;
+            transform: translateY(-1px);
+        }
+
+        .btn-crimson:active {
+            transform: translateY(1px);
+        }
+
+        .btn-outline-crimson {
+            color: var(--primary-crimson);
+            border: 2px solid var(--primary-crimson);
+            background-color: transparent;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .btn-outline-crimson:hover {
+            background-color: var(--primary-crimson);
+            color: #ffffff;
+        }
+
+        /* Placeholder cards */
+        .placeholder-card {
+            border: 2px dashed #cbd5e1;
+            background-color: #ffffff;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem 2rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        /* Table header customizations */
+        .table thead {
+            background-color: #0f172a;
+            color: #ffffff;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .table-striped tbody tr:nth-of-type(odd) {
+            background-color: rgba(0,0,0,0.01);
+        }
+
+        /* Custom Scrollbar for list cabinet and lists */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
 </head>
 <body class="bg-light">
 
-    <div class="container-fluid mt-4 px-5">
+    <div class="container-fluid mt-4 px-4 px-lg-5">
         
-        <div class="card shadow mb-4">
-            <div class="card-header text-white d-flex justify-content-between align-items-center" style="background-color: #970000; border-bottom: 4px solid #5a0000;">
-                <h2 class="mb-0 fw-bold">📑 WASTE ACCEPTANCE & APPROVALS</h2>
-                <a href="/" class="btn btn-light fw-bold shadow-sm text-dark">⬅️ Hub</a>
+        <!-- Header -->
+        <div class="card header-card shadow mb-4">
+            <div class="card-body text-white d-flex justify-content-between align-items-center py-3">
+                <div class="d-flex align-items-center">
+                    <span class="fs-2 me-3">📑</span>
+                    <div>
+                        <h2 class="mb-0 fw-bold">WASTE ACCEPTANCE & APPROVALS</h2>
+                        <p class="mb-0 text-white-50 small">Manage facilities compliance documentation and master profile registries</p>
+                    </div>
+                </div>
+                <a href="/" class="btn btn-light fw-bold shadow-sm text-dark px-3 py-2">⬅️ Hub</a>
             </div>
         </div>
 
-        <div class="row">
-            <div class="col-md-4 mb-4">
-                
-                <div class="card shadow-sm border-danger mb-4 bg-white">
-                    <div class="card-header bg-dark text-white fw-bold">
-                        1. Auto-Fill from PDF
-                    </div>
-                    <div class="card-body p-3 text-center">
-                        <label class="form-label text-muted small fw-bold mb-2">Upload Profile Sheet (PDF)</label>
-                        <input class="form-control border-secondary mb-2" type="file" id="pdfUpload" accept=".pdf">
-                        <button id="extractBtn" class="btn w-100 text-white fw-bold" style="background-color: #5a0000;">
-                            Extract Data ⚡
-                        </button>
-                        <div id="loadingSpinner" class="spinner-border text-danger mt-3 d-none" role="status">
-                            <span class="visually-hidden">Loading...</span>
+        <!-- Search Section (Full Width, Centered, Prominent) -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="premium-card shadow-sm">
+                    <div class="card-body p-3">
+                        <div class="search-group">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="ajaxSearchInput" class="form-control search-input w-100 fw-bold" placeholder="Search Master Profiles (e.g. Profile #, Generator, EPA ID, WIN, Lab #)..." autocomplete="off">
+                            <div id="searchResults" class="search-dropdown d-none"></div>
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <div class="card shadow border-secondary h-100">
-                    <div class="card-header text-white fw-bold" style="background-color: #970000;">
-                        2. Master Profile Details
-                    </div>
-                    <div class="card-body bg-white">
-                        <form action="/add_master_profile" method="POST">
-                            
-                            <div class="mb-3">
-                                <label class="form-label text-muted small fw-bold mb-1">Profile #</label>
-                                <input type="text" class="form-control border-danger fw-bold" id="form-profile" name="profile_number" required>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label text-muted small fw-bold mb-1">Generator Name</label>
-                                <input type="text" class="form-control border-secondary" id="form-generator" name="generator_name" required>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label text-muted small fw-bold mb-1">Waste Description</label>
-                                <textarea class="form-control border-secondary" id="form-description" name="waste_description" rows="2" required></textarea>
-                            </div>
-
-                            <div class="row mb-3">
-                                <div class="col-4">
-                                    <label class="form-label text-muted small fw-bold mb-1">Physical State</label>
-                                    <select class="form-select border-secondary" name="physical_appearance" required>
-                                        <option value="" selected disabled>Select State...</option>
-                                        <option value="Solid">Solid (No Free Liquid)</option>
-                                        <option value="Liquid">Liquid (No Solids)</option>
-                                        <option value="Sludge">Sludge</option>
-                                        <option value="Powder">Powder</option>
-                                        <option value="Mixture">Liquid/Solid Mixture</option>
-                                        <option value="Gas/Aerosol">Gas / Aerosol</option>
-                                        <option value="Debris">Debris</option>
-                                    </select>
+        <!-- Main Workspace split -->
+        <div class="row">
+            <!-- Left Side: Profile Form (Creation and Edit Panel) -->
+            <div class="col-lg-5 mb-4">
+                <div class="d-flex flex-column gap-4">
+                    
+                    <!-- Unified Profile management card -->
+                    <div class="card premium-card border-danger">
+                        <div class="card-header card-header-crimson py-3 d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0 fw-bold d-flex align-items-center">
+                                <span class="me-2">📝</span> Master Profile Management
+                            </h5>
+                            <button id="clearFormBtn" class="btn btn-sm btn-light py-1 fw-bold border-secondary small d-none" onclick="resetEntryForm()">New Profile</button>
+                        </div>
+                        
+                        <div class="card-body bg-white p-4">
+                            <!-- Drag/Drop PDF Extractor Collapsible header -->
+                            <div class="p-3 mb-4 rounded border border-danger-subtle bg-light text-center">
+                                <div class="small fw-bold text-muted mb-2">⚡ Drag & Drop or Select Profile PDF to Auto-Fill Form</div>
+                                <div class="d-flex gap-2">
+                                    <input class="form-control form-control-sm border-secondary w-70" type="file" id="pdfUpload" accept=".pdf">
+                                    <button id="extractBtn" class="btn btn-sm btn-crimson text-nowrap fw-bold px-3">Extract ⚡</button>
                                 </div>
-                                <div class="col-4">
-                                    <label class="form-label text-muted small fw-bold mb-1">pH Range</label>
-                                    <input type="text" class="form-control border-secondary" name="ph_range" placeholder="e.g. 2.1-6.9">
-                                </div>
-                                <div class="col-4">
-                                    <label class="form-label text-muted small fw-bold mb-1">Flash Point</label>
-                                    <input type="text" class="form-control border-secondary" name="flash_point" placeholder="e.g. >200F">
+                                <div id="loadingSpinner" class="spinner-border text-danger mt-3 d-none" role="status" style="width: 2rem; height: 2rem;">
+                                    <span class="visually-hidden">Loading...</span>
                                 </div>
                             </div>
 
-                            <div class="row mb-3">
-                                <div class="col-6">
-                                    <label class="form-label text-muted small fw-bold mb-1">Routing / Form Code</label>
-                                    <input type="text" class="form-control border-secondary" id="form-win" name="win_code">
+                            <form action="/add_master_profile" method="POST" id="profileEntryForm">
+                                
+                                <div class="mb-3">
+                                    <label class="form-label text-muted small fw-bold mb-1">Profile # (Primary ID)</label>
+                                    <input type="text" class="form-control border-danger fw-bold fs-5 text-primary text-uppercase" id="form-profile" name="profile_number" required placeholder="e.g. CH123456">
                                 </div>
-                                <div class="col-6">
-                                    <label class="form-label text-muted small fw-bold mb-1 text-danger">Total VOC %</label>
-                                    <input type="number" step="0.01" class="form-control border-danger bg-light" name="voc_percentage" value="0">
+
+                                <div class="row mb-3">
+                                    <div class="col-md-7">
+                                        <label class="form-label text-muted small fw-bold mb-1">Generator Name</label>
+                                        <input type="text" class="form-control border-secondary" id="form-generator" name="generator_name" required placeholder="e.g. Clean Harbors Inc.">
+                                    </div>
+                                    <div class="col-md-5">
+                                        <label class="form-label text-muted small fw-bold mb-1">Generator EPA ID</label>
+                                        <input type="text" class="form-control border-secondary text-uppercase" id="form-epa-id" name="epa_id" placeholder="e.g. CAD000123456">
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div class="mb-4">
-                                <label class="form-label text-muted small fw-bold mb-1">Facility Handling Notes</label>
-                                <input type="text" class="form-control border-secondary" name="special_handling" placeholder="e.g., Reactive, LAS Required, Dust Control...">
-                            </div>
+                                <div class="mb-3">
+                                    <label class="form-label text-muted small fw-bold mb-1">Waste Description</label>
+                                    <textarea class="form-control border-secondary" id="form-description" name="waste_description" rows="2" required placeholder="Describe the physical & chemical attributes..."></textarea>
+                                </div>
 
-                            <button type="submit" class="btn text-white w-100 fw-bold py-2 shadow-sm" style="background-color: #970000;">
-                                Save to Master List 💾
-                            </button>
-                        </form>
+                                <div class="row mb-3">
+                                    <div class="col-4">
+                                        <label class="form-label text-muted small fw-bold mb-1">Physical State</label>
+                                        <select class="form-select border-secondary px-2" id="form-state" name="physical_appearance" required>
+                                            <option value="" selected disabled>Select...</option>
+                                            <option value="Solid">Solid</option>
+                                            <option value="Liquid">Liquid</option>
+                                            <option value="Sludge">Sludge</option>
+                                            <option value="Powder">Powder</option>
+                                            <option value="Mixture">Mixture</option>
+                                            <option value="Gas/Aerosol">Gas</option>
+                                            <option value="Debris">Debris</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-4">
+                                        <label class="form-label text-muted small fw-bold mb-1">pH Range</label>
+                                        <input type="text" class="form-control border-secondary px-2" id="form-ph" name="ph_range" placeholder="e.g. 2.1-6.9">
+                                    </div>
+                                    <div class="col-4">
+                                        <label class="form-label text-muted small fw-bold mb-1">Flash Point</label>
+                                        <input type="text" class="form-control border-secondary px-2" id="form-fp" name="flash_point" placeholder="e.g. >200F">
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label text-muted small fw-bold mb-1">Routing / Form Code</label>
+                                        <input type="text" class="form-control border-secondary text-uppercase" id="form-win" name="win_code" placeholder="e.g. CBP, CNO">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label text-muted small fw-bold mb-1 text-danger">Total VOC %</label>
+                                        <input type="number" step="0.01" class="form-control border-danger bg-light" id="form-voc" name="voc_percentage" value="0">
+                                    </div>
+                                </div>
+
+                                <div class="mb-4">
+                                    <label class="form-label text-muted small fw-bold mb-1">Facility Handling Notes</label>
+                                    <input type="text" class="form-control border-secondary" id="form-handling" name="special_handling" placeholder="e.g. Reactive, LAS Required, Dust Control...">
+                                </div>
+
+                                <button type="submit" id="formSubmitBtn" class="btn btn-crimson w-100 py-3 shadow-sm rounded-3 fs-5 d-flex align-items-center justify-content-center">
+                                    <span>💾 Save to Master Registry</span>
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="col-md-8 mb-4 d-flex flex-column gap-3">
+            <!-- Right Side: Dashboard Panel (Details, History, File Cabinet) -->
+            <div class="col-lg-7 mb-4">
                 
-                <!-- Search Bar -->
-                <div class="card shadow-sm border-danger">
-                    <div class="card-body">
-                        <div class="input-group input-group-lg">
-                            <span class="input-group-text bg-light text-muted border-secondary">🔍</span>
-                            <input type="text" id="ajaxSearchInput" class="form-control border-secondary fw-bold" placeholder="Instant Search: Profile, Generator, Lab #, WIN...">
-                        </div>
-                        <!-- Search Results Dropdown -->
-                        <div id="searchResults" class="list-group mt-2 shadow-sm d-none" style="max-height: 250px; overflow-y: auto;">
-                        </div>
-                    </div>
+                <!-- Initial State Placeholder Card -->
+                <div id="noSelectionCard" class="placeholder-card h-100 shadow-sm">
+                    <span class="fs-1 mb-3">🔍</span>
+                    <h4 class="fw-bold text-dark mb-1">No Profile Selected</h4>
+                    <p class="mb-0 text-muted max-width-350">Search for a profile in the bar above or create a new profile using the form to view full history, compliance criteria, and uploaded file attachments.</p>
                 </div>
 
-                <!-- Profile Dashboard (Hidden initially) -->
+                <!-- Dashboard Content (Visible when profile selected) -->
                 <div id="profileDashboard" class="d-none flex-column gap-3">
                     
-                    <!-- Profile Header -->
-                    <div class="card shadow border-0" style="border-left: 6px solid #970000 !important;">
-                        <div class="card-body d-flex justify-content-between align-items-center pb-2">
+                    <!-- Selected Profile Meta Card -->
+                    <div class="card premium-card border-0" style="border-left: 6px solid var(--primary-crimson) !important;">
+                        <div class="card-body d-flex justify-content-between align-items-start pb-2">
                             <div>
                                 <h3 id="dashProfileNum" class="fw-bold text-primary mb-1">---</h3>
-                                <h6 id="dashGenerator" class="text-muted fw-bold mb-0">---</h6>
+                                <h6 class="text-muted fw-bold mb-0 d-flex align-items-center flex-wrap gap-2">
+                                    <span id="dashGenerator">---</span> 
+                                    <span id="dashEpaIdBadge" class="badge bg-light text-dark border small fw-bold px-2 py-1">EPA: ---</span>
+                                </h6>
                             </div>
                             <div class="text-end">
-                                <span id="dashStatus" class="badge bg-secondary mb-1">---</span><br>
-                                <small class="text-muted fw-bold">Exp: <span id="dashExp">---</span></small>
+                                <span id="dashStatus" class="badge bg-secondary mb-1 px-3 py-2 fs-6">---</span><br>
+                                <small class="text-muted fw-bold">Expiration: <span id="dashExp" class="text-dark">---</span></small>
                             </div>
                         </div>
-                        <div class="card-footer bg-light py-2 d-flex gap-4 border-0">
-                            <span class="fw-bold text-muted small">WIN/Form: <span id="dashWin" class="text-dark">---</span></span>
-                            <span class="fw-bold text-muted small">Lab #: <span id="dashLab" class="text-dark">---</span></span>
+                        <div class="card-footer bg-light py-2 px-3 d-flex gap-4 border-0 rounded-bottom-4">
+                            <span class="fw-bold text-muted small">WIN Code: <span id="dashWin" class="text-dark font-heading">---</span></span>
+                            <span class="fw-bold text-muted small">Lab Number: <span id="dashLab" class="text-dark font-heading">---</span></span>
                         </div>
                     </div>
 
-                    <div class="row g-3">
-                        <!-- File Cabinet -->
-                        <div class="col-md-6">
-                            <div class="card shadow-sm h-100 border-secondary">
-                                <div class="card-header bg-dark text-white fw-bold py-2">
+                    <!-- Split Panel: File Cabinet & Shipment History -->
+                    <div class="row">
+                        <!-- Cabinet (Left inside details panel) -->
+                        <div class="col-md-6 mb-3 mb-md-0">
+                            <div class="card premium-card h-100 border-secondary">
+                                <div class="card-header card-header-dark py-2">
                                     📁 File Cabinet (PDFs/Docs)
                                 </div>
-                                <div class="card-body bg-light p-3">
-                                    <div class="mb-3">
+                                <div class="card-body bg-light p-3 d-flex flex-column gap-3">
+                                    <div class="p-2 border rounded bg-white">
+                                        <label class="form-label text-muted small fw-bold mb-1">Attach compliant documentation:</label>
                                         <input class="form-control form-control-sm border-secondary mb-2" type="file" id="fileUploader" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg">
-                                        <button class="btn btn-sm text-white w-100 fw-bold shadow-sm" id="btnUpload" style="background-color: #5a0000;" onclick="uploadAttachment()">Upload & Attach</button>
+                                        <button class="btn btn-sm btn-crimson w-100 fw-bold shadow-sm" id="btnUpload" onclick="uploadAttachment()">Upload & Attach</button>
                                     </div>
-                                    <h6 class="fw-bold text-muted mb-2 border-bottom pb-1">Saved Attachments:</h6>
-                                    <ul id="attachmentList" class="list-group list-group-flush rounded border" style="max-height: 250px; overflow-y: auto;">
-                                        <li class="list-group-item text-muted small text-center">Select a profile first</li>
-                                    </ul>
+                                    <div>
+                                        <h6 class="fw-bold text-muted mb-2 border-bottom pb-1 small">Saved Attachments:</h6>
+                                        <ul id="attachmentList" class="list-group list-group-flush rounded border bg-white overflow-auto" style="max-height: 200px;">
+                                            <li class="list-group-item text-muted small text-center py-3">No attachments uploaded</li>
+                                        </ul>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Historical Loads -->
+                        <!-- Historical Loads (Right inside details panel) -->
                         <div class="col-md-6">
-                            <div class="card shadow-sm h-100 border-secondary">
-                                <div class="card-header text-white fw-bold py-2" style="background-color: #00126b;">
-                                    🚛 Historical Loads
+                            <div class="premium-card h-100 border-secondary">
+                                <div class="card-header text-white fw-bold py-2" style="background-color: var(--accent-blue);">
+                                    🚛 Historical Trailer Shipments
                                 </div>
                                 <div class="card-body p-0">
                                     <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
-                                        <table class="table table-hover table-sm table-striped align-middle mb-0">
-                                            <thead class="table-dark sticky-top small">
+                                        <table class="table table-hover table-sm table-striped align-middle mb-0 text-nowrap">
+                                            <thead class="sticky-top small">
                                                 <tr>
                                                     <th>Date</th>
                                                     <th>Manifest</th>
                                                     <th>Load #</th>
-                                                    <th>Weight</th>
+                                                    <th>Weight (lbs)</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="historyTableBody" class="small">
-                                                <tr><td colspan="4" class="text-center text-muted py-3">Select a profile first</td></tr>
+                                                <tr><td colspan="4" class="text-center text-muted py-4">No historical shipments</td></tr>
                                             </tbody>
                                         </table>
                                     </div>
@@ -224,7 +468,7 @@
                 if (data.error) {
                     alert('Error parsing PDF: ' + data.error);
                 } else {
-                    // Populate the form fields on the fly
+                    // Populate creation/edit form fields on the fly
                     document.getElementById('form-profile').value = data.profile_number || '';
                     document.getElementById('form-generator').value = data.generator_name || '';
                     document.getElementById('form-description').value = data.waste_description || '';
@@ -249,6 +493,7 @@
         const searchInput = document.getElementById('ajaxSearchInput');
         const searchResults = document.getElementById('searchResults');
         const dashboard = document.getElementById('profileDashboard');
+        const noSelectionCard = document.getElementById('noSelectionCard');
 
         // Dynamic Search
         searchInput.addEventListener('input', function() {
@@ -265,18 +510,18 @@
                     .then(data => {
                         searchResults.innerHTML = '';
                         if (data.length === 0) {
-                            searchResults.innerHTML = '<div class="list-group-item text-muted">No matches found.</div>';
+                            searchResults.innerHTML = '<div class="list-group-item text-muted p-3">No matching profiles found in database.</div>';
                         } else {
                             data.forEach(p => {
                                 const btn = document.createElement('button');
-                                btn.className = 'list-group-item list-group-item-action py-2';
+                                btn.className = 'list-group-item list-group-item-action py-2 search-item';
                                 btn.innerHTML = `
                                     <div class="d-flex w-100 justify-content-between">
                                         <h6 class="mb-1 fw-bold text-primary">${p.profile_number}</h6>
                                         <small class="${p.status === 'ACTIVE' ? 'text-success' : 'text-muted'} fw-bold">${p.status || 'UNKNOWN'}</small>
                                     </div>
-                                    <p class="mb-1 small text-truncate" style="max-width:300px;">${p.generator || 'No Generator'}</p>
-                                    <small class="text-muted">Lab: ${p.lab_number || '---'} | WIN: ${p.win_code || '---'}</small>
+                                    <p class="mb-1 small text-truncate" style="max-width:400px; color: var(--text-main); font-weight: 500;">${p.generator || 'No Generator'}</p>
+                                    <small class="text-muted">EPA ID: ${p.epa_id || '---'} | WIN: ${p.win_code || '---'}</small>
                                 `;
                                 btn.onclick = () => selectProfile(p);
                                 searchResults.appendChild(btn);
@@ -287,15 +532,23 @@
             }, 300);
         });
 
-        // Select Profile and load dashboard
+        // Hide search results if clicking outside
+        document.addEventListener('click', function(e) {
+            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.classList.add('d-none');
+            }
+        });
+
+        // Select Profile and load dashboard + populate form for editing
         function selectProfile(p) {
             currentProfile = p.profile_number;
             
-            // Hide dropdown and clear search
+            // Hide dropdown and clear search bar to show the selected profile
             searchResults.classList.add('d-none');
-            searchInput.value = p.profile_number;
+            searchInput.value = '';
 
-            // Show Dashboard
+            // Swap placeholders for the active dashboard
+            noSelectionCard.classList.add('d-none');
             dashboard.classList.remove('d-none');
             dashboard.classList.add('d-flex');
 
@@ -303,34 +556,72 @@
             document.getElementById('dashProfileNum').innerText = p.profile_number;
             document.getElementById('dashGenerator').innerText = p.generator || '---';
             document.getElementById('dashStatus').innerText = p.status || 'UNKNOWN';
-            document.getElementById('dashStatus').className = `badge mb-1 ${p.status === 'ACTIVE' ? 'bg-success' : 'bg-secondary'}`;
+            document.getElementById('dashStatus').className = `badge mb-1 px-3 py-2 fs-6 ${p.status === 'ACTIVE' ? 'bg-success' : 'bg-secondary'}`;
             document.getElementById('dashExp').innerText = p.expiration_date || 'No Date';
             document.getElementById('dashWin').innerText = p.win_code || '---';
             document.getElementById('dashLab').innerText = p.lab_number || '---';
+            
+            // Populate and update EPA badge
+            const badge = document.getElementById('dashEpaIdBadge');
+            if (p.epa_id && p.epa_id.trim() !== '') {
+                badge.innerText = `EPA: ${p.epa_id.toUpperCase()}`;
+                badge.classList.remove('d-none');
+            } else {
+                badge.innerText = 'EPA: N/A';
+            }
+
+            // --- AUTO-FILL MANAGEMENT FORM FOR DIRECT EDITING ---
+            document.getElementById('form-profile').value = p.profile_number || '';
+            document.getElementById('form-generator').value = p.generator || '';
+            document.getElementById('form-epa-id').value = p.epa_id || '';
+            document.getElementById('form-description').value = p.waste_description || '';
+            document.getElementById('form-win').value = p.win_code || '';
+            document.getElementById('form-state').value = p.physical_appearance || '';
+            document.getElementById('form-ph').value = p.ph_range || '';
+            document.getElementById('form-fp').value = p.flash_point || '';
+            document.getElementById('form-voc').value = p.voc_percentage || 0;
+            document.getElementById('form-handling').value = p.special_handling || '';
+
+            // Show 'New Profile' option to allow reverting to creation mode
+            document.getElementById('clearFormBtn').classList.remove('d-none');
+            document.getElementById('formSubmitBtn').innerHTML = '<span>💾 Save Changes / Update Profile</span>';
 
             // Fetch History and Attachments
             loadHistory();
             loadAttachments();
         }
 
+        // Reset editing form back to creation mode
+        function resetEntryForm() {
+            document.getElementById('profileEntryForm').reset();
+            document.getElementById('form-profile').readOnly = false;
+            document.getElementById('clearFormBtn').classList.add('d-none');
+            document.getElementById('formSubmitBtn').innerHTML = '<span>💾 Save to Master Registry</span>';
+            
+            // Hide dashboard, show placeholder
+            dashboard.classList.add('d-none');
+            noSelectionCard.classList.remove('d-none');
+            currentProfile = null;
+        }
+
         function loadHistory() {
             const tbody = document.getElementById('historyTableBody');
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Loading...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">Loading historical data...</td></tr>';
             
             fetch(`/api/profile/${currentProfile}/history`)
                 .then(r => r.json())
                 .then(data => {
                     if (data.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No historical loads found.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">No historical shipments found for this profile.</td></tr>';
                         return;
                     }
                     tbody.innerHTML = '';
                     data.forEach(load => {
                         const row = `<tr>
-                            <td class="text-muted">${load.import_date || '---'}</td>
-                            <td class="fw-bold">${load.manifest || '---'}</td>
+                            <td class="text-muted fw-bold">${load.import_date || '---'}</td>
+                            <td class="fw-semibold text-dark">${load.manifest || '---'}</td>
                             <td>${load.job_id || '---'}</td>
-                            <td class="text-end">${load.weight ? parseFloat(load.weight).toFixed(2) : '0.00'}</td>
+                            <td class="text-end fw-bold">${load.weight ? parseFloat(load.weight).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0}) : '0'}</td>
                         </tr>`;
                         tbody.innerHTML += row;
                     });
@@ -339,20 +630,20 @@
 
         function loadAttachments() {
             const list = document.getElementById('attachmentList');
-            list.innerHTML = '<li class="list-group-item text-muted small text-center">Loading...</li>';
+            list.innerHTML = '<li class="list-group-item text-muted small text-center py-2">Loading documents...</li>';
             
             fetch(`/api/profile/${currentProfile}/attachments`)
                 .then(r => r.json())
                 .then(data => {
                     if (data.length === 0) {
-                        list.innerHTML = '<li class="list-group-item text-muted small text-center py-3">No files attached yet.</li>';
+                        list.innerHTML = '<li class="list-group-item text-muted small text-center py-3">No compliance files attached yet.</li>';
                         return;
                     }
                     list.innerHTML = '';
                     data.forEach(file => {
                         list.innerHTML += `
-                            <li class="list-group-item d-flex justify-content-between align-items-center py-2">
-                                <a href="/uploads/profiles/${encodeURIComponent(file.file_path)}" target="_blank" class="text-decoration-none small text-truncate fw-bold" style="max-width: 250px;">
+                            <li class="list-group-item d-flex justify-content-between align-items-center py-2 bg-white">
+                                <a href="/uploads/profiles/${encodeURIComponent(file.file_path)}" target="_blank" class="text-decoration-none small text-truncate fw-bold text-primary" style="max-width: 180px;">
                                     📄 ${file.filename}
                                 </a>
                                 <small class="text-muted" style="font-size: 0.7rem;">${file.upload_date.split(' ')[0]}</small>
