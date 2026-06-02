@@ -321,12 +321,15 @@
         </div>
 
         <!-- Data Grid Table Card -->
-        <div class="card glass-card border-0 mb-5 position-relative">
+        <div class="card glass-card border-0 mb-5 position-relative" id="data-grid-card">
             <div class="loading-overlay" id="table-loader">
                 <div class="spinner-custom"></div>
             </div>
-            <div class="card-header bg-transparent border-0 pt-4 px-4">
+            <div class="card-header bg-transparent border-0 pt-4 px-4 d-flex justify-content-between align-items-center">
                 <h4 class="mb-0 fw-bold text-dark">Data Grid Detail</h4>
+                <button id="btn-export-pdf" class="btn btn-sm btn-outline-danger fw-bold d-flex align-items-center gap-1">
+                    📄 Export PDF
+                </button>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive table-responsive-container">
@@ -353,6 +356,8 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <!-- Chart.js JS -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- html2pdf.js Bundle -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <script>
         // Global references
@@ -375,6 +380,7 @@
             // Bind Event Listeners
             document.getElementById("report-type").addEventListener("change", fetchData);
             document.getElementById("btn-refresh").addEventListener("click", fetchData);
+            document.getElementById("btn-export-pdf").addEventListener("click", exportTableToPDF);
 
             // Initial Fetch
             fetchData();
@@ -812,6 +818,40 @@
                 }
                 
                 tableBody.appendChild(tr);
+            });
+        }
+
+        function exportTableToPDF() {
+            const cardEl = document.getElementById("data-grid-card");
+            const exportBtn = document.getElementById("btn-export-pdf");
+            const tableContainer = document.querySelector(".table-responsive-container");
+            const reportType = document.getElementById("report-type").value;
+            const dateRange = document.getElementById("date-range").value || "Report";
+            
+            // Temporarily disable scroll constraints for clean PDF rendering
+            exportBtn.style.setProperty("display", "none", "important");
+            if (tableContainer) {
+                tableContainer.style.setProperty("max-height", "none", "important");
+                tableContainer.style.setProperty("overflow-y", "visible", "important");
+            }
+            
+            const filename = `Compliance_${reportType}_Detail_${dateRange.replace(/ to /g, "_")}.pdf`;
+
+            const opt = {
+                margin:       [0.4, 0.4, 0.4, 0.4],
+                filename:     filename,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
+            };
+
+            html2pdf().set(opt).from(cardEl).save().then(() => {
+                // Restore constraints
+                exportBtn.style.setProperty("display", "", "");
+                if (tableContainer) {
+                    tableContainer.style.removeProperty("max-height");
+                    tableContainer.style.removeProperty("overflow-y");
+                }
             });
         }
     </script>
