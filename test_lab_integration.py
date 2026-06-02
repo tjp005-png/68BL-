@@ -214,6 +214,39 @@ class TestCompliancePortalIntegration(unittest.TestCase):
         self.assertEqual(summary['kpi3_val'], 2)
         self.assertEqual(summary['kpi4_val'], "25%")
 
+    def test_api_norm_report(self):
+        """Verify NORM report returns correct NORM load statistics and table rows"""
+        conn = original_connect(TEST_DB_PATH)
+        # Update POTHR to CNON to make it a NORM load
+        conn.execute("UPDATE profiles SET win_code = 'CNON' WHERE profile_number = 'POTHR'")
+        conn.commit()
+        conn.close()
+        
+        response = self.client.get('/api/compliance/data?report_type=norm&start_date=2026-05-01&end_date=2026-05-03')
+        self.assertEqual(response.status_code, 200)
+        
+        json_data = response.get_json()
+        self.assertIn('labels', json_data)
+        self.assertIn('datasets', json_data)
+        self.assertIn('summary', json_data)
+        self.assertIn('table_data', json_data)
+        
+        # We expect 1 NORM load (POTHR on May 2nd)
+        summary = json_data['summary']
+        self.assertEqual(summary['kpi1_val'], 1)
+        self.assertEqual(summary['kpi2_val'], 1)
+        self.assertEqual(summary['kpi3_val'], '20,000.00 Tons')
+        self.assertEqual(summary['kpi4_val'], '2026-05-02')
+        
+        # Verify table row details
+        table = json_data['table_data']
+        self.assertEqual(len(table), 1)
+        row = table[0]
+        self.assertEqual(row['date'], '2026-05-02')
+        self.assertEqual(row['profile_number'], 'POTHR')
+        self.assertEqual(row['load_number'], '6')
+        self.assertEqual(row['generator'], 'Gen Oth')
+
     def test_update_lab_voc(self):
         """Verify submitting lab results with VOC data correctly persists and triggers events"""
         conn = original_connect(TEST_DB_PATH)
