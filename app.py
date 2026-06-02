@@ -222,6 +222,11 @@ def upgrade_db():
         if not column_exists(cursor, 'profile_wvi', 'is_synced'):
             cursor.execute('ALTER TABLE profile_wvi ADD COLUMN is_synced INTEGER DEFAULT 0')
         
+        # Add performance indexes
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_profiles_win_code ON profiles (win_code)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_truck_logs_profile_number ON truck_logs (profile_number)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_truck_logs_date_received ON truck_logs (date_received)")
+        
         conn.commit()
 
 upgrade_db()

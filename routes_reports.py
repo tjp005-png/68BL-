@@ -607,8 +607,8 @@ def compliance_data():
                 SELECT t.id, t.date_received, t.profile_number, t.load_number, t.manifest_number, 
                        t.net_weight, t.cell_location, p.generator
                 FROM truck_logs t
-                LEFT JOIN profiles p ON TRIM(UPPER(t.profile_number)) = TRIM(UPPER(p.profile_number))
-                WHERE TRIM(UPPER(p.win_code)) = 'CNON'
+                INNER JOIN profiles p ON t.profile_number = p.profile_number
+                WHERE p.win_code = 'CNON'
                   AND t.date_received BETWEEN ? AND ?
                 ORDER BY t.date_received ASC, CAST(t.load_number AS INTEGER) ASC
             ''', (start_str, end_str)).fetchall()
