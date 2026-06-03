@@ -191,7 +191,7 @@ def add_master_profile():
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (request.form.get('profile_number').upper(), generator, request.form.get('waste_description', ''), request.form.get('win_code', ''), voc_pct, request.form.get('special_handling', ''), request.form.get('ph_range', ''), request.form.get('physical_appearance', ''), request.form.get('flash_point', ''), request.form.get('expiration_date', ''), epa_id))
         conn.commit()
-    return redirect(url_for('approvals_bp.approvals_portal'))
+    return redirect(url_for('approvals_bp.approvals_portal', selected_profile=request.form.get('profile_number').upper()))
 
 @approvals_bp.route('/api/auto_sync_profiles', methods=['POST'])
 def auto_sync_profiles():

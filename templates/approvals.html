@@ -690,6 +690,18 @@
             });
         }
 
+        // Auto-select profile if specified in URL (e.g. after saving a new one)
+        const urlParams = new URLSearchParams(window.location.search);
+        const preselect = urlParams.get('selected_profile');
+        if (preselect) {
+            fetch(`/api/profile/search?q=${encodeURIComponent(preselect)}`)
+                .then(r => r.json())
+                .then(data => {
+                    const match = data.find(p => p.profile_number.toUpperCase() === preselect.toUpperCase());
+                    if (match) selectProfile(match);
+                });
+        }
+
     </script>
 </body>
 </html>
