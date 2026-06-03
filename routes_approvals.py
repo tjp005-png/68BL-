@@ -187,8 +187,8 @@ def add_master_profile():
 
         epa_id = request.form.get('epa_id', '').strip()
         conn.execute('''
-            REPLACE INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, special_handling, ph_range, physical_appearance, flash_point, expiration_date, epa_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            REPLACE INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, special_handling, ph_range, physical_appearance, flash_point, expiration_date, epa_id, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
         ''', (request.form.get('profile_number').upper(), generator, request.form.get('waste_description', ''), request.form.get('win_code', ''), voc_pct, request.form.get('special_handling', ''), request.form.get('ph_range', ''), request.form.get('physical_appearance', ''), request.form.get('flash_point', ''), request.form.get('expiration_date', ''), epa_id))
         conn.commit()
     return redirect(url_for('approvals_bp.approvals_portal', selected_profile=request.form.get('profile_number').upper()))
