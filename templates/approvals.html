@@ -518,7 +518,7 @@
                                 btn.innerHTML = `
                                     <div class="d-flex w-100 justify-content-between align-items-center">
                                         <h6 class="mb-0 fw-bold text-primary">${p.profile_number}</h6>
-                                        <small class="${p.status === 'ACTIVE' ? 'text-success' : 'text-muted'} fw-bold me-3">${p.status || 'UNKNOWN'}</small>
+                                        <small class="${p.status === 'ACTIVE' ? 'text-success' : (p.status === 'S' ? 'text-warning' : 'text-muted')} fw-bold me-3">${p.status === 'S' ? 'PENDING LAS (S)' : (p.status || 'UNKNOWN')}</small>
                                     </div>
                                     <p class="mb-1 mt-1 small text-truncate w-100" style="color: var(--text-main); font-weight: 500;">${p.generator || 'No Generator'}</p>
                                     <small class="text-muted d-block text-truncate w-100">Desc: ${p.waste_description || '---'} | Lab: ${p.lab_number || '---'} | WIN: ${p.win_code || '---'}</small>
@@ -555,8 +555,8 @@
             // Populate Meta Data
             document.getElementById('dashProfileNum').innerText = p.profile_number;
             document.getElementById('dashGenerator').innerText = p.generator || '---';
-            document.getElementById('dashStatus').innerText = p.status || 'UNKNOWN';
-            document.getElementById('dashStatus').className = `badge mb-1 px-3 py-2 fs-6 ${p.status === 'ACTIVE' ? 'bg-success' : 'bg-secondary'}`;
+            document.getElementById('dashStatus').innerText = p.status === 'S' ? 'PENDING LAS (S)' : (p.status || 'UNKNOWN');
+            document.getElementById('dashStatus').className = `badge mb-1 px-3 py-2 fs-6 ${p.status === 'ACTIVE' ? 'bg-success' : (p.status === 'S' ? 'bg-warning text-dark' : 'bg-secondary')}`;
             document.getElementById('dashExp').innerText = p.expiration_date || 'No Date';
             document.getElementById('dashWin').innerText = p.win_code || '---';
             document.getElementById('dashLab').innerText = p.lab_number || '---';
