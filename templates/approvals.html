@@ -520,8 +520,8 @@
                                         <h6 class="mb-0 fw-bold text-primary">${p.profile_number}</h6>
                                         <small class="${p.status === 'ACTIVE' ? 'text-success' : 'text-muted'} fw-bold me-3">${p.status || 'UNKNOWN'}</small>
                                     </div>
-                                    <p class="mb-1 mt-1 small text-truncate" style="max-width:400px; color: var(--text-main); font-weight: 500;">${p.generator || 'No Generator'}</p>
-                                    <small class="text-muted d-block text-truncate" style="max-width: 500px;">Desc: ${p.waste_description || '---'} | Lab: ${p.lab_number || '---'} | WIN: ${p.win_code || '---'}</small>
+                                    <p class="mb-1 mt-1 small text-truncate w-100" style="color: var(--text-main); font-weight: 500;">${p.generator || 'No Generator'}</p>
+                                    <small class="text-muted d-block text-truncate w-100">Desc: ${p.waste_description || '---'} | Lab: ${p.lab_number || '---'} | WIN: ${p.win_code || '---'}</small>
                                 `;
                                 btn.onclick = () => selectProfile(p);
                                 searchResults.appendChild(btn);
