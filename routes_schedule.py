@@ -172,8 +172,17 @@ def add_schedule():
 
     # Generate a unique series_id if this is a multi-date sequence
     series_id = uuid.uuid4().hex if len(final_dates) > 1 else None
+    
+    profile_number = request.form.get('profile_number', '').strip().upper()
 
     with closing(get_db_connection()) as conn:
+        from database import ensure_profile_exists
+        ensure_profile_exists(conn, profile_number)
+        profile = conn.execute('SELECT * FROM profiles WHERE profile_number = ?', (profile_number,)).fetchone()
+        
+        if not profile or profile['status'] == 'NOT FOUND':
+            return f"Error: Profile {profile_number} is not an approved profile in the Master Profile list.", 400
+
         for date_str in final_dates:
             conn.execute('''
                 INSERT INTO daily_schedule (
@@ -239,6 +248,13 @@ def edit_schedule(id):
     except: load_count = 1
 
     with closing(get_db_connection()) as conn:
+        from database import ensure_profile_exists
+        ensure_profile_exists(conn, profile_number)
+        profile = conn.execute('SELECT * FROM profiles WHERE profile_number = ?', (profile_number,)).fetchone()
+        
+        if not profile or profile['status'] == 'NOT FOUND':
+            return f"Error: Profile {profile_number} is not an approved profile in the Master Profile list.", 400
+
         old_entry = conn.execute('SELECT schedule_date, series_id, order_index FROM daily_schedule WHERE id = ?', (id,)).fetchone()
         fallback_date = old_entry['schedule_date'] if old_entry else date.today().isoformat()
         

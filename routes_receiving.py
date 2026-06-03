@@ -79,7 +79,7 @@ def get_profile_details(profile_number):
         ensure_profile_exists(conn, clean_profile)
         profile = conn.execute('SELECT * FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (clean_profile,)).fetchone()
     
-    if profile:
+    if profile and profile['status'] != 'NOT FOUND':
         p_dict = dict(profile)
         
         voc_raw = str(p_dict.get('voc_percentage', '')).strip()
@@ -241,6 +241,10 @@ def submit_truck():
         from database import ensure_profile_exists
         ensure_profile_exists(conn, profile_number)
         profile = conn.execute('SELECT * FROM profiles WHERE profile_number = ?', (profile_number,)).fetchone()
+        
+        if not profile or profile['status'] == 'NOT FOUND':
+            return f"Error: Profile {profile_number} is not an approved profile in the Master Profile list.", 400
+
         
         # Count non-rejected loads overall for the profile
         overall_count = conn.execute('''
@@ -490,6 +494,10 @@ def edit_truck(log_id):
             from database import ensure_profile_exists
             ensure_profile_exists(conn, profile_number)
             profile = conn.execute('SELECT * FROM profiles WHERE profile_number = ?', (profile_number,)).fetchone()
+            
+            if not profile or profile['status'] == 'NOT FOUND':
+                return f"Error: Profile {profile_number} is not an approved profile in the Master Profile list.", 400
+
             
             overall_count = conn.execute('''
                 SELECT COUNT(*) FROM truck_logs 
