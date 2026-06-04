@@ -213,28 +213,14 @@ def upload_vpi():
         df['Type'] = df['Type'].astype(str).str.strip().str.lower() 
         
         with closing(get_db_connection()) as conn:
-            # Query profiles database to map win_code and voc_percentage
-            profiles_df = pd.read_sql_query("SELECT LOWER(profile_number) as profile_number, voc_percentage, LOWER(win_code) as win_code FROM profiles", conn)
-            
-            # Map win_code from database using the Inb Prof (profile)
-            wincode_dict = dict(zip(profiles_df['profile_number'], profiles_df['win_code']))
-            df['win_code_db'] = df['Inb Prof'].map(wincode_dict).fillna('').str.strip().str.lower()
-            
-            # Force Process Type based on win_code (keep CCS for put pile)
-            df.loc[df['win_code_db'] == 'ccs', 'Process Type'] = 'put pile'
-            
-            # Backup rule: Force anything with a CCS profile to be a put pile (from profile field directly)
-            df.loc[df['Inb Prof'] == 'ccs', 'Process Type'] = 'put pile'
-            
             # Now apply exclusions and filtering
             df = df[~df['Process Type'].isin(['=', 'nan', ''])]
             
-            # Exclude cm/dt types EXCEPT if it is a put pile OR if it is a d23/d80l drum coded as direct land
+            # Exclude cm/dt types EXCEPT if the process type contains put, direct, asbes, or cnia
             is_cm_dt = df['Type'].str.contains('cm|dt', na=False)
-            is_put_pile = df['Process Type'].str.contains('put', na=False)
-            is_direct_land = df['win_code_db'].isin(['d23', 'd80l']) & df['Process Type'].str.contains('direct', na=False)
+            is_exempt = df['Process Type'].str.contains('put|direct|asbes|cnia', na=False)
             
-            df = df[~(is_cm_dt & ~(is_put_pile | is_direct_land))]
+            df = df[~(is_cm_dt & ~is_exempt)]
             
             df['Weight'] = pd.to_numeric(df['Weight'], errors='coerce').fillna(0)
             df['pH'] = pd.to_numeric(df['pH'], errors='coerce').fillna(0)
@@ -251,6 +237,9 @@ def upload_vpi():
             pending_sampling = conn.execute("SELECT * FROM drum_inventory WHERE process_type = 'PENDING SAMPLING'").fetchall()
             
             conn.execute('DELETE FROM drum_inventory')
+            
+            # Query profiles database to map voc_percentage
+            profiles_df = pd.read_sql_query("SELECT LOWER(profile_number) as profile_number, voc_percentage FROM profiles", conn)
             
             # Map VOC percentage
             voc_dict = dict(zip(profiles_df['profile_number'], profiles_df['voc_percentage']))
