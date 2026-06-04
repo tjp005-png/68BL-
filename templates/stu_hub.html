@@ -291,61 +291,80 @@
             <!-- ==================================================== -->
             <!--                 ACTIVE INVENTORY                     -->
             <!-- ==================================================== -->
-            <div class="col-md-3">
-                <!-- VPI Upload card -->
-                <div class="card shadow-sm border-secondary mb-4 bg-white">
-                    <div class="card-body p-3">
-                        <h6 class="fw-bold text-muted mb-3">📁 Morning VPI Import</h6>
-                        <form action="/upload_vpi" method="POST" enctype="multipart/form-data" class="d-flex flex-column gap-2">
-                            <input class="form-control form-control-sm border-secondary" type="file" name="vpi_file" accept=".csv" required>
-                            <button type="submit" class="btn btn-sm text-white fw-bold" style="background-color: #495057;">Upload Daily CSV</button>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- Category selector -->
-                <div class="card shadow-sm border-0 mb-4 bg-white">
-                    <div class="card-header bg-dark text-white fw-bold fs-5">
-                        Select Treatment Queue
-                    </div>
-                    <div class="card-body p-2 d-flex flex-column">
-                        <a href="/stu/hub?view=inventory&category=Decon" class="btn btn-light bucket-btn shadow-sm {% if category == 'Decon' %}active bg-info text-dark{% endif %}">Decon</a>
-                        <a href="/stu/hub?view=inventory&category=Solidification" class="btn btn-light bucket-btn shadow-sm {% if category == 'Solidification' %}active bg-primary text-white{% endif %}">Solidification</a>
-                        <a href="/stu/hub?view=inventory&category=T_Drums" class="btn btn-light bucket-btn shadow-sm {% if category == 'T_Drums' %}active bg-warning text-dark{% endif %}">T Drums</a>
-                        <a href="/stu/hub?view=inventory&category=TL_Drums" class="btn btn-light bucket-btn shadow-sm {% if category == 'TL_Drums' %}active bg-danger text-white{% endif %}">TL Drums</a>
-                        <a href="/stu/hub?view=inventory&category=Special_Handling" class="btn btn-light bucket-btn shadow-sm {% if category == 'Special_Handling' %}active bg-secondary text-white{% endif %}">Special Handling</a>
-                        <a href="/stu/hub?view=inventory&category=All" class="btn btn-outline-dark shadow-sm fw-bold mt-2 {% if category == 'All' %}active{% endif %}">View All Drums</a>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-9">
-                <div class="card shadow h-100">
-                    <div class="card-header bg-white border-bottom pt-3 pb-2 d-flex justify-content-between align-items-start">
-                        <h4 class="mb-0 fw-bold text-dark mt-1">Queue: {{ category.replace('_', ' ') }}</h4>
+            <div class="col-12">
+                <div class="card shadow-sm mb-4 bg-white border-0">
+                    <div class="card-body p-3 d-flex justify-content-between align-items-center flex-wrap gap-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <form action="/upload_vpi" method="POST" enctype="multipart/form-data" class="d-flex gap-2">
+                                <input class="form-control form-control-sm border-secondary" style="max-width: 250px;" type="file" name="vpi_file" accept=".csv" required>
+                                <button type="submit" class="btn btn-sm text-white fw-bold" style="background-color: #495057;">📁 Upload Daily VPI</button>
+                            </form>
+                            <a href="/stu/audit_trail" target="_blank" class="btn btn-sm btn-outline-dark fw-bold">📜 Put Pile Audit Trail</a>
+                        </div>
                         
-                        <div class="d-flex flex-column align-items-end">
-                            <div class="d-flex gap-2">
-                                <button type="button" onclick="exportAndDraft()" class="btn btn-sm fw-bold shadow-sm px-4 rounded-pill" style="background-color: #00126b; color: white; letter-spacing: 0.5px;">
-                                    ✉️ DRAFT EMAIL
-                                </button>
-
-                                <button type="submit" form="exportForm" class="btn btn-sm fw-bold shadow-sm px-4 rounded-pill" style="background-color: #970000; color: white; letter-spacing: 0.5px;">
-                                    ⬇️ EXPORT
-                                </button>
+                        <div class="d-flex align-items-center gap-3">
+                            <div>
+                                <label class="small fw-bold text-muted mb-1">Filter Process Type:</label>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle fw-semibold border-secondary text-dark bg-white" type="button" id="processFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+                                        ⚙️ Process Type: All
+                                    </button>
+                                    <ul class="dropdown-menu p-3 shadow" aria-labelledby="processFilterDropdown" style="max-height: 350px; overflow-y: auto; min-width: 250px; z-index: 1050;">
+                                        <li>
+                                            <div class="form-check">
+                                                <input class="form-check-input process-filter-checkbox" type="checkbox" value="ALL" id="proc-all" checked>
+                                                <label class="form-check-label fw-bold text-dark" for="proc-all">View All Drums</label>
+                                            </div>
+                                        </li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <div class="form-check">
+                                                <input class="form-check-input process-filter-checkbox" type="checkbox" value="PUT PILE" id="proc-putpile">
+                                                <label class="form-check-label text-dark" for="proc-putpile">PUT PILE</label>
+                                            </div>
+                                        </li>
+                                        {% for pt in process_types %}
+                                            {% if pt != 'PUT PILE' %}
+                                            <li>
+                                                <div class="form-check">
+                                                    <input class="form-check-input process-filter-checkbox" type="checkbox" value="{{ pt }}" id="proc-{{ loop.index }}">
+                                                    <label class="form-check-label text-dark" for="proc-{{ loop.index }}">{{ pt }}</label>
+                                                </div>
+                                            </li>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </ul>
+                                </div>
                             </div>
-                            <small id="email-helper-text" class="text-muted fst-italic mt-2 d-none">
-                                The picklist was downloaded to your download folder and needs to be attached before sending.
-                            </small>
+                            <div>
+                                <label class="small fw-bold text-muted mb-1">Filter Status:</label>
+                                <select id="statusFilter" class="form-select form-select-sm border-secondary" onchange="applyFilters()">
+                                    <option value="ACTIVE" selected>Active Inventory (Coded & Received)</option>
+                                    <option value="ALL">All Statuses</option>
+                                    <option value="FINAL CODED">Final Coded</option>
+                                    <option value="PLANT RECEIVED">Plant Received</option>
+                                    <option value="RESAMPLE">Resample</option>
+                                    <option value="REJECTED">Rejected</option>
+                                    <option value="PASS">Pass (Put Pile)</option>
+                                    <option value="FAIL">Fail (Put Pile)</option>
+                                </select>
+                            </div>
+                            <div class="align-self-end ms-2">
+                                <button type="button" onclick="exportAndDraft()" class="btn btn-sm fw-bold shadow-sm px-3 rounded" style="background-color: #00126b; color: white;">✉️ DRAFT EMAIL</button>
+                                <button type="button" onclick="toggleBulkResample()" class="btn btn-sm fw-bold shadow-sm px-3 rounded text-dark" style="background-color: #ffc107;">🔄 BULK RESAMPLE</button>
+                                <button type="submit" form="exportForm" onclick="document.getElementById('exportForm').action='/export_stu'" class="btn btn-sm fw-bold shadow-sm px-3 rounded" style="background-color: #970000; color: white;">⬇️ EXPORT</button>
+                            </div>
                         </div>
                     </div>
-                    
+                </div>
+
+                <div class="card shadow">
                     <div class="card-body p-0">
                         <form id="exportForm" action="/export_stu" method="POST">
-                            <input type="hidden" name="category_name" value="{{ category }}">
+                            <input type="hidden" name="category_name" id="exportCategory" value="Inventory Export">
                             
                             <div class="table-responsive" style="max-height: 700px; overflow-y: auto;">
-                                <table class="table table-hover table-striped align-middle mb-0">
+                                <table class="table table-hover table-striped align-middle mb-0" id="inventoryTable">
                                     <thead class="table-dark sticky-top">
                                         <tr>
                                             <th class="text-center px-3" style="width: 50px;">
@@ -355,14 +374,17 @@
                                             <th>Track #</th>
                                             <th>Profile</th>
                                             <th>Process Type</th>
+                                            <th>Location</th>
+                                            <th>Status</th>
                                             <th>Weight (lbs)</th>
-                                            <th>pH</th>
-                                            <th>VOC (ppm)</th>
+                                            <th>pH / VOC</th>
+                                            <th class="text-end pe-4">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody class="bg-white">
                                         {% for drum in drums %}
-                                        <tr class="table-row-clickable" onclick="toggleCheckbox(this, '{{ drum.id }}')">
+                                        {% set status = drum.get('status', 'FINAL CODED') %}
+                                        <tr class="table-row-clickable drum-row" id="row-{{ drum.id }}" data-process="{{ drum.process_type|upper }}" data-status="{{ status }}" onclick="toggleCheckbox(this, '{{ drum.id }}')">
                                             <td class="text-center">
                                                 <input class="form-check-input drum-checkbox fs-5" type="checkbox" name="selected_drums" value="{{ drum.id }}" id="chk-{{ drum.id }}" onclick="event.stopPropagation();">
                                             </td>
@@ -370,26 +392,59 @@
                                             <td class="text-primary fw-bold" style="font-family: monospace;">{{ drum.track_no|upper }}</td>
                                             <td class="fw-bold">{{ drum.inb_prof|upper }}</td>
                                             <td class="text-muted text-uppercase small fw-bold">{{ drum.process_type }}</td>
+                                            <td>
+                                                {% if drum.location %}
+                                                    <span class="badge bg-light text-dark border border-secondary fw-semibold">{{ drum.location }}</span>
+                                                {% else %}
+                                                    <span class="text-muted fst-italic small">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td id="status-cell-{{ drum.id }}">
+                                                {% if status == 'PLANT RECEIVED' %}
+                                                    <span class="badge bg-primary">Plant Received</span>
+                                                {% elif status == 'RESAMPLE' %}
+                                                    <span class="badge bg-warning text-dark">Resample</span>
+                                                {% elif status == 'REJECTED' %}
+                                                    <span class="badge bg-danger">Rejected</span>
+                                                    <div class="small text-muted mt-1" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ drum.get('reject_notes') }}">{{ drum.get('reject_notes') }}</div>
+                                                {% elif status == 'PASS' %}
+                                                    <span class="badge bg-info text-dark">Passed</span>
+                                                {% elif status == 'FAIL' %}
+                                                    <span class="badge bg-dark">Failed</span>
+                                                {% elif status == 'FINAL CODED' %}
+                                                    <span class="badge bg-success">Final Coded</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">{{ status }}</span>
+                                                {% endif %}
+                                            </td>
                                             <td>{{ drum.weight }} lbs</td>
                                             <td>
+                                                <div class="d-flex flex-column gap-1">
                                                 {% if drum.ph == 0 %} 
-                                                    <span class="text-muted fst-italic">pH Not Tested</span>
+                                                    <span class="text-muted fst-italic small">pH N/A</span>
                                                 {% elif drum.ph < 2 %} 
                                                     <span class="badge bg-danger shadow-sm">pH {{ drum.ph }}</span>
                                                 {% elif drum.ph > 12 %} 
                                                     <span class="badge bg-warning text-dark shadow-sm">pH {{ drum.ph }}</span>
                                                 {% else %} 
-                                                    <span class="text-muted fw-bold">{{ drum.ph }}</span> 
+                                                    <span class="text-muted fw-bold small">pH {{ drum.ph }}</span> 
                                                 {% endif %}
+                                                
+                                                {% if drum.voc_ppm > 0 %} <span class="badge bg-secondary">VOC {{ drum.voc_ppm }}</span> {% else %} <span class="text-muted small">VOC 0.0</span> {% endif %}
+                                                </div>
                                             </td>
-                                            <td>
-                                                {% if drum.voc_ppm > 0 %} <span class="badge bg-secondary">{{ drum.voc_ppm }}</span> {% else %} 0.0 {% endif %}
-                                            </td>
-                                        </tr>
-                                        {% else %}
-                                        <tr>
-                                            <td colspan="8" class="text-center text-muted py-5 fs-5">
-                                                <em>No drums found in this queue. Did you upload today's VPI file?</em>
+                                            <td class="text-end pe-4" onclick="event.stopPropagation();">
+                                                {% if drum.process_type|upper == 'PUT PILE' %}
+                                                    <div class="btn-group">
+                                                        <button type="button" onclick="togglePutPilePass('{{ drum.id }}')" class="btn btn-sm btn-outline-success fw-bold {% if status == 'PASS' %}active{% endif %}" id="btn-pass-{{ drum.id }}">Pass</button>
+                                                        <button type="button" class="btn btn-sm btn-outline-danger fw-bold {% if status == 'FAIL' %}active{% endif %}" data-bs-toggle="modal" data-bs-target="#failPileModal{{ drum.id }}">Fail</button>
+                                                    </div>
+                                                {% else %}
+                                                    <div class="btn-group">
+                                                        <button type="button" onclick="toggleResampleSingle('{{ drum.id }}')" class="btn btn-sm btn-outline-warning text-dark fw-bold {% if status == 'RESAMPLE' %}active{% endif %}" id="btn-resample-{{ drum.id }}">Resample</button>
+                                                        <button type="button" class="btn btn-sm btn-outline-danger fw-bold {% if status == 'REJECTED' %}active{% endif %}" data-bs-toggle="modal" data-bs-target="#rejectDrumModal{{ drum.id }}">Reject</button>
+                                                    </div>
+                                                {% endif %}
                                             </td>
                                         </tr>
                                         {% endfor %}
@@ -400,7 +455,71 @@
                     </div>
                 </div>
             </div>
+
+            {% for drum in drums %}
+            <!-- Modals for Reject and Fail -->
+            {% if drum.process_type|upper == 'PUT PILE' %}
+            <div class="modal fade" id="failPileModal{{ drum.id }}" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content border-danger">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title fw-bold">Fail Put Pile: {{ drum.track_no|upper }}</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <form action="/stu/put_pile_action" method="POST">
+                            <input type="hidden" name="drum_id" value="{{ drum.id }}">
+                            <input type="hidden" name="action" value="FAIL">
+                            <div class="modal-body p-4 text-start">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold text-dark">Retreat Recipe <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control border-secondary" name="recipe" placeholder="Enter instructions for retreating this pile..." required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold text-dark">Failure Notes</label>
+                                    <textarea class="form-control border-secondary" name="notes" rows="3" placeholder="Why did this pile fail?"></textarea>
+                                </div>
+                            </div>
+                            <div class="modal-footer bg-light">
+                                <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-danger fw-bold px-4">Mark Failed & Log Retreat</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="modal fade" id="rejectDrumModal{{ drum.id }}" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content border-danger">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title fw-bold">Reject Drum: {{ drum.track_no|upper }}</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <form action="/stu/drum_action" method="POST">
+                            <input type="hidden" name="drum_id" value="{{ drum.id }}">
+                            <input type="hidden" name="action" value="REJECT">
+                            <div class="modal-body p-4 text-start">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold text-dark">Outgoing Manifest <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control border-secondary" name="outgoing_manifest" placeholder="Enter the new manifest number" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold text-dark">Rejection Notes</label>
+                                    <textarea class="form-control border-secondary" name="reject_notes" rows="3" placeholder="Reason for rejection..."></textarea>
+                                </div>
+                            </div>
+                            <div class="modal-footer bg-light">
+                                <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-danger fw-bold px-4">Reject Drum</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
             {% endif %}
+            {% endfor %}
+            
+{% endif %}
         </div>
     </div>
 
@@ -442,18 +561,272 @@
             row.classList.toggle('table-active', checkbox.checked);
         }
 
+        function getGroupForProcess(proc) {
+            if (proc === 'SOLIDIFY NORMAL') return 'Solidification';
+            if (['DIRECT LAND HAZ', 'DIRECTLANDASBES', 'ASBESTOS', 'CNIA'].includes(proc)) return 'Decon';
+            if (['STABSOLIDS 1', 'STABSOLIDS 2'].includes(proc)) return 'T Drums';
+            if (['STABSOLIDS 3', 'STABSOLIDS 5'].includes(proc)) return 'TL Drums';
+            if (['STABSOLIDS 6', 'STABSOLIDS 8', 'STABSOLIDS 9', 'STABSOLIDS 11', 'STABSOLIDS 12', 'STABSOLIDS 13', 'STABSOLIDS 14'].includes(proc)) return 'Special Handling';
+            if (proc === 'PUT PILE') return 'Put Pile';
+            return proc.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        }
+
+        function applyFilters() {
+            const checkedProcessBoxes = document.querySelectorAll('.process-filter-checkbox:checked');
+            let selectedProcesses = Array.from(checkedProcessBoxes).map(chk => chk.value);
+            
+            const matchAllProcesses = selectedProcesses.includes('ALL') || selectedProcesses.length === 0;
+            const statusFilter = document.getElementById('statusFilter') ? document.getElementById('statusFilter').value.toUpperCase() : 'ACTIVE';
+            
+            const rows = document.querySelectorAll('.drum-row');
+            
+            rows.forEach(row => {
+                const process = row.getAttribute('data-process');
+                const status = row.getAttribute('data-status');
+                
+                let processMatch = matchAllProcesses || selectedProcesses.includes(process);
+                let statusMatch = false;
+                if (statusFilter === 'ALL') {
+                    statusMatch = true;
+                } else if (statusFilter === 'ACTIVE') {
+                    statusMatch = (status === 'FINAL CODED' || status === 'PLANT RECEIVED' || status === 'ACTIVE');
+                } else {
+                    statusMatch = (status === statusFilter);
+                }
+                
+                if (processMatch && statusMatch) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                    const chk = row.querySelector('.drum-checkbox');
+                    if(chk) {
+                        chk.checked = false;
+                        row.classList.remove('table-active');
+                    }
+                }
+            });
+            
+            const btn = document.getElementById('processFilterDropdown');
+            if (btn) {
+                if (matchAllProcesses) {
+                    btn.innerText = '⚙️ Process Type: All';
+                } else if (selectedProcesses.length === 1) {
+                    const name = getGroupForProcess(selectedProcesses[0]);
+                    btn.innerText = '⚙️ Process: ' + name;
+                } else {
+                    btn.innerText = `⚙️ Process: ${selectedProcesses.length} Selected`;
+                }
+            }
+            
+            if(document.getElementById('exportCategory')) {
+                let categoryName = 'Inventory Export';
+                if (!matchAllProcesses) {
+                    const groups = new Set(selectedProcesses.map(getGroupForProcess));
+                    categoryName = Array.from(groups).join(' & ');
+                }
+                document.getElementById('exportCategory').value = categoryName;
+            }
+        }
+
+        function updateRowStatus(drumId, newStatus) {
+            const row = document.getElementById('row-' + drumId);
+            if (!row) return;
+
+            row.setAttribute('data-status', newStatus);
+
+            const statusCell = document.getElementById('status-cell-' + drumId);
+            if (statusCell) {
+                let badgeHtml = '';
+                if (newStatus === 'PLANT RECEIVED') {
+                    badgeHtml = '<span class="badge bg-primary">Plant Received</span>';
+                } else if (newStatus === 'RESAMPLE') {
+                    badgeHtml = '<span class="badge bg-warning text-dark">Resample</span>';
+                } else if (newStatus === 'REJECTED') {
+                    badgeHtml = '<span class="badge bg-danger">Rejected</span>';
+                } else if (newStatus === 'PASS') {
+                    badgeHtml = '<span class="badge bg-info text-dark">Passed</span>';
+                } else if (newStatus === 'FAIL') {
+                    badgeHtml = '<span class="badge bg-dark">Failed</span>';
+                } else if (newStatus === 'FINAL CODED') {
+                    badgeHtml = '<span class="badge bg-success">Final Coded</span>';
+                } else {
+                    badgeHtml = `<span class="badge bg-secondary">${newStatus}</span>`;
+                }
+                statusCell.innerHTML = badgeHtml;
+            }
+
+            const resampleBtn = document.getElementById('btn-resample-' + drumId);
+            if (resampleBtn) {
+                if (newStatus === 'RESAMPLE') {
+                    resampleBtn.classList.add('active');
+                } else {
+                    resampleBtn.classList.remove('active');
+                }
+            }
+
+            const passBtn = document.getElementById('btn-pass-' + drumId);
+            if (passBtn) {
+                if (newStatus === 'PASS') {
+                    passBtn.classList.add('active');
+                } else {
+                    passBtn.classList.remove('active');
+                }
+            }
+
+            applyFilters();
+        }
+
+        function toggleResampleSingle(drumId) {
+            const formData = new FormData();
+            formData.append('drum_id', drumId);
+            formData.append('action', 'RESAMPLE');
+
+            fetch('/stu/drum_action', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateRowStatus(drumId, data.new_status);
+                } else {
+                    alert('Error toggling resample status.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error connecting to the server.');
+            });
+        }
+
+        function togglePutPilePass(drumId) {
+            const formData = new FormData();
+            formData.append('drum_id', drumId);
+            formData.append('action', 'PASS');
+
+            fetch('/stu/put_pile_action', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateRowStatus(drumId, 'PASS');
+                } else {
+                    alert('Error marking put pile as passed.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error connecting to the server.');
+            });
+        }
+
+        function toggleBulkResample() {
+            const checkboxes = document.querySelectorAll('.drum-checkbox:checked');
+            if (checkboxes.length === 0) {
+                alert('Please select one or more drums to resample.');
+                return;
+            }
+
+            const selectedIds = Array.from(checkboxes).map(chk => chk.value);
+
+            fetch('/stu/bulk_resample', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ selected_drums: selectedIds })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    data.updated.forEach(item => {
+                        updateRowStatus(item.id, item.status);
+                        
+                        const chk = document.getElementById('chk-' + item.id);
+                        if (chk) {
+                            chk.checked = false;
+                            const row = chk.closest('tr');
+                            if (row) row.classList.remove('table-active');
+                        }
+                    });
+                    
+                    const selectAll = document.getElementById('selectAll');
+                    if (selectAll) selectAll.checked = false;
+                } else {
+                    alert('Error performing bulk resample: ' + (data.message || 'unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error connecting to the server.');
+            });
+        }
+        
+        document.addEventListener("DOMContentLoaded", function() {
+            const procAll = document.getElementById('proc-all');
+            const procCheckboxes = document.querySelectorAll('.process-filter-checkbox:not(#proc-all)');
+            
+            if (procAll) {
+                // Set up event listener for the "View All" checkbox
+                procAll.addEventListener('change', function(e) {
+                    if (e.target.checked) {
+                        procCheckboxes.forEach(chk => {
+                            chk.checked = false;
+                        });
+                    } else {
+                        // If unchecking View All and nothing else is checked, force it back to checked
+                        const noneChecked = Array.from(procCheckboxes).every(c => !c.checked);
+                        if (noneChecked) {
+                            e.target.checked = true;
+                        }
+                    }
+                    applyFilters();
+                });
+                
+                // Set up event listeners for the individual process checkboxes
+                procCheckboxes.forEach(chk => {
+                    chk.addEventListener('change', function() {
+                        if (chk.checked) {
+                            procAll.checked = false;
+                        } else {
+                            const noneChecked = Array.from(procCheckboxes).every(c => !c.checked);
+                            if (noneChecked) {
+                                procAll.checked = true;
+                            }
+                        }
+                        applyFilters();
+                    });
+                });
+            }
+            applyFilters();
+        });
+
         // Master Select All Button
         const selectAll = document.getElementById('selectAll');
         if (selectAll) {
             selectAll.addEventListener('change', function(e) {
-                const checkboxes = document.querySelectorAll('.drum-checkbox');
-                checkboxes.forEach(chk => {
-                    chk.checked = e.target.checked;
-                    const row = chk.closest('tr');
-                    if (e.target.checked) {
-                        row.classList.add('table-active');
-                    } else {
-                        row.classList.remove('table-active');
+                const rows = document.querySelectorAll('.drum-row');
+                rows.forEach(row => {
+                    // Only select checkboxes for rows that are currently visible
+                    if (row.style.display !== 'none') {
+                        const chk = row.querySelector('.drum-checkbox');
+                        if (chk) {
+                            chk.checked = e.target.checked;
+                            if (e.target.checked) {
+                                row.classList.add('table-active');
+                            } else {
+                                row.classList.remove('table-active');
+                            }
+                        }
                     }
                 });
             });

@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, send_file
+from flask import Blueprint, render_template, request, redirect, url_for, send_file, jsonify
 from datetime import date, datetime
 from contextlib import closing
 from io import BytesIO
@@ -62,16 +62,12 @@ def stu_hub():
                 'stage': stage
             })
             
-        # Get inventory drums
-        queries = {
-            'Decon': "SELECT * FROM drum_inventory WHERE (process_type IN ('direct land haz', 'directlandasbes', 'asbestos') OR inb_prof = 'cnia') AND process_type != 'PENDING SAMPLING' ORDER BY age DESC",
-            'Solidification': "SELECT * FROM drum_inventory WHERE process_type = 'solidify normal' AND process_type != 'PENDING SAMPLING' ORDER BY age DESC",
-            'T_Drums': "SELECT * FROM drum_inventory WHERE process_type IN ('stabsolids 1', 'stabsolids 2') AND process_type != 'PENDING SAMPLING' ORDER BY age DESC",
-            'TL_Drums': "SELECT * FROM drum_inventory WHERE process_type IN ('stabsolids 3', 'stabsolids 5') AND process_type != 'PENDING SAMPLING' ORDER BY age DESC",
-            'Special_Handling': "SELECT * FROM drum_inventory WHERE process_type IN ('stabsolids 6', 'stabsolids 8', 'stabsolids 9', 'stabsolids 11', 'stabsolids 12', 'stabsolids 13', 'stabsolids 14') AND process_type != 'PENDING SAMPLING' ORDER BY age DESC",
-            'All': "SELECT * FROM drum_inventory WHERE process_type != 'PENDING SAMPLING' ORDER BY age DESC"
-        }
-        drums = conn.execute(queries.get(category, queries['All'])).fetchall()
+        # Get all active inventory drums (including pending sampling)
+        drums_raw = conn.execute("SELECT * FROM drum_inventory ORDER BY age DESC").fetchall()
+        drums = [dict(d) for d in drums_raw]
+        
+        process_types = sorted(list(set([str(d['process_type']).strip().upper() for d in drums if d.get('process_type')])))
+
         last_upload_row = conn.execute('SELECT MAX(import_date) FROM drum_inventory').fetchone()
         last_upload = last_upload_row[0] if last_upload_row else 'NO DATA'
         
@@ -94,7 +90,8 @@ def stu_hub():
                            view=view, 
                            category=category, 
                            last_upload=last_upload,
-                           las_trucks=las_trucks)
+                           las_trucks=las_trucks,
+                           process_types=process_types)
 
 @stu_bp.route('/stu/inventory')
 def stu_inventory():
@@ -152,14 +149,10 @@ def generate_sampling_packet():
         picklist_data, total_samples = stu_services.process_drums(conn, raw_drums)
         
         for d in raw_drums:
-            today_str = date.today().isoformat()
-            
             existing = conn.execute("SELECT id FROM drum_inventory WHERE track_no = ?", (d['drum_id'],)).fetchone()
             if not existing:
-                conn.execute('''
-                    INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id) 
-                    VALUES (?, ?, ?, 'PENDING SAMPLING', 0, 0, 0, 0, 0, ?, ?)
-                ''', (d['drum_id'], d['profile'], d['manifest'], today_str, job_name))
+                conn.execute("INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status) VALUES (?, ?, ?, 'PENDING SAMPLING', 0, 0, 0, 0, 0, ?, ?, 'PLANT RECEIVED')",
+                             (d['drum_id'], d['profile'], d['manifest'], date.today().isoformat(), job_name))
                 
         for p in picklist_data:
             if p.get('is_sampled') == 'Yes':
@@ -219,8 +212,12 @@ def upload_vpi():
         df['Inb Prof'] = df['Inb Prof'].astype(str).str.strip().str.lower()
         df['Type'] = df['Type'].astype(str).str.strip().str.lower() 
         
-        df = df[~df['Process Type'].isin(['put pile', '=', 'nan', ''])]
-        df = df[~df['Type'].str.contains('cm|dt', na=False)]
+        # Backup rule: Force anything with a CCS profile to be a put pile
+        df.loc[df['Inb Prof'] == 'ccs', 'Process Type'] = 'put pile'
+        
+        df = df[~df['Process Type'].isin(['=', 'nan', ''])]
+        # Exclude cm/dt types EXCEPT if it is a put pile
+        df = df[~(df['Type'].str.contains('cm|dt', na=False) & (~df['Process Type'].str.contains('put', na=False)))]
         
         df['Weight'] = pd.to_numeric(df['Weight'], errors='coerce').fillna(0)
         df['pH'] = pd.to_numeric(df['pH'], errors='coerce').fillna(0)
@@ -229,7 +226,16 @@ def upload_vpi():
         df = df.drop_duplicates(subset=['Track No'], keep='last')
         
         with closing(get_db_connection()) as conn:
+            # Preserve existing statuses and pending sampling
+            try:
+                preserved_statuses = pd.read_sql_query("SELECT track_no, status, reject_notes, outgoing_manifest FROM drum_inventory WHERE status NOT IN ('FINAL CODED', 'ACTIVE') OR reject_notes IS NOT NULL OR outgoing_manifest IS NOT NULL", conn)
+            except Exception:
+                preserved_statuses = pd.DataFrame()
+                
+            pending_sampling = conn.execute("SELECT * FROM drum_inventory WHERE process_type = 'PENDING SAMPLING'").fetchall()
+            
             conn.execute('DELETE FROM drum_inventory')
+
             profiles_df = pd.read_sql_query("SELECT LOWER(profile_number) as profile_number, voc_percentage FROM profiles", conn)
             
             # Text values mapped from DB are safely inside the database block now
@@ -240,8 +246,31 @@ def upload_vpi():
             df['voc_ppm'] = pd.to_numeric(df['voc_ppm'], errors='coerce').fillna(0)
             df['voc_weight'] = df['Weight'] * df['voc_ppm']
             
-            cleaned_data = list(zip(df['Track No'], df['Inb Prof'], df['Process Type'], df['Weight'], df['pH'], df['Age'], df['voc_ppm'], df['voc_weight'], [date.today().isoformat()]*len(df)))
-            conn.executemany("INSERT INTO drum_inventory (track_no, inb_prof, process_type, weight, ph, age, voc_ppm, voc_weight, import_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", cleaned_data)
+            if 'Area' in df.columns:
+                df['location'] = df['Area'].astype(str).str.strip().str.replace("'", "")
+                df['location'] = df['location'].replace({'nan': None, 'None': None, '': None})
+            else:
+                df['location'] = None
+                
+            cleaned_data = list(zip(df['Track No'], df['Inb Prof'], df['Process Type'], df['Weight'], df['pH'], df['Age'], df['voc_ppm'], df['voc_weight'], [date.today().isoformat()]*len(df), ['FINAL CODED']*len(df), df['location']))
+            conn.executemany("INSERT INTO drum_inventory (track_no, inb_prof, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, status, location) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", cleaned_data)
+            
+            # Re-apply preserved statuses
+            if not preserved_statuses.empty:
+                for row in preserved_statuses.itertuples():
+                    conn.execute("UPDATE drum_inventory SET status = ?, reject_notes = ?, outgoing_manifest = ? WHERE track_no = ?", 
+                                 (row.status, row.reject_notes, row.outgoing_manifest, row.track_no))
+            
+            # Re-insert pending sampling drums ONLY if they were not imported in the new VPI file
+            imported_tracks = set(df['Track No'].astype(str).str.strip().str.upper())
+            for p in pending_sampling:
+                track = str(p['track_no']).strip().upper()
+                if track in imported_tracks:
+                    continue
+                loc_val = p['location'] if 'location' in p.keys() else None
+                conn.execute("INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status, reject_notes, outgoing_manifest, location) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                             (p['track_no'], p['inb_prof'], p['manifest'], p['process_type'], p['weight'], p['ph'], p['age'], p['voc_ppm'], p['voc_weight'], p['import_date'], p['job_id'], p.get('status', 'PLANT RECEIVED'), p.get('reject_notes'), p.get('outgoing_manifest'), loc_val))
+                
             conn.commit()
     except Exception as e: 
         return f"Critical Error processing file: {e}", 500
@@ -256,10 +285,10 @@ def export_stu():
         
     placeholders = ','.join('?' for _ in selected_ids)
     with closing(get_db_connection()) as conn:
-        df = pd.read_sql_query(f"SELECT track_no, inb_prof, process_type, weight, ph, age, voc_ppm, voc_weight FROM drum_inventory WHERE id IN ({placeholders})", conn, params=selected_ids)
+        df = pd.read_sql_query(f"SELECT track_no, inb_prof, process_type, location, weight, ph, age, voc_ppm, voc_weight FROM drum_inventory WHERE id IN ({placeholders})", conn, params=selected_ids)
         
     if df.empty: return "No data found", 400
-    df.rename(columns={'track_no': 'Track No', 'inb_prof': 'Inb Prof', 'process_type': 'Process Type', 'weight': 'Weight', 'ph': 'pH', 'age': 'Age', 'voc_ppm': 'VOC', 'voc_weight': 'VOC Weight'}, inplace=True)
+    df.rename(columns={'track_no': 'Track No', 'inb_prof': 'Inb Prof', 'process_type': 'Process Type', 'location': 'Location', 'weight': 'Weight', 'ph': 'pH', 'age': 'Age', 'voc_ppm': 'VOC', 'voc_weight': 'VOC Weight'}, inplace=True)
     df.insert(0, ' ', '')
     
     output = BytesIO()
@@ -272,11 +301,11 @@ def export_stu():
         last_row = len(df) + 2  
         
         title_cell = worksheet.cell(row=1, column=1, value=f"{clean_category} - Generated On - {date.today().strftime('%m/%d/%Y')}")
-        worksheet.merge_cells('A1:I1')
+        worksheet.merge_cells('A1:J1')
         title_cell.font = Font(size=18, bold=True)
         title_cell.alignment = Alignment(horizontal='center', vertical='center')
         
-        for col_num in range(1, 10):
+        for col_num in range(1, 11):
             worksheet.cell(row=2, column=col_num).font = Font(size=16, bold=True, underline='double')
             worksheet.cell(row=2, column=col_num).alignment = Alignment(horizontal='center')
             
@@ -285,27 +314,27 @@ def export_stu():
         
         for r in range(3, last_row + 1): 
             worksheet.cell(row=r, column=1).border = thin_border
-            worksheet.cell(row=r, column=5).number_format = '0.00' 
-            worksheet.cell(row=r, column=8).number_format = '0.00' 
+            worksheet.cell(row=r, column=6).number_format = '0.00' 
             worksheet.cell(row=r, column=9).number_format = '0.00' 
+            worksheet.cell(row=r, column=10).number_format = '0.00' 
             
-        worksheet.cell(row=last_row + 2, column=3, value="Total Weight (lbs):").font = Font(bold=True)
-        wt_tot = worksheet.cell(row=last_row + 2, column=4, value=f"=SUM(E3:E{last_row})")
+        worksheet.cell(row=last_row + 2, column=4, value="Total Weight (lbs):").font = Font(bold=True)
+        wt_tot = worksheet.cell(row=last_row + 2, column=5, value=f"=SUM(F3:F{last_row})")
         wt_tot.font = Font(bold=True)
         wt_tot.number_format = '#,##0.00'
         
-        worksheet.cell(row=last_row + 3, column=3, value="Total Weight (tons):").font = Font(bold=True)
-        wt_tons = worksheet.cell(row=last_row + 3, column=4, value=f"=D{last_row + 2}/2000")
+        worksheet.cell(row=last_row + 3, column=4, value="Total Weight (tons):").font = Font(bold=True)
+        wt_tons = worksheet.cell(row=last_row + 3, column=5, value=f"=E{last_row + 2}/2000")
         wt_tons.font = Font(bold=True)
         wt_tons.number_format = '#,##0.00'
         
-        worksheet.cell(row=last_row + 2, column=7, value="Total VOC Weight:").font = Font(bold=True)
-        voc_tot = worksheet.cell(row=last_row + 2, column=8, value=f"=SUM(I3:I{last_row})")
+        worksheet.cell(row=last_row + 2, column=8, value="Total VOC Weight:").font = Font(bold=True)
+        voc_tot = worksheet.cell(row=last_row + 2, column=9, value=f"=SUM(J3:J{last_row})")
         voc_tot.font = Font(bold=True)
         voc_tot.number_format = '#,##0.00'
         
-        worksheet.cell(row=last_row + 3, column=7, value="Average VOC:").font = Font(bold=True)
-        voc_avg = worksheet.cell(row=last_row + 3, column=8, value=f"=AVERAGE(H3:H{last_row})")
+        worksheet.cell(row=last_row + 3, column=8, value="Average VOC:").font = Font(bold=True)
+        voc_avg = worksheet.cell(row=last_row + 3, column=9, value=f"=AVERAGE(I3:I{last_row})")
         voc_avg.font = Font(bold=True)
         voc_avg.number_format = '0.00'
         
@@ -321,3 +350,92 @@ def export_stu():
     output.seek(0)
     export_filename = f"{clean_category} {date_str}.xlsx"
     return send_file(output, as_attachment=True, download_name=export_filename, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+@stu_bp.route('/stu/drum_action', methods=['POST'])
+def drum_action():
+    drum_id = request.form.get('drum_id')
+    action = request.form.get('action') # 'RESAMPLE' or 'REJECT'
+    notes = request.form.get('reject_notes', '')
+    manifest = request.form.get('outgoing_manifest', '')
+    
+    new_status = None
+    with closing(get_db_connection()) as conn:
+        if action == 'RESAMPLE':
+            drum = conn.execute("SELECT status, process_type FROM drum_inventory WHERE id = ?", (drum_id,)).fetchone()
+            if drum:
+                if drum['status'] == 'RESAMPLE':
+                    new_status = 'PLANT RECEIVED' if drum['process_type'] == 'PENDING SAMPLING' else 'FINAL CODED'
+                else:
+                    new_status = 'RESAMPLE'
+                conn.execute("UPDATE drum_inventory SET status = ? WHERE id = ?", (new_status, drum_id))
+        elif action == 'REJECT':
+            conn.execute("UPDATE drum_inventory SET status = 'REJECTED', reject_notes = ?, outgoing_manifest = ? WHERE id = ?", (notes, manifest, drum_id))
+            new_status = 'REJECTED'
+        conn.commit()
+        
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({"status": "success", "drum_id": drum_id, "action": action, "new_status": new_status})
+    return redirect(url_for('stu_bp.stu_hub', view='inventory'))
+
+@stu_bp.route('/stu/put_pile_action', methods=['POST'])
+def put_pile_action():
+    drum_id = request.form.get('drum_id')
+    action = request.form.get('action') # 'PASS' or 'FAIL'
+    recipe = request.form.get('recipe', '')
+    notes = request.form.get('notes', '')
+    
+    with closing(get_db_connection()) as conn:
+        drum = conn.execute("SELECT track_no FROM drum_inventory WHERE id = ?", (drum_id,)).fetchone()
+        track_no = drum['track_no'] if drum else 'UNKNOWN'
+        
+        if action == 'PASS':
+            conn.execute("UPDATE drum_inventory SET status = 'PASS' WHERE id = ?", (drum_id,))
+        elif action == 'FAIL':
+            conn.execute("UPDATE drum_inventory SET status = 'FAIL' WHERE id = ?", (drum_id,))
+            conn.execute("INSERT INTO put_pile_retreats (track_no, retreat_date, recipe, notes) VALUES (?, ?, ?, ?)", 
+                         (track_no, date.today().isoformat(), recipe, notes))
+        conn.commit()
+        
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({"status": "success", "drum_id": drum_id, "action": action})
+    return redirect(url_for('stu_bp.stu_hub', view='inventory'))
+
+@stu_bp.route('/stu/bulk_resample', methods=['POST'])
+def bulk_resample():
+    if request.is_json:
+        data = request.get_json()
+        drum_ids = data.get('selected_drums', [])
+    else:
+        drum_ids = request.form.getlist('selected_drums')
+        
+    if not drum_ids:
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"status": "success", "updated": []})
+        return redirect(url_for('stu_bp.stu_hub', view='inventory'))
+        
+    updated = []
+    with closing(get_db_connection()) as conn:
+        for d_id in drum_ids:
+            drum = conn.execute("SELECT status, process_type FROM drum_inventory WHERE id = ?", (d_id,)).fetchone()
+            if drum:
+                current_status = drum['status']
+                process_type = drum['process_type']
+                
+                if current_status == 'RESAMPLE':
+                    new_status = 'PLANT RECEIVED' if process_type == 'PENDING SAMPLING' else 'FINAL CODED'
+                else:
+                    new_status = 'RESAMPLE'
+                    
+                conn.execute("UPDATE drum_inventory SET status = ? WHERE id = ?", (new_status, d_id))
+                updated.append({"id": d_id, "status": new_status})
+        conn.commit()
+        
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({"status": "success", "updated": updated})
+    return redirect(url_for('stu_bp.stu_hub', view='inventory'))
+
+@stu_bp.route('/stu/audit_trail')
+def stu_audit_trail():
+    with closing(get_db_connection()) as conn:
+        retreats = conn.execute("SELECT * FROM put_pile_retreats ORDER BY id DESC").fetchall()
+    return render_template('stu_audit_trail.html', retreats=[dict(r) for r in retreats])

@@ -6,8 +6,10 @@ import re
 _excel_cache = None
 _excel_cache_mtime = None
 
+from shared_state import DB_PATH, MASTER_EXCEL_PATH
+
 def get_db_connection():
-    conn = sqlite3.connect('database.db', timeout=15)
+    conn = sqlite3.connect(DB_PATH, timeout=15)
     conn.row_factory = sqlite3.Row 
     conn.execute('PRAGMA journal_mode=WAL;')
     return conn
@@ -38,7 +40,7 @@ def ensure_profile_exists(conn, profile_number):
         return None
         
     clean_profile = str(profile_number).strip().upper()
-    excel_path = os.environ.get('MASTERPROFILE_PATH', r"C:\Users\PEREIRT446445\OneDrive - cleanharbors.com\O365 Facilities Schedule - BL - WAP\MASTERPROFILE.xlsx")
+    excel_path = MASTER_EXCEL_PATH
     
     excel_exists = os.path.exists(excel_path)
     excel_mtime = None

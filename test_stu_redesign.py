@@ -10,7 +10,7 @@ TEST_DB_PATH = 'test_database.db'
 # Patch connect globally so the Flask app uses our test database
 original_connect = sqlite3.connect
 def mock_connect(database, *args, **kwargs):
-    if database == 'database.db':
+    if str(database).endswith('database.db'):
         return original_connect(TEST_DB_PATH, *args, **kwargs)
     return original_connect(database, *args, **kwargs)
 sqlite3.connect = mock_connect
@@ -48,11 +48,19 @@ class TestSTURedesignFlow(unittest.TestCase):
 
     def populate_base_data(self):
         conn = original_connect(TEST_DB_PATH)
+        import os
+        from shared_state import MASTER_EXCEL_PATH
+        excel_mtime = None
+        if os.path.exists(MASTER_EXCEL_PATH):
+            try:
+                excel_mtime = os.path.getmtime(MASTER_EXCEL_PATH)
+            except:
+                pass
         try:
             conn.execute('''
-                INSERT OR IGNORE INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, special_handling)
-                VALUES ('P-STU-TEST', 'Test Generator', 'STU Drum Waste Description', 'BL', 10.0, 'None')
-            ''')
+                INSERT OR REPLACE INTO profiles (profile_number, generator, status, waste_description, win_code, voc_percentage, special_handling, last_synced_mtime)
+                VALUES ('P-STU-TEST', 'Test Generator', 'ACTIVE', 'STU Drum Waste Description', 'BL', 10.0, 'None', ?)
+            ''', (excel_mtime,))
             conn.commit()
         finally:
             conn.close()

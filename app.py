@@ -1,3 +1,4 @@
+import sys
 import sqlite3
 from datetime import date
 from contextlib import closing
@@ -11,9 +12,18 @@ from routes_schedule import schedule_bp
 from routes_stu import stu_bp
 from routes_approvals import approvals_bp
 from shared_state import socketio
+import sys
+import os
+
 from routes_backups import backups_bp, start_backup_scheduler
 
-app = Flask(__name__)
+if getattr(sys, 'frozen', False):
+    template_folder = os.path.join(sys._MEIPASS, 'templates')
+    static_folder = os.path.join(sys._MEIPASS, 'static')
+    app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
+else:
+    app = Flask(__name__)
+
 app.secret_key = 'clh-secret-session-key-2026'
 socketio.init_app(app)
 
@@ -34,8 +44,10 @@ app.register_blueprint(backups_bp)
 TARGET_ROUTING_CODE = "BL"
 PERMITTED_CODES = {'CBP', 'CNO', 'CBPS', 'CNOS', 'CNIA', 'CCS', 'CCSS', 'D23', 'D80L'}
 
+from shared_state import socketio, DB_PATH
+
 def get_db_connection():
-    conn = sqlite3.connect('database.db', timeout=15)
+    conn = sqlite3.connect(DB_PATH, timeout=15)
     conn.row_factory = sqlite3.Row 
     conn.execute('PRAGMA journal_mode=WAL;')
     return conn
@@ -150,6 +162,7 @@ def upgrade_db():
         if not column_exists(cursor, 'drum_inventory', 'manifest'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN manifest TEXT')
         if not column_exists(cursor, 'drum_inventory', 'job_id'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN job_id TEXT')
         if not column_exists(cursor, 'drum_inventory', 'status'): cursor.execute("ALTER TABLE drum_inventory ADD COLUMN status TEXT DEFAULT 'PENDING'")
+        if not column_exists(cursor, 'drum_inventory', 'location'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN location TEXT')
 
         # 5. DRUM SAMPLING COMPLIANCE TABLES
         cursor.execute('''
@@ -259,6 +272,20 @@ def portal_hub():
 
 if __name__ == '__main__':
     start_backup_scheduler(app)
-    socketio.run(app, host='0.0.0.0', port=5002, debug=True, allow_unsafe_werkzeug=True)
+    
+    if getattr(sys, 'frozen', False):
+        import logging
+        log = logging.getLogger('werkzeug')
+        log.setLevel(logging.ERROR)
+        print("=========================================================")
+        print("  Truck Log Production Server is now Running!")
+        print("  Please navigate to: http://localhost:5002 in your browser")
+        print("  Keep this window open. Press Ctrl+C to stop the server.")
+        print("=========================================================")
+        
+    if getattr(sys, 'frozen', False):
+        socketio.run(app, host='0.0.0.0', port=5002, allow_unsafe_werkzeug=True)
+    else:
+        socketio.run(app, host='0.0.0.0', port=5002, allow_unsafe_werkzeug=True, debug=True)
 
 
