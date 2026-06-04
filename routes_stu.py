@@ -220,8 +220,7 @@ def upload_vpi():
             wincode_dict = dict(zip(profiles_df['profile_number'], profiles_df['win_code']))
             df['win_code_db'] = df['Inb Prof'].map(wincode_dict).fillna('').str.strip().str.lower()
             
-            # Force Process Type based on win_code
-            df.loc[df['win_code_db'].isin(['d23', 'd80l']), 'Process Type'] = 'direct land haz'
+            # Force Process Type based on win_code (keep CCS for put pile)
             df.loc[df['win_code_db'] == 'ccs', 'Process Type'] = 'put pile'
             
             # Backup rule: Force anything with a CCS profile to be a put pile (from profile field directly)
@@ -229,8 +228,13 @@ def upload_vpi():
             
             # Now apply exclusions and filtering
             df = df[~df['Process Type'].isin(['=', 'nan', ''])]
-            # Exclude cm/dt types EXCEPT if it is a put pile
-            df = df[~(df['Type'].str.contains('cm|dt', na=False) & (~df['Process Type'].str.contains('put', na=False)))]
+            
+            # Exclude cm/dt types EXCEPT if it is a put pile OR if it is a d23/d80l drum coded as direct land
+            is_cm_dt = df['Type'].str.contains('cm|dt', na=False)
+            is_put_pile = df['Process Type'].str.contains('put', na=False)
+            is_direct_land = df['win_code_db'].isin(['d23', 'd80l']) & df['Process Type'].str.contains('direct', na=False)
+            
+            df = df[~(is_cm_dt & ~(is_put_pile | is_direct_land))]
             
             df['Weight'] = pd.to_numeric(df['Weight'], errors='coerce').fillna(0)
             df['pH'] = pd.to_numeric(df['pH'], errors='coerce').fillna(0)
