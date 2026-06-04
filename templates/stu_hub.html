@@ -359,6 +359,10 @@
                 </div>
 
                 <div class="card shadow">
+                    <div class="card-header bg-dark text-white fw-bold py-2 d-flex justify-content-between align-items-center">
+                        <span>📦 Active Inventory Queue</span>
+                        <span class="badge bg-light text-dark fs-6" id="drum-counter">{{ drums|length }} Drums</span>
+                    </div>
                     <div class="card-body p-0">
                         <form id="exportForm" action="/export_stu" method="POST">
                             <input type="hidden" name="category_name" id="exportCategory" value="Inventory Export">
@@ -579,6 +583,7 @@
             const statusFilter = document.getElementById('statusFilter') ? document.getElementById('statusFilter').value.toUpperCase() : 'ACTIVE';
             
             const rows = document.querySelectorAll('.drum-row');
+            let visibleCount = 0;
             
             rows.forEach(row => {
                 const process = row.getAttribute('data-process');
@@ -596,6 +601,7 @@
                 
                 if (processMatch && statusMatch) {
                     row.style.display = '';
+                    visibleCount++;
                 } else {
                     row.style.display = 'none';
                     const chk = row.querySelector('.drum-checkbox');
@@ -605,6 +611,11 @@
                     }
                 }
             });
+            
+            const counter = document.getElementById('drum-counter');
+            if (counter) {
+                counter.innerText = `${visibleCount} Drums`;
+            }
             
             const btn = document.getElementById('processFilterDropdown');
             if (btn) {
