@@ -213,16 +213,18 @@ def upload_vpi():
         df['Type'] = df['Type'].astype(str).str.strip().str.lower() 
         
         with closing(get_db_connection()) as conn:
+            df['Weight'] = pd.to_numeric(df['Weight'], errors='coerce').fillna(0)
+            
             # Now apply exclusions and filtering
             df = df[~df['Process Type'].isin(['=', 'nan', ''])]
             
-            # Exclude cm/dt types EXCEPT if the process type contains put, direct, asbes, or cnia
+            # Exclude bulk loads (type cm/dt and weight > 5000 lbs) EXCEPT if it is a put pile
             is_cm_dt = df['Type'].str.contains('cm|dt', na=False)
-            is_exempt = df['Process Type'].str.contains('put|direct|asbes|cnia', na=False)
+            is_heavy = df['Weight'] > 5000
+            is_put_pile = df['Process Type'].str.contains('put', na=False)
             
-            df = df[~(is_cm_dt & ~is_exempt)]
+            df = df[~(is_cm_dt & is_heavy & ~is_put_pile)]
             
-            df['Weight'] = pd.to_numeric(df['Weight'], errors='coerce').fillna(0)
             df['pH'] = pd.to_numeric(df['pH'], errors='coerce').fillna(0)
             df['Age'] = pd.to_numeric(df['Age'], errors='coerce').fillna(0)
             
