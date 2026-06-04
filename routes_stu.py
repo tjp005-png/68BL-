@@ -212,20 +212,32 @@ def upload_vpi():
         df['Inb Prof'] = df['Inb Prof'].astype(str).str.strip().str.lower()
         df['Type'] = df['Type'].astype(str).str.strip().str.lower() 
         
-        # Backup rule: Force anything with a CCS profile to be a put pile
-        df.loc[df['Inb Prof'] == 'ccs', 'Process Type'] = 'put pile'
-        
-        df = df[~df['Process Type'].isin(['=', 'nan', ''])]
-        # Exclude cm/dt types EXCEPT if it is a put pile
-        df = df[~(df['Type'].str.contains('cm|dt', na=False) & (~df['Process Type'].str.contains('put', na=False)))]
-        
-        df['Weight'] = pd.to_numeric(df['Weight'], errors='coerce').fillna(0)
-        df['pH'] = pd.to_numeric(df['pH'], errors='coerce').fillna(0)
-        df['Age'] = pd.to_numeric(df['Age'], errors='coerce').fillna(0)
-        
-        df = df.drop_duplicates(subset=['Track No'], keep='last')
-        
         with closing(get_db_connection()) as conn:
+            # Query profiles database to map win_code and voc_percentage
+            profiles_df = pd.read_sql_query("SELECT LOWER(profile_number) as profile_number, voc_percentage, LOWER(win_code) as win_code FROM profiles", conn)
+            
+            # Map win_code from database using the Inb Prof (profile)
+            wincode_dict = dict(zip(profiles_df['profile_number'], profiles_df['win_code']))
+            df['win_code_db'] = df['Inb Prof'].map(wincode_dict).fillna('').str.strip().str.lower()
+            
+            # Force Process Type based on win_code
+            df.loc[df['win_code_db'].isin(['d23', 'd80l']), 'Process Type'] = 'direct land haz'
+            df.loc[df['win_code_db'] == 'ccs', 'Process Type'] = 'put pile'
+            
+            # Backup rule: Force anything with a CCS profile to be a put pile (from profile field directly)
+            df.loc[df['Inb Prof'] == 'ccs', 'Process Type'] = 'put pile'
+            
+            # Now apply exclusions and filtering
+            df = df[~df['Process Type'].isin(['=', 'nan', ''])]
+            # Exclude cm/dt types EXCEPT if it is a put pile
+            df = df[~(df['Type'].str.contains('cm|dt', na=False) & (~df['Process Type'].str.contains('put', na=False)))]
+            
+            df['Weight'] = pd.to_numeric(df['Weight'], errors='coerce').fillna(0)
+            df['pH'] = pd.to_numeric(df['pH'], errors='coerce').fillna(0)
+            df['Age'] = pd.to_numeric(df['Age'], errors='coerce').fillna(0)
+            
+            df = df.drop_duplicates(subset=['Track No'], keep='last')
+            
             # Preserve existing statuses and pending sampling
             try:
                 preserved_statuses = pd.read_sql_query("SELECT track_no, status, reject_notes, outgoing_manifest FROM drum_inventory WHERE status NOT IN ('FINAL CODED', 'ACTIVE') OR reject_notes IS NOT NULL OR outgoing_manifest IS NOT NULL", conn)
@@ -235,14 +247,10 @@ def upload_vpi():
             pending_sampling = conn.execute("SELECT * FROM drum_inventory WHERE process_type = 'PENDING SAMPLING'").fetchall()
             
             conn.execute('DELETE FROM drum_inventory')
-
-            profiles_df = pd.read_sql_query("SELECT LOWER(profile_number) as profile_number, voc_percentage FROM profiles", conn)
             
-            # Text values mapped from DB are safely inside the database block now
+            # Map VOC percentage
             voc_dict = dict(zip(profiles_df['profile_number'], profiles_df['voc_percentage']))
             df['voc_ppm'] = df['Inb Prof'].map(voc_dict).fillna(0)
-            
-            # Convert text flags like 'TBD' safely to numeric 0
             df['voc_ppm'] = pd.to_numeric(df['voc_ppm'], errors='coerce').fillna(0)
             df['voc_weight'] = df['Weight'] * df['voc_ppm']
             
