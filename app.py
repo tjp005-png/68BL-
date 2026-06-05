@@ -1,8 +1,10 @@
+print("[DEBUG] 1. Importing python modules...")
 import sys
 import sqlite3
 from datetime import date
 from contextlib import closing
 from flask import Flask, render_template
+print("[DEBUG] 2. Python standard/Flask modules imported.")
 
 # Import Blueprints
 from routes_receiving import receiving_bp
@@ -260,7 +262,9 @@ def upgrade_db():
         
         conn.commit()
 
+print("[DEBUG] 3. Running upgrade_db()...")
 upgrade_db()
+print("[DEBUG] 4. upgrade_db() completed successfully.")
 
 # ==========================================
 #        ROUTES (PORTAL / HUB)
@@ -289,7 +293,9 @@ def portal_hub():
                            drum_jobs_count=drum_jobs_count)
 
 if __name__ == '__main__':
+    print("[DEBUG] 5. Starting backup scheduler...")
     start_backup_scheduler(app)
+    print("[DEBUG] 6. Backup scheduler initialized.")
     
     if getattr(sys, 'frozen', False):
         import logging
@@ -301,6 +307,7 @@ if __name__ == '__main__':
         print("  Keep this window open. Press Ctrl+C to stop the server.")
         print("=========================================================")
         
+    print("[DEBUG] 7. Starting socketio.run()...")
     if getattr(sys, 'frozen', False):
         socketio.run(app, host='0.0.0.0', port=5002, allow_unsafe_werkzeug=True)
     else:
