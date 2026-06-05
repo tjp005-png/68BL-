@@ -49,7 +49,25 @@ from shared_state import socketio, DB_PATH
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=15)
     conn.row_factory = sqlite3.Row 
-    conn.execute('PRAGMA journal_mode=WAL;')
+    
+    # Check if database is on a network drive to avoid WAL mode locks/hangs
+    is_network = False
+    if DB_PATH.startswith(r'\\'):
+        is_network = True
+    elif os.name == 'nt':
+        try:
+            import ctypes
+            drive = os.path.splitdrive(os.path.abspath(DB_PATH))[0]
+            if drive:
+                is_network = (ctypes.windll.kernel32.GetDriveTypeW(drive + "\\") == 4)
+        except:
+            pass
+            
+    if is_network:
+        conn.execute('PRAGMA journal_mode=DELETE;')
+    else:
+        conn.execute('PRAGMA journal_mode=WAL;')
+        
     return conn
 
 def column_exists(cursor, table_name, column_name):
