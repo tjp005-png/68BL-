@@ -7,17 +7,26 @@ from flask import Flask, render_template
 print("[DEBUG] 2. Python standard/Flask modules imported.")
 
 # Import Blueprints
+print("[DEBUG] 2.1 Importing routes_receiving...")
 from routes_receiving import receiving_bp
+print("[DEBUG] 2.2 Importing routes_chemist...")
 from routes_chemist import chemist_bp
+print("[DEBUG] 2.3 Importing routes_reports...")
 from routes_reports import reports_bp
+print("[DEBUG] 2.4 Importing routes_schedule...")
 from routes_schedule import schedule_bp
+print("[DEBUG] 2.5 Importing routes_stu...")
 from routes_stu import stu_bp
+print("[DEBUG] 2.6 Importing routes_approvals...")
 from routes_approvals import approvals_bp
+print("[DEBUG] 2.7 Importing shared_state...")
 from shared_state import socketio
 import sys
 import os
 
+print("[DEBUG] 2.8 Importing routes_backups...")
 from routes_backups import backups_bp, start_backup_scheduler
+print("[DEBUG] 2.9 All imports complete.")
 
 if getattr(sys, 'frozen', False):
     template_folder = os.path.join(sys._MEIPASS, 'templates')
