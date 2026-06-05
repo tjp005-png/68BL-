@@ -24,7 +24,7 @@ def require_auth(f):
     return decorated
 
 SECONDARY_BACKUP_DIR = os.environ.get("SECONDARY_BACKUP_DIR", r"F:\Truck_Log_Backups")
-I_DRIVE_DIR = os.environ.get("I_DRIVE_DIR", r"I:\Buttonwillow\LAB\Inventory")
+I_DRIVE_DIR = os.environ.get("I_DRIVE_DIR", r"I:\Buttonwillow\LAB\Operations App Test")
 
 def run_backup_logic():
     if not os.path.exists(DB_PATH):
