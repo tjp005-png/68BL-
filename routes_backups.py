@@ -24,6 +24,7 @@ def require_auth(f):
     return decorated
 
 SECONDARY_BACKUP_DIR = os.environ.get("SECONDARY_BACKUP_DIR", r"F:\Truck_Log_Backups")
+I_DRIVE_DIR = os.environ.get("I_DRIVE_DIR", r"I:\Buttonwillow\LAB\Inventory")
 
 def run_backup_logic():
     if not os.path.exists(DB_PATH):
@@ -52,7 +53,7 @@ def run_backup_logic():
                 with dest_thumb:
                     src.backup(dest_thumb)
                 dest_thumb.close()
-                secondary_msg = " (Also saved to F: drive)"
+                secondary_msg += " (Also saved to F: drive)"
                 
                 # Maintain rolling window of 10 backups on thumbdrive
                 all_thumb = sorted([f for f in os.listdir(SECONDARY_BACKUP_DIR) if f.startswith('database_backup_') and f.endswith('.db')])
@@ -63,9 +64,42 @@ def run_backup_logic():
                         except OSError:
                             pass
             except Exception as e:
-                secondary_msg = f" (Thumbdrive save failed: {e})"
-        else:
-            secondary_msg = " (F: drive not found, skipped secondary backup)"
+                secondary_msg += f" (F: drive save failed: {e})"
+                
+        # Attempt I: drive sync (if the drive of I_DRIVE_DIR is mounted and we are not running directly from it)
+        i_db_path = os.path.join(I_DRIVE_DIR, "database.db")
+        drive_letter = os.path.splitdrive(I_DRIVE_DIR)[0] + "\\"
+        if os.path.exists(drive_letter) and os.path.abspath(DB_PATH) != os.path.abspath(i_db_path):
+            try:
+                os.makedirs(I_DRIVE_DIR, exist_ok=True)
+                
+                # 1. Hot backup to I:\Buttonwillow\LAB\Inventory\database.db for startup sync
+                dest_i_db = sqlite3.connect(i_db_path)
+                with dest_i_db:
+                    src.backup(dest_i_db)
+                dest_i_db.close()
+                
+                # 2. Rolling timestamped backup in I:\Buttonwillow\LAB\Inventory\backups\
+                i_backup_dir = os.path.join(I_DRIVE_DIR, "backups")
+                os.makedirs(i_backup_dir, exist_ok=True)
+                i_timestamped_path = os.path.join(i_backup_dir, filename)
+                dest_i_timestamped = sqlite3.connect(i_timestamped_path)
+                with dest_i_timestamped:
+                    src.backup(dest_i_timestamped)
+                dest_i_timestamped.close()
+                
+                secondary_msg += " (Also synced to I: drive)"
+                
+                # Maintain rolling window of 10 backups on I: drive
+                all_i_backups = sorted([f for f in os.listdir(i_backup_dir) if f.startswith('database_backup_') and f.endswith('.db')])
+                if len(all_i_backups) > 10:
+                    for old_file in all_i_backups[:-10]:
+                        try:
+                            os.remove(os.path.join(i_backup_dir, old_file))
+                        except OSError:
+                            pass
+            except Exception as e:
+                secondary_msg += f" (I: drive sync failed: {e})"
             
         src.close()
         
