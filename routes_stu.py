@@ -245,8 +245,7 @@ def upload_vpi():
             
             # Map VOC percentage
             voc_dict = dict(zip(profiles_df['profile_number'], profiles_df['voc_percentage']))
-            df['voc_ppm'] = df['Inb Prof'].map(voc_dict).fillna(0)
-            df['voc_ppm'] = pd.to_numeric(df['voc_ppm'], errors='coerce').fillna(0)
+            df['voc_ppm'] = pd.to_numeric(df['Inb Prof'].map(voc_dict), errors='coerce').fillna(0.0)
             df['voc_weight'] = df['Weight'] * df['voc_ppm']
             
             if 'Area' in df.columns:
