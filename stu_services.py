@@ -225,7 +225,7 @@ def parse_drum_labels_from_pdf(file_stream):
                                 rest_of_line = line[idx:]
                                 line_num_match = re.search(r'^\s*([0-9]+[A-Z]?)', rest_of_line)
                                 if line_num_match: manifest_line_num = line_num_match.group(1)
-                                size_match = re.search(r'\b(?:(\d{1,4}\s?(?:DM|DF|DP|CF|TP|GAL|G|TT|FBIN|BIN))|((?:PAL|BAG|BA|CTN|BOX|CY|YARD|YD|FBIN|BIN)))\b', rest_of_line, re.IGNORECASE)
+                                size_match = re.search(r'\b(?:(\d{1,4}\s?(?:DM|DF|DP|CF|TP|GAL|G|TT|FBIN|BIN|BA))|((?:PAL|BAG|BA|CTN|BOX|CY|YARD|YD|FBIN|BIN)))\b', rest_of_line, re.IGNORECASE)
                                 if size_match: 
                                     container_size = (size_match.group(1) if size_match.group(1) else size_match.group(2)).upper()
                                     wc_match = re.search(r'\b([A-Z0-9]{3,4})\b', rest_of_line[size_match.end():].strip())

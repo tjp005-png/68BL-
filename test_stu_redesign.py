@@ -244,5 +244,28 @@ class TestSTURedesignFlow(unittest.TestCase):
         self.assertEqual(rows[0]['series_id'], rows[1]['series_id'])
         conn.close()
 
+    def test_container_ba_parsing(self):
+        """Test regex parsing of container quantity/size with 'BA' and '5 BA'"""
+        import re
+        regex = r'\b(?:(\d{1,4}\s?(?:DM|DF|DP|CF|TP|GAL|G|TT|FBIN|BIN|BA))|((?:PAL|BAG|BA|CTN|BOX|CY|YARD|YD|FBIN|BIN)))\b'
+        
+        # Test digit-preceded container size
+        match1 = re.search(regex, "5 BA", re.IGNORECASE)
+        self.assertIsNotNone(match1)
+        size1 = (match1.group(1) if match1.group(1) else match1.group(2)).upper()
+        self.assertEqual(size1, "5 BA")
+
+        # Test standalone container size
+        match2 = re.search(regex, "BA", re.IGNORECASE)
+        self.assertIsNotNone(match2)
+        size2 = (match2.group(1) if match2.group(1) else match2.group(2)).upper()
+        self.assertEqual(size2, "BA")
+
+        # Test another digit-preceded size
+        match3 = re.search(regex, "12 DM", re.IGNORECASE)
+        self.assertIsNotNone(match3)
+        size3 = (match3.group(1) if match3.group(1) else match3.group(2)).upper()
+        self.assertEqual(size3, "12 DM")
+
 if __name__ == '__main__':
     unittest.main()
