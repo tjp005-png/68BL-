@@ -308,20 +308,23 @@ if __name__ == '__main__':
     start_backup_scheduler(app)
     print("[DEBUG] 6. Backup scheduler initialized.")
     
+    # Dev runs on 5002, Live/Production runs on 5000
+    port = 5002 if 'Truck_Log_App_Dev' in os.getcwd() else 5000
+    
     if getattr(sys, 'frozen', False):
         import logging
         log = logging.getLogger('werkzeug')
         log.setLevel(logging.ERROR)
         print("=========================================================")
         print("  Truck Log Production Server is now Running!")
-        print("  Please navigate to: http://localhost:5002 in your browser")
+        print(f"  Please navigate to: http://localhost:{port} in your browser")
         print("  Keep this window open. Press Ctrl+C to stop the server.")
         print("=========================================================")
         
     print("[DEBUG] 7. Starting socketio.run()...")
     if getattr(sys, 'frozen', False):
-        socketio.run(app, host='0.0.0.0', port=5002, allow_unsafe_werkzeug=True)
+        socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
     else:
-        socketio.run(app, host='0.0.0.0', port=5002, allow_unsafe_werkzeug=True, debug=False)
+        socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True, debug=False)
 
 
