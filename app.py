@@ -192,6 +192,8 @@ def upgrade_db():
         if not column_exists(cursor, 'drum_inventory', 'job_id'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN job_id TEXT')
         if not column_exists(cursor, 'drum_inventory', 'status'): cursor.execute("ALTER TABLE drum_inventory ADD COLUMN status TEXT DEFAULT 'PENDING'")
         if not column_exists(cursor, 'drum_inventory', 'location'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN location TEXT')
+        if not column_exists(cursor, 'drum_inventory', 'reject_notes'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN reject_notes TEXT')
+        if not column_exists(cursor, 'drum_inventory', 'outgoing_manifest'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN outgoing_manifest TEXT')
 
         # 5. DRUM SAMPLING COMPLIANCE TABLES
         cursor.execute('''

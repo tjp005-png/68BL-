@@ -270,9 +270,10 @@ def upload_vpi():
                 track = str(p['track_no']).strip().upper()
                 if track in imported_tracks:
                     continue
-                loc_val = p['location'] if 'location' in p.keys() else None
+                loc_val = p['location']
+                status_val = p['status'] if p['status'] is not None else 'PLANT RECEIVED'
                 conn.execute("INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status, reject_notes, outgoing_manifest, location) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                             (p['track_no'], p['inb_prof'], p['manifest'], p['process_type'], p['weight'], p['ph'], p['age'], p['voc_ppm'], p['voc_weight'], p['import_date'], p['job_id'], p.get('status', 'PLANT RECEIVED'), p.get('reject_notes'), p.get('outgoing_manifest'), loc_val))
+                             (p['track_no'], p['inb_prof'], p['manifest'], p['process_type'], p['weight'], p['ph'], p['age'], p['voc_ppm'], p['voc_weight'], p['import_date'], p['job_id'], status_val, p['reject_notes'], p['outgoing_manifest'], loc_val))
                 
             conn.commit()
     except Exception as e: 

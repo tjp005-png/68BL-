@@ -279,5 +279,50 @@ class TestSTURedesignFlow(unittest.TestCase):
         size3 = (match3.group(1) if match3.group(1) else match3.group(2)).upper()
         self.assertEqual(size3, "12 DM")
 
+    def test_upload_vpi(self):
+        """Test uploading a VPI CSV file and verifying database ingestion and pending preservation"""
+        import io
+        
+        # 1. Insert a pending sampling drum to verify it gets preserved during upload
+        conn = original_connect(TEST_DB_PATH)
+        conn.execute('''
+            INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status)
+            VALUES ('DRUM-PENDING', 'P-STU-TEST', 'MAN-111', 'PENDING SAMPLING', 100.0, 7.0, 10.0, 10.0, 1000.0, '2026-06-01', 'JOB-111', 'PLANT RECEIVED')
+        ''')
+        conn.commit()
+        conn.close()
+
+        csv_data = (
+            "Track No,Process Type,Weight,pH,Inb Prof,Age,Type,Area\n"
+            "DRUM-NEW,direct land haz,450.0,6.5,P-STU-TEST,5.0,DM,Area-51\n"
+            "DRUM-PENDING-OVERWRITE,pending sampling,200.0,8.0,P-STU-TEST,2.0,DM,Area-52\n"
+        )
+        
+        data = {
+            'vpi_file': (io.BytesIO(csv_data.encode('utf-8')), 'test_vpi.csv')
+        }
+        
+        response = self.client.post('/upload_vpi', data=data, content_type='multipart/form-data')
+        self.assertEqual(response.status_code, 302)
+
+        # Verify DB contents
+        conn = original_connect(TEST_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        
+        # The new drum DRUM-NEW should be in inventory with status 'FINAL CODED'
+        row_new = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-NEW'").fetchone()
+        self.assertIsNotNone(row_new)
+        self.assertEqual(row_new['process_type'], 'direct land haz')
+        self.assertEqual(row_new['location'], 'Area-51')
+        self.assertEqual(row_new['status'], 'FINAL CODED')
+
+        # The pending sampling drum DRUM-PENDING (which was not in CSV) should be preserved
+        row_pending = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-PENDING'").fetchone()
+        self.assertIsNotNone(row_pending)
+        self.assertEqual(row_pending['process_type'], 'PENDING SAMPLING')
+        self.assertEqual(row_pending['status'], 'PLANT RECEIVED')
+
+        conn.close()
+
 if __name__ == '__main__':
     unittest.main()
