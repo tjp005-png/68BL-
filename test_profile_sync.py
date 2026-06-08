@@ -11,12 +11,17 @@ TEST_DB_PATH = 'test_database.db'
 TEST_EXCEL_PATH = 'test_masterprofile.xlsx'
 os.environ['MASTERPROFILE_PATH'] = TEST_EXCEL_PATH
 
+import shared_state
+shared_state.DB_PATH = TEST_DB_PATH
+shared_state.MASTER_EXCEL_PATH = TEST_EXCEL_PATH
+
 # Override database connection locally
 import database
+database.MASTER_EXCEL_PATH = TEST_EXCEL_PATH
 original_connect = sqlite3.connect
 
 def mock_connect(database_name, *args, **kwargs):
-    if database_name == 'database.db':
+    if database_name == 'database.db' or str(database_name).endswith('database.db'):
         return original_connect(TEST_DB_PATH, *args, **kwargs)
     return original_connect(database_name, *args, **kwargs)
 

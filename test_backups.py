@@ -8,11 +8,20 @@ from flask import session
 # Patch sqlite3 connect globally for test database isolation
 TEST_DB_PATH = 'test_database.db'
 TEST_BACKUP_DIR = 'test_backups_dir'
+TEST_I_DRIVE_DIR = 'test_i_drive_dir'
+
+import shared_state
+shared_state.DB_PATH = TEST_DB_PATH
 
 original_connect = sqlite3.connect
 
 def mock_connect(database, *args, **kwargs):
-    if database == 'database.db':
+    # If it is the main database connection, redirect to TEST_DB_PATH
+    import os
+    db_abs = os.path.abspath(database)
+    main_db_abs = os.path.abspath(TEST_DB_PATH)
+    prod_db_abs = os.path.abspath('database.db')
+    if db_abs == main_db_abs or db_abs == prod_db_abs or database == 'database.db':
         return original_connect(TEST_DB_PATH, *args, **kwargs)
     return original_connect(database, *args, **kwargs)
 
@@ -28,6 +37,7 @@ import routes_backups
 # Point the blueprint constants to test directories
 routes_backups.DB_PATH = TEST_DB_PATH
 routes_backups.BACKUP_DIR = TEST_BACKUP_DIR
+routes_backups.I_DRIVE_DIR = TEST_I_DRIVE_DIR
 
 class TestDatabaseBackups(unittest.TestCase):
     @classmethod
@@ -56,6 +66,12 @@ class TestDatabaseBackups(unittest.TestCase):
         if os.path.exists(TEST_BACKUP_DIR):
             try:
                 shutil.rmtree(TEST_BACKUP_DIR)
+            except OSError:
+                pass
+        # Remove test I drive directory
+        if os.path.exists(TEST_I_DRIVE_DIR):
+            try:
+                shutil.rmtree(TEST_I_DRIVE_DIR)
             except OSError:
                 pass
 
@@ -185,6 +201,44 @@ class TestDatabaseBackups(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertEqual(row[1], 'T-100')
         conn.close()
+
+    def test_i_drive_sync_and_rotation(self):
+        # Verify that running backup logic creates the database.db in I_DRIVE_DIR
+        # and also a timestamped backup in I_DRIVE_DIR/backups/
+        success, result = routes_backups.run_backup_logic()
+        self.assertTrue(success)
+        self.assertIn("Also synced to I: drive", result)
+        
+        # Verify startup sync DB is in I_DRIVE_DIR
+        i_db_path = os.path.join(TEST_I_DRIVE_DIR, "database.db")
+        self.assertTrue(os.path.exists(i_db_path))
+        
+        # Check that it's a valid database
+        conn = original_connect(i_db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='truck_logs'")
+        self.assertIsNotNone(cursor.fetchone())
+        conn.close()
+        
+        # Verify timestamped backup in backups/ subdir
+        i_backup_dir = os.path.join(TEST_I_DRIVE_DIR, "backups")
+        self.assertTrue(os.path.exists(i_backup_dir))
+        files = os.listdir(i_backup_dir)
+        self.assertEqual(len(files), 1)
+        self.assertTrue(files[0].startswith("database_backup_"))
+        
+        # Now touch 11 files in the simulated I-drive backups directory to test rotation
+        for i in range(12):
+            dummy_path = os.path.join(i_backup_dir, f"database_backup_20260605_1200{i:02d}.db")
+            with open(dummy_path, 'w') as f:
+                f.write('SQLite dummy')
+                
+        # Run backup logic again. It should rotate and keep exactly 10 in I_DRIVE_DIR/backups/
+        success, result = routes_backups.run_backup_logic()
+        self.assertTrue(success)
+        
+        i_files = sorted([f for f in os.listdir(i_backup_dir) if f.startswith('database_backup_')])
+        self.assertEqual(len(i_files), 10)
 
 if __name__ == '__main__':
     unittest.main()

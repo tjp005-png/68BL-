@@ -6,10 +6,18 @@ from datetime import date, datetime
 
 # Override the database connection globally at sqlite3 level
 TEST_DB_PATH = 'test_database.db'
+
+import shared_state
+shared_state.DB_PATH = TEST_DB_PATH
+shared_state.MASTER_EXCEL_PATH = 'nonexistent_test.xlsx'
+
+import database
+database.MASTER_EXCEL_PATH = 'nonexistent_test.xlsx'
+
 original_connect = sqlite3.connect
 
 def mock_connect(database, *args, **kwargs):
-    if database == 'database.db':
+    if database == 'database.db' or str(database).endswith('database.db'):
         return original_connect(TEST_DB_PATH, *args, **kwargs)
     return original_connect(database, *args, **kwargs)
 

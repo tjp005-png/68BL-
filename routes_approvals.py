@@ -237,7 +237,8 @@ def auto_sync_profiles():
             
     return jsonify({'updated': updates_made})
 
-UPLOAD_FOLDER = r'C:\Users\PEREIRT446445\OneDrive - cleanharbors.com\Desktop\Truck_Log_App_Dev\uploads\profiles'
+from shared_state import UPLOADS_DIR
+UPLOAD_FOLDER = UPLOADS_DIR
 
 @approvals_bp.route('/api/profile/search')
 def api_profile_search():
