@@ -296,6 +296,8 @@ class TestSTURedesignFlow(unittest.TestCase):
             "Track No,Process Type,Weight,pH,Inb Prof,Age,Type,Area\n"
             "DRUM-NEW,direct land haz,450.0,6.5,P-STU-TEST,5.0,DM,Area-51\n"
             "DRUM-PENDING-OVERWRITE,pending sampling,200.0,8.0,P-STU-TEST,2.0,DM,Area-52\n"
+            "DRUM-HEAVY-BULK,direct land nh,42000.0,7.0,P-STU-TEST,5.0,Roll-Off,Area-53\n"
+            "DRUM-HEAVY-PUT,put pile,35000.0,7.0,P-STU-TEST,5.0,Roll-Off,Cell 34 Open\n"
         )
         
         data = {
@@ -321,6 +323,15 @@ class TestSTURedesignFlow(unittest.TestCase):
         self.assertIsNotNone(row_pending)
         self.assertEqual(row_pending['process_type'], 'PENDING SAMPLING')
         self.assertEqual(row_pending['status'], 'PLANT RECEIVED')
+
+        # Verify that DRUM-HEAVY-BULK was excluded (since weight > 5000 and not put pile)
+        row_heavy_bulk = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-HEAVY-BULK'").fetchone()
+        self.assertIsNone(row_heavy_bulk)
+
+        # Verify that DRUM-HEAVY-PUT was imported (since it is a put pile)
+        row_heavy_put = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-HEAVY-PUT'").fetchone()
+        self.assertIsNotNone(row_heavy_put)
+        self.assertEqual(row_heavy_put['process_type'], 'put pile')
 
         conn.close()
 

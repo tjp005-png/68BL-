@@ -218,12 +218,11 @@ def upload_vpi():
             # Now apply exclusions and filtering
             df = df[~df['Process Type'].isin(['=', 'nan', ''])]
             
-            # Exclude bulk loads (type cm/dt and weight > 5000 lbs) EXCEPT if it is a put pile
-            is_cm_dt = df['Type'].str.contains('cm|dt', na=False)
+            # Exclude bulk loads (weight > 5000 lbs) EXCEPT if it is a put pile
             is_heavy = df['Weight'] > 5000
             is_put_pile = df['Process Type'].str.contains('put', na=False)
             
-            df = df[~(is_cm_dt & is_heavy & ~is_put_pile)]
+            df = df[~(is_heavy & ~is_put_pile)]
             
             df['pH'] = pd.to_numeric(df['pH'], errors='coerce').fillna(0)
             df['Age'] = pd.to_numeric(df['Age'], errors='coerce').fillna(0)
