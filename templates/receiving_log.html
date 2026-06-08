@@ -533,7 +533,43 @@
             valueField: 'value',
             labelField: 'text',
             searchField: 'text',
-            create: false,
+            create: function(input, callback) {
+                const clean = input.trim().toUpperCase();
+                
+                // Show loading overlay
+                const overlay = document.createElement('div');
+                overlay.id = 'profile-validation-overlay';
+                overlay.style.position = 'fixed';
+                overlay.style.top = '0';
+                overlay.style.left = '0';
+                overlay.style.width = '100%';
+                overlay.style.height = '100%';
+                overlay.style.backgroundColor = 'rgba(0,0,0,0.6)';
+                overlay.style.zIndex = '9999';
+                overlay.style.display = 'flex';
+                overlay.style.flexDirection = 'column';
+                overlay.style.justifyContent = 'center';
+                overlay.style.alignItems = 'center';
+                overlay.style.color = 'white';
+                overlay.innerHTML = '<div class="spinner-border text-light mb-3" style="width: 3rem; height: 3rem;" role="status"></div><h3 class="fw-bold">Validating Profile...</h3><p class="fs-5">Syncing with Master Profile List, please wait.</p>';
+                document.body.appendChild(overlay);
+
+                fetch('/api/get_profile_details/' + encodeURIComponent(clean))
+                    .then(res => {
+                        if (document.body.contains(overlay)) document.body.removeChild(overlay);
+                        if(res.ok) {
+                            callback({ value: clean, text: clean });
+                        } else {
+                            alert("❌ Error: Profile " + clean + " is not an approved profile in the Master Profile List.");
+                            callback(false);
+                        }
+                    })
+                    .catch(() => {
+                        if (document.body.contains(overlay)) document.body.removeChild(overlay);
+                        alert("❌ Error validating profile.");
+                        callback(false);
+                    });
+            },
             maxOptions: 50,
             selectOnTab: true,
             load: function(query, callback) {

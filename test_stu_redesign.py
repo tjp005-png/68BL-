@@ -10,7 +10,11 @@ TEST_DB_PATH = 'test_database.db'
 # Patch connect globally so the Flask app uses our test database
 original_connect = sqlite3.connect
 def mock_connect(database, *args, **kwargs):
-    if database == 'database.db':
+    import os
+    db_abs = os.path.abspath(database)
+    main_db_abs = os.path.abspath(TEST_DB_PATH)
+    prod_db_abs = os.path.abspath('database.db')
+    if db_abs == main_db_abs or db_abs == prod_db_abs or database == 'database.db':
         return original_connect(TEST_DB_PATH, *args, **kwargs)
     return original_connect(database, *args, **kwargs)
 sqlite3.connect = mock_connect
@@ -48,11 +52,19 @@ class TestSTURedesignFlow(unittest.TestCase):
 
     def populate_base_data(self):
         conn = original_connect(TEST_DB_PATH)
+        import os
+        from shared_state import MASTER_EXCEL_PATH
+        excel_mtime = None
+        if os.path.exists(MASTER_EXCEL_PATH):
+            try:
+                excel_mtime = os.path.getmtime(MASTER_EXCEL_PATH)
+            except:
+                pass
         try:
             conn.execute('''
-                INSERT OR IGNORE INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, special_handling)
-                VALUES ('P-STU-TEST', 'Test Generator', 'STU Drum Waste Description', 'BL', 10.0, 'None')
-            ''')
+                INSERT OR REPLACE INTO profiles (profile_number, generator, status, waste_description, win_code, voc_percentage, special_handling, last_synced_mtime)
+                VALUES ('P-STU-TEST', 'Test Generator', 'ACTIVE', 'STU Drum Waste Description', 'BL', 10.0, 'None', ?)
+            ''', (excel_mtime,))
             conn.commit()
         finally:
             conn.close()
@@ -266,6 +278,62 @@ class TestSTURedesignFlow(unittest.TestCase):
         self.assertIsNotNone(match3)
         size3 = (match3.group(1) if match3.group(1) else match3.group(2)).upper()
         self.assertEqual(size3, "12 DM")
+
+    def test_upload_vpi(self):
+        """Test uploading a VPI CSV file and verifying database ingestion and pending preservation"""
+        import io
+        
+        # 1. Insert a pending sampling drum to verify it gets preserved during upload
+        conn = original_connect(TEST_DB_PATH)
+        conn.execute('''
+            INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status)
+            VALUES ('DRUM-PENDING', 'P-STU-TEST', 'MAN-111', 'PENDING SAMPLING', 100.0, 7.0, 10.0, 10.0, 1000.0, '2026-06-01', 'JOB-111', 'PLANT RECEIVED')
+        ''')
+        conn.commit()
+        conn.close()
+
+        csv_data = (
+            "Track No,Process Type,Weight,pH,Inb Prof,Age,Type,Area\n"
+            "DRUM-NEW,direct land haz,450.0,6.5,P-STU-TEST,5.0,DM,Area-51\n"
+            "DRUM-PENDING-OVERWRITE,pending sampling,200.0,8.0,P-STU-TEST,2.0,DM,Area-52\n"
+            "DRUM-HEAVY-BULK,direct land nh,42000.0,7.0,P-STU-TEST,5.0,Roll-Off,Area-53\n"
+            "DRUM-HEAVY-PUT,put pile,35000.0,7.0,P-STU-TEST,5.0,Roll-Off,Cell 34 Open\n"
+        )
+        
+        data = {
+            'vpi_file': (io.BytesIO(csv_data.encode('utf-8')), 'test_vpi.csv')
+        }
+        
+        response = self.client.post('/upload_vpi', data=data, content_type='multipart/form-data')
+        self.assertEqual(response.status_code, 302)
+
+        # Verify DB contents
+        conn = original_connect(TEST_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        
+        # The new drum DRUM-NEW should be in inventory with status 'FINAL CODED'
+        row_new = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-NEW'").fetchone()
+        self.assertIsNotNone(row_new)
+        self.assertEqual(row_new['process_type'], 'direct land haz')
+        self.assertEqual(row_new['location'], 'Area-51')
+        self.assertEqual(row_new['status'], 'FINAL CODED')
+
+        # The pending sampling drum DRUM-PENDING (which was not in CSV) should be preserved
+        row_pending = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-PENDING'").fetchone()
+        self.assertIsNotNone(row_pending)
+        self.assertEqual(row_pending['process_type'], 'PENDING SAMPLING')
+        self.assertEqual(row_pending['status'], 'PLANT RECEIVED')
+
+        # Verify that DRUM-HEAVY-BULK was excluded (since weight > 5000 and not put pile)
+        row_heavy_bulk = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-HEAVY-BULK'").fetchone()
+        self.assertIsNone(row_heavy_bulk)
+
+        # Verify that DRUM-HEAVY-PUT was imported (since it is a put pile)
+        row_heavy_put = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-HEAVY-PUT'").fetchone()
+        self.assertIsNotNone(row_heavy_put)
+        self.assertEqual(row_heavy_put['process_type'], 'put pile')
+
+        conn.close()
 
 if __name__ == '__main__':
     unittest.main()

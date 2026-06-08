@@ -1,19 +1,40 @@
+print("[DEBUG] 1. Importing python modules...")
+import sys
 import sqlite3
 from datetime import date
 from contextlib import closing
 from flask import Flask, render_template
+print("[DEBUG] 2. Python standard/Flask modules imported.")
 
 # Import Blueprints
+print("[DEBUG] 2.1 Importing routes_receiving...")
 from routes_receiving import receiving_bp
+print("[DEBUG] 2.2 Importing routes_chemist...")
 from routes_chemist import chemist_bp
+print("[DEBUG] 2.3 Importing routes_reports...")
 from routes_reports import reports_bp
+print("[DEBUG] 2.4 Importing routes_schedule...")
 from routes_schedule import schedule_bp
+print("[DEBUG] 2.5 Importing routes_stu...")
 from routes_stu import stu_bp
+print("[DEBUG] 2.6 Importing routes_approvals...")
 from routes_approvals import approvals_bp
+print("[DEBUG] 2.7 Importing shared_state...")
 from shared_state import socketio
-from routes_backups import backups_bp, start_backup_scheduler
+import sys
+import os
 
-app = Flask(__name__)
+print("[DEBUG] 2.8 Importing routes_backups...")
+from routes_backups import backups_bp, start_backup_scheduler
+print("[DEBUG] 2.9 All imports complete.")
+
+if getattr(sys, 'frozen', False):
+    template_folder = os.path.join(sys._MEIPASS, 'templates')
+    static_folder = os.path.join(sys._MEIPASS, 'static')
+    app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
+else:
+    app = Flask(__name__)
+
 app.secret_key = 'clh-secret-session-key-2026'
 socketio.init_app(app)
 
@@ -34,10 +55,30 @@ app.register_blueprint(backups_bp)
 TARGET_ROUTING_CODE = "BL"
 PERMITTED_CODES = {'CBP', 'CNO', 'CBPS', 'CNOS', 'CNIA', 'CCS', 'CCSS', 'D23', 'D80L'}
 
+from shared_state import socketio, DB_PATH
+
 def get_db_connection():
-    conn = sqlite3.connect('database.db', timeout=15)
+    conn = sqlite3.connect(DB_PATH, timeout=15)
     conn.row_factory = sqlite3.Row 
-    conn.execute('PRAGMA journal_mode=WAL;')
+    
+    # Check if database is on a network drive to avoid WAL mode locks/hangs
+    is_network = False
+    if DB_PATH.startswith(r'\\'):
+        is_network = True
+    elif os.name == 'nt':
+        try:
+            import ctypes
+            drive = os.path.splitdrive(os.path.abspath(DB_PATH))[0]
+            if drive:
+                is_network = (ctypes.windll.kernel32.GetDriveTypeW(drive + "\\") == 4)
+        except:
+            pass
+            
+    if is_network:
+        conn.execute('PRAGMA journal_mode=DELETE;')
+    else:
+        conn.execute('PRAGMA journal_mode=WAL;')
+        
     return conn
 
 def column_exists(cursor, table_name, column_name):
@@ -150,6 +191,9 @@ def upgrade_db():
         if not column_exists(cursor, 'drum_inventory', 'manifest'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN manifest TEXT')
         if not column_exists(cursor, 'drum_inventory', 'job_id'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN job_id TEXT')
         if not column_exists(cursor, 'drum_inventory', 'status'): cursor.execute("ALTER TABLE drum_inventory ADD COLUMN status TEXT DEFAULT 'PENDING'")
+        if not column_exists(cursor, 'drum_inventory', 'location'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN location TEXT')
+        if not column_exists(cursor, 'drum_inventory', 'reject_notes'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN reject_notes TEXT')
+        if not column_exists(cursor, 'drum_inventory', 'outgoing_manifest'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN outgoing_manifest TEXT')
 
         # 5. DRUM SAMPLING COMPLIANCE TABLES
         cursor.execute('''
@@ -229,7 +273,9 @@ def upgrade_db():
         
         conn.commit()
 
+print("[DEBUG] 3. Running upgrade_db()...")
 upgrade_db()
+print("[DEBUG] 4. upgrade_db() completed successfully.")
 
 # ==========================================
 #        ROUTES (PORTAL / HUB)
@@ -258,7 +304,24 @@ def portal_hub():
                            drum_jobs_count=drum_jobs_count)
 
 if __name__ == '__main__':
+    print("[DEBUG] 5. Starting backup scheduler...")
     start_backup_scheduler(app)
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)
+    print("[DEBUG] 6. Backup scheduler initialized.")
+    
+    if getattr(sys, 'frozen', False):
+        import logging
+        log = logging.getLogger('werkzeug')
+        log.setLevel(logging.ERROR)
+        print("=========================================================")
+        print("  Truck Log Production Server is now Running!")
+        print("  Please navigate to: http://localhost:5002 in your browser")
+        print("  Keep this window open. Press Ctrl+C to stop the server.")
+        print("=========================================================")
+        
+    print("[DEBUG] 7. Starting socketio.run()...")
+    if getattr(sys, 'frozen', False):
+        socketio.run(app, host='0.0.0.0', port=5002, allow_unsafe_werkzeug=True)
+    else:
+        socketio.run(app, host='0.0.0.0', port=5002, allow_unsafe_werkzeug=True, debug=False)
 
 

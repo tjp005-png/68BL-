@@ -187,11 +187,11 @@ def add_master_profile():
 
         epa_id = request.form.get('epa_id', '').strip()
         conn.execute('''
-            REPLACE INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, special_handling, ph_range, physical_appearance, flash_point, expiration_date, epa_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            REPLACE INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, special_handling, ph_range, physical_appearance, flash_point, expiration_date, epa_id, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'S')
         ''', (request.form.get('profile_number').upper(), generator, request.form.get('waste_description', ''), request.form.get('win_code', ''), voc_pct, request.form.get('special_handling', ''), request.form.get('ph_range', ''), request.form.get('physical_appearance', ''), request.form.get('flash_point', ''), request.form.get('expiration_date', ''), epa_id))
         conn.commit()
-    return redirect(url_for('approvals_bp.approvals_portal'))
+    return redirect(url_for('approvals_bp.approvals_portal', selected_profile=request.form.get('profile_number').upper()))
 
 @approvals_bp.route('/api/auto_sync_profiles', methods=['POST'])
 def auto_sync_profiles():
@@ -237,7 +237,8 @@ def auto_sync_profiles():
             
     return jsonify({'updated': updates_made})
 
-UPLOAD_FOLDER = r'C:\Users\PEREIRT446445\OneDrive - cleanharbors.com\Desktop\Truck_Log_App_Dev\uploads\profiles'
+from shared_state import UPLOADS_DIR
+UPLOAD_FOLDER = UPLOADS_DIR
 
 @approvals_bp.route('/api/profile/search')
 def api_profile_search():
