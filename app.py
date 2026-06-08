@@ -320,6 +320,6 @@ if __name__ == '__main__':
     if getattr(sys, 'frozen', False):
         socketio.run(app, host='0.0.0.0', port=5002, allow_unsafe_werkzeug=True)
     else:
-        socketio.run(app, host='0.0.0.0', port=5002, allow_unsafe_werkzeug=True, debug=True)
+        socketio.run(app, host='0.0.0.0', port=5002, allow_unsafe_werkzeug=True, debug=False)
 
 
