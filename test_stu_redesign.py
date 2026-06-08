@@ -10,7 +10,11 @@ TEST_DB_PATH = 'test_database.db'
 # Patch connect globally so the Flask app uses our test database
 original_connect = sqlite3.connect
 def mock_connect(database, *args, **kwargs):
-    if str(database).endswith('database.db'):
+    import os
+    db_abs = os.path.abspath(database)
+    main_db_abs = os.path.abspath(TEST_DB_PATH)
+    prod_db_abs = os.path.abspath('database.db')
+    if db_abs == main_db_abs or db_abs == prod_db_abs or database == 'database.db':
         return original_connect(TEST_DB_PATH, *args, **kwargs)
     return original_connect(database, *args, **kwargs)
 sqlite3.connect = mock_connect

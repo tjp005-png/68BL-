@@ -21,7 +21,11 @@ database.MASTER_EXCEL_PATH = TEST_EXCEL_PATH
 original_connect = sqlite3.connect
 
 def mock_connect(database_name, *args, **kwargs):
-    if database_name == 'database.db' or str(database_name).endswith('database.db'):
+    import os
+    db_abs = os.path.abspath(database_name)
+    main_db_abs = os.path.abspath(TEST_DB_PATH)
+    prod_db_abs = os.path.abspath('database.db')
+    if db_abs == main_db_abs or db_abs == prod_db_abs or database_name == 'database.db':
         return original_connect(TEST_DB_PATH, *args, **kwargs)
     return original_connect(database_name, *args, **kwargs)
 
