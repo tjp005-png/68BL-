@@ -312,7 +312,7 @@ if __name__ == '__main__':
         import time
         from shared_state import DB_PATH
         
-        i_drive_dir = os.environ.get("I_DRIVE_DIR", r"I:\Buttonwillow\LAB\Operations App Test")
+        i_drive_dir = os.environ.get("I_DRIVE_DIR", r"I:\Buttonwillow\LAB\Operations App")
         i_db_path = os.path.join(i_drive_dir, "database.db")
         drive_letter = os.path.splitdrive(i_drive_dir)[0] + "\\"
         
