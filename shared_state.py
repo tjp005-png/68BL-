@@ -28,10 +28,10 @@ dynamic_excel = ""
 if user_profile:
     dynamic_excel = os.path.join(user_profile, "OneDrive - cleanharbors.com", "O365 Facilities Schedule - BL - WAP", "MASTERPROFILE.xlsx")
 
-if os.path.exists(local_excel):
-    MASTER_EXCEL_PATH = local_excel
-elif dynamic_excel and os.path.exists(dynamic_excel):
+if dynamic_excel and os.path.exists(dynamic_excel):
     MASTER_EXCEL_PATH = dynamic_excel
+elif os.path.exists(local_excel):
+    MASTER_EXCEL_PATH = local_excel
 else:
     MASTER_EXCEL_PATH = local_excel
 
