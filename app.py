@@ -304,6 +304,48 @@ def portal_hub():
                            drum_jobs_count=drum_jobs_count)
 
 if __name__ == '__main__':
+    # -------------------------------------------------------------
+    # STARTUP SYNC: Pull latest database from I: drive if newer
+    # -------------------------------------------------------------
+    try:
+        import shutil
+        import time
+        from shared_state import DB_PATH
+        
+        i_drive_dir = os.environ.get("I_DRIVE_DIR", r"I:\Buttonwillow\LAB\Operations App Test")
+        i_db_path = os.path.join(i_drive_dir, "database.db")
+        drive_letter = os.path.splitdrive(i_drive_dir)[0] + "\\"
+        
+        if os.path.exists(drive_letter) and os.path.exists(i_db_path):
+            if os.path.abspath(DB_PATH) != os.path.abspath(i_db_path):
+                network_mtime = os.path.getmtime(i_db_path)
+                local_exists = os.path.exists(DB_PATH)
+                local_mtime = os.path.getmtime(DB_PATH) if local_exists else 0
+                
+                if network_mtime > local_mtime:
+                    print("\n" + "="*70)
+                    print("  [DATABASE SYNC] A newer database was found on the network I: drive!")
+                    print(f"  Network version: {time.ctime(network_mtime)}")
+                    print(f"  Local version:   {time.ctime(local_mtime) if local_exists else 'None (New Install)'}")
+                    print("="*70)
+                    
+                    try:
+                        choice = input("  Would you like to sync the latest database from I: drive locally? (y/n) [default: n]: ").strip().lower()
+                    except (KeyboardInterrupt, EOFError):
+                        choice = "n"
+                        
+                    if choice in ['y', 'yes']:
+                        print("  Syncing database from I: drive... please wait...")
+                        if local_exists:
+                            shutil.copy2(DB_PATH, DB_PATH + ".bak")
+                        shutil.copy2(i_db_path, DB_PATH)
+                        print("  Sync complete! Running database upgrades...")
+                        upgrade_db()
+                    else:
+                        print("  Sync skipped. Proceeding with local database.")
+    except Exception as e:
+        print(f"  [DATABASE SYNC] Sync check failed: {e}")
+
     print("[DEBUG] 5. Starting backup scheduler...")
     start_backup_scheduler(app)
     print("[DEBUG] 6. Backup scheduler initialized.")
