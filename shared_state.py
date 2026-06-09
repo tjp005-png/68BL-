@@ -21,26 +21,19 @@ if not os.path.exists(UPLOADS_DIR):
 
 local_excel = os.path.join(APP_DIR, 'MASTERPROFILE.xlsx')
 
-if getattr(sys, 'frozen', False):
-    # Production compiled mode: ONLY look next to the exe, never search local user profile paths
+# Resolve OneDrive path dynamically for the currently logged-in user.
+# OneDrive automatically synchronizes the cloud file locally in the background.
+user_profile = os.environ.get("USERPROFILE", "")
+dynamic_excel = ""
+if user_profile:
+    dynamic_excel = os.path.join(user_profile, "OneDrive - cleanharbors.com", "O365 Facilities Schedule - BL - WAP", "MASTERPROFILE.xlsx")
+
+if os.path.exists(local_excel):
     MASTER_EXCEL_PATH = local_excel
+elif dynamic_excel and os.path.exists(dynamic_excel):
+    MASTER_EXCEL_PATH = dynamic_excel
 else:
-    # Local development mode: try to resolve OneDrive path dynamics for convenience
-    user_profile = os.environ.get("USERPROFILE", "")
-    dynamic_excel = ""
-    if user_profile:
-        dynamic_excel = os.path.join(user_profile, "OneDrive - cleanharbors.com", "O365 Facilities Schedule - BL - WAP", "MASTERPROFILE.xlsx")
-
-    hardcoded_excel = r'C:\Users\PEREIRT446445\OneDrive - cleanharbors.com\O365 Facilities Schedule - BL - WAP\MASTERPROFILE.xlsx'
-
-    if os.path.exists(local_excel):
-        MASTER_EXCEL_PATH = local_excel
-    elif dynamic_excel and os.path.exists(dynamic_excel):
-        MASTER_EXCEL_PATH = dynamic_excel
-    elif os.path.exists(r'C:\Users\PEREIRT446445') and os.path.exists(hardcoded_excel):
-        MASTER_EXCEL_PATH = hardcoded_excel
-    else:
-        MASTER_EXCEL_PATH = local_excel
+    MASTER_EXCEL_PATH = local_excel
 
 # Multi-user sync tracker dictionary for scheduling and UI refreshes
 SCHEDULE_UPDATES = {'GLOBAL': 0}
