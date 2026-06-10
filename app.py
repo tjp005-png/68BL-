@@ -303,6 +303,10 @@ def portal_hub():
                            las_count=las_count,
                            drum_jobs_count=drum_jobs_count)
 
+@app.route('/tonnage')
+def tonnage_dashboard():
+    return render_template('tonnage_dashboard.html')
+
 if __name__ == '__main__':
     # -------------------------------------------------------------
     # STARTUP SYNC: Pull latest database from I: drive if newer
