@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -147,6 +147,31 @@
             font-size: 14px;
             font-weight: 600;
         }
+        .schedule-impact {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+            padding: 18px 20px;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-left: 5px solid var(--accent-rose);
+            border-radius: var(--card-radius);
+        }
+        .schedule-impact-item strong {
+            display: block;
+            margin-top: 4px;
+            color: var(--text-primary);
+            font-size: 22px;
+        }
+        .schedule-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-primary);
+            font-size: 13px;
+            font-weight: 600;
+        }
         .scenario-range {
             color: var(--text-secondary);
             font-size: 12px;
@@ -207,9 +232,9 @@
             align-items: center;
             min-height: 44px;
             padding: 0 16px;
-            color: var(--text-primary);
-            background: var(--hover-bg);
-            border: 1px solid var(--input-border);
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.45);
             border-radius: 22px;
             font-family: var(--font-sans);
             font-size: 14px;
@@ -218,8 +243,9 @@
             transition: var(--transition);
         }
         .btn-portal:hover {
-            border-color: var(--accent-teal);
-            color: var(--accent-teal);
+            border-color: #ffffff;
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.2);
         }
         .btn-remove-job {
             padding: 5px 10px;
@@ -268,7 +294,7 @@
             .job-form-grid { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
         }
         @media (max-width: 640px) {
-            .job-form-grid, .job-summary { grid-template-columns: 1fr; }
+            .job-form-grid, .job-summary, .schedule-impact { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -278,8 +304,13 @@
     <!-- Header Section -->
     <header>
         <div class="header-title">
-            <h1 id="app-title">Buttonwillow Waste Profile Analyzer</h1>
-            <p id="app-subtitle">Multi-Year Base Tonnage &amp; Tonnage Extrapolation (2023 - 2026)</p>
+            <div style="display:flex; align-items:center; gap:16px;">
+                <img src="{{ url_for('static', filename='CLH_BIG.png') }}" alt="Clean Harbors" style="height:58px; background:#fff; padding:5px; border-radius:8px;">
+                <div>
+                    <h1 id="app-title">Base Tonnage &amp; Forecasting</h1>
+                    <p id="app-subtitle">Buttonwillow Facility Operations Hub | 2023 - 2026</p>
+                </div>
+            </div>
         </div>
         <div class="header-controls">
             <a class="btn-portal" href="{{ url_for('portal_hub') }}">Back to Operations Hub</a>
@@ -529,6 +560,31 @@
     <!-- TAB 2: EXTRAPOLATION VIEW -->
     <div id="extrapolation-tab" class="forecast-layout" style="display: none;">
         <div class="projection-banner">Projection scope: Unit 31 is excluded from all forecast, scenario, and capacity calculations.</div>
+        <div class="schedule-impact">
+            <div class="schedule-impact-item">
+                <span class="kpi-label">Scheduled Loads</span>
+                <strong id="val-schedule-loads">Loading...</strong>
+            </div>
+            <div class="schedule-impact-item">
+                <span class="kpi-label">Estimated Scheduled Tons</span>
+                <strong id="val-schedule-tons">0 T</strong>
+            </div>
+            <div class="schedule-impact-item">
+                <span class="kpi-label">Forecast Uplift</span>
+                <strong id="val-schedule-uplift">0 T</strong>
+            </div>
+            <div class="schedule-impact-item">
+                <span class="kpi-label">Schedule Coverage</span>
+                <strong id="val-schedule-coverage">0%</strong>
+                <label class="schedule-toggle">
+                    <input type="checkbox" id="use-schedule-floor" checked>
+                    Use schedule as forecast floor
+                </label>
+            </div>
+            <div class="kpi-subtext" id="schedule-impact-note" style="grid-column:1/-1;">
+                Loading scheduled-load estimates from the Operations Hub database.
+            </div>
+        </div>
         <div class="projection-controls">
             <div class="filter-group">
                 <label class="filter-label" for="forecast-scenario">Forecast Scenario</label>
@@ -990,6 +1046,14 @@
     let forecastScenario = 'expected';
     let projectionCompletedMonths = 5;
     let potentialJobs = [];
+    let useScheduleFloor = true;
+    let scheduleImpact = {
+        scheduled_loads: 0,
+        estimated_tons: 0,
+        matched_loads: 0,
+        fallback_loads: 0,
+        excluded_unit31_loads: 0
+    };
 
     function getProjectionCompletedMonths() {
         return projectionCompletedMonths;
@@ -1266,6 +1330,10 @@
             recalculateDashboard();
         });
         document.getElementById('potential-job-form').addEventListener('submit', addPotentialJob);
+        document.getElementById('use-schedule-floor').addEventListener('change', event => {
+            useScheduleFloor = event.target.checked;
+            recalculateDashboard();
+        });
         actualsWmu.addEventListener('change', () => {
             selectedWmu = actualsWmu.value;
             filterWmu.value = selectedWmu;
@@ -1278,6 +1346,7 @@
         // Render initial view
         updateKpisAndOverviewCharts();
         applyFilters();
+        loadScheduleImpact();
     }
 
     // Recompute KPIs and update Overview Charts based on filters
@@ -2257,8 +2326,22 @@
             excludedProfiles,
             customCategories,
             excludedWmus: ['31'],
-            potentialJobs
+            potentialJobs,
+            scheduledTons: useScheduleFloor ? scheduleImpact.estimated_tons : 0
         });
+    }
+
+    async function loadScheduleImpact() {
+        try {
+            const response = await fetch('/api/tonnage/schedule-impact?year=2026');
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            scheduleImpact = await response.json();
+        } catch (error) {
+            console.error('Unable to load schedule impact:', error);
+            document.getElementById('schedule-impact-note').innerText =
+                'Schedule data is currently unavailable; projections are using received-volume history only.';
+        }
+        recalculateDashboard();
     }
 
     function loadPotentialJobs() {
@@ -2625,6 +2708,19 @@
             `${stats.health.active} active, ${stats.health.declining} declining, ${stats.health.dormant} dormant established profiles`;
         document.getElementById('val-exec-pipeline').innerText = Math.round(stats.pipeline.weighted).toLocaleString() + ' T';
         document.getElementById('val-exec-ytd').innerText = Math.round(stats.reconciliation.ytd_actual).toLocaleString() + ' T';
+        const coveredLoads = scheduleImpact.matched_loads || 0;
+        const totalLoads = scheduleImpact.scheduled_loads || 0;
+        const coverage = totalLoads > 0 ? coveredLoads / totalLoads * 100 : 0;
+        document.getElementById('val-schedule-loads').innerText = totalLoads.toLocaleString();
+        document.getElementById('val-schedule-tons').innerText =
+            Math.round(scheduleImpact.estimated_tons || 0).toLocaleString() + ' T';
+        document.getElementById('val-schedule-uplift').innerText =
+            Math.round(stats.schedule.uplift || 0).toLocaleString() + ' T';
+        document.getElementById('val-schedule-coverage').innerText = coverage.toFixed(0) + '%';
+        document.getElementById('schedule-impact-note').innerText =
+            `${coveredLoads.toLocaleString()} loads use profile-specific truck history; ` +
+            `${(scheduleImpact.fallback_loads || 0).toLocaleString()} use the facility average. ` +
+            `${(scheduleImpact.excluded_unit31_loads || 0).toLocaleString()} Unit 31 loads are excluded.`;
 
         document.getElementById('val-frac-total').innerText = (stats.seasonality.total_frac * 100).toFixed(1) + '%';
         document.getElementById('val-frac-base').innerText = (stats.seasonality.base_frac * 100).toFixed(1) + '%';

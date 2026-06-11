@@ -3,7 +3,7 @@ import sys
 import sqlite3
 from datetime import date
 from contextlib import closing
-from flask import Flask, render_template
+from flask import Flask, jsonify, render_template, request
 print("[DEBUG] 2. Python standard/Flask modules imported.")
 
 # Import Blueprints
@@ -306,6 +306,112 @@ def portal_hub():
 @app.route('/tonnage')
 def tonnage_dashboard():
     return render_template('tonnage_dashboard.html')
+
+@app.route('/api/tonnage/schedule-impact')
+def tonnage_schedule_impact():
+    try:
+        forecast_year = int(request.args.get('year', date.today().year))
+    except (TypeError, ValueError):
+        forecast_year = date.today().year
+
+    start_date = max(date.today(), date(forecast_year, 1, 1))
+    end_date = date(forecast_year, 12, 31)
+    if start_date > end_date:
+        return jsonify({
+            'year': forecast_year,
+            'as_of': date.today().isoformat(),
+            'scheduled_loads': 0,
+            'estimated_tons': 0,
+            'matched_loads': 0,
+            'fallback_loads': 0,
+            'excluded_unit31_loads': 0,
+            'monthly': []
+        })
+
+    with closing(get_db_connection()) as conn:
+        facility_average_row = conn.execute('''
+            SELECT AVG(net_weight) AS avg_tons
+            FROM truck_logs
+            WHERE exit_weight IS NOT NULL
+              AND net_weight > 0
+              AND test_status != 'REJECTED'
+              AND COALESCE(cell_location, '') NOT LIKE '31%'
+        ''').fetchone()
+        facility_average = float(facility_average_row['avg_tons'] or 20.0)
+
+        profile_averages = {
+            str(row['profile_number'] or '').strip().upper(): {
+                'avg_tons': float(row['avg_tons']),
+                'sample_size': int(row['sample_size'])
+            }
+            for row in conn.execute('''
+                SELECT
+                    TRIM(UPPER(profile_number)) AS profile_number,
+                    AVG(net_weight) AS avg_tons,
+                    COUNT(*) AS sample_size
+                FROM truck_logs
+                WHERE exit_weight IS NOT NULL
+                  AND net_weight > 0
+                  AND test_status != 'REJECTED'
+                  AND COALESCE(cell_location, '') NOT LIKE '31%'
+                GROUP BY TRIM(UPPER(profile_number))
+            ''').fetchall()
+        }
+
+        schedule_rows = conn.execute('''
+            SELECT schedule_date, profile_number, routing_code, SUM(COALESCE(load_count, 1)) AS load_count
+            FROM daily_schedule
+            WHERE schedule_date BETWEEN ? AND ?
+            GROUP BY schedule_date, TRIM(UPPER(profile_number)), TRIM(UPPER(routing_code))
+            ORDER BY schedule_date
+        ''', (start_date.isoformat(), end_date.isoformat())).fetchall()
+
+    monthly = {}
+    scheduled_loads = 0
+    estimated_tons = 0.0
+    matched_loads = 0
+    fallback_loads = 0
+    excluded_unit31_loads = 0
+
+    for row in schedule_rows:
+        loads = max(0, int(row['load_count'] or 0))
+        profile_number = str(row['profile_number'] or '').strip().upper()
+        routing_code = str(row['routing_code'] or '').strip().upper()
+        if 'CNOS' in profile_number or 'CNOS' in routing_code:
+            excluded_unit31_loads += loads
+            continue
+
+        profile_average = profile_averages.get(profile_number)
+        if profile_average and profile_average['sample_size'] >= 3:
+            tons_per_load = profile_average['avg_tons']
+            matched_loads += loads
+        else:
+            tons_per_load = facility_average
+            fallback_loads += loads
+
+        row_tons = loads * tons_per_load
+        month_key = row['schedule_date'][:7]
+        month = monthly.setdefault(month_key, {'month': month_key, 'loads': 0, 'estimated_tons': 0.0})
+        month['loads'] += loads
+        month['estimated_tons'] += row_tons
+        scheduled_loads += loads
+        estimated_tons += row_tons
+
+    for month in monthly.values():
+        month['estimated_tons'] = round(month['estimated_tons'], 1)
+
+    return jsonify({
+        'year': forecast_year,
+        'as_of': date.today().isoformat(),
+        'through': end_date.isoformat(),
+        'scheduled_loads': scheduled_loads,
+        'estimated_tons': round(estimated_tons, 1),
+        'matched_loads': matched_loads,
+        'fallback_loads': fallback_loads,
+        'excluded_unit31_loads': excluded_unit31_loads,
+        'facility_average_tons_per_load': round(facility_average, 2),
+        'monthly': list(monthly.values())
+    })
 
 if __name__ == '__main__':
     # -------------------------------------------------------------

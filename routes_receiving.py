@@ -67,7 +67,7 @@ def home():
 def search_profiles():
     query = request.args.get('q', '').strip() 
     with closing(get_db_connection()) as conn:
-        results = conn.execute('SELECT profile_number FROM profiles WHERE profile_number LIKE ? LIMIT 50', ('%' + query + '%',)).fetchall()
+        results = conn.execute("SELECT profile_number FROM profiles WHERE profile_number LIKE ? AND status != 'NOT FOUND' LIMIT 50", ('%' + query + '%',)).fetchall()
     return jsonify([{'value': row['profile_number'], 'text': row['profile_number']} for row in results])
 
 @receiving_bp.route('/api/get_profile_details/<path:profile_number>')

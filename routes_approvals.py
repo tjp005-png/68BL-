@@ -251,7 +251,7 @@ def api_profile_search():
         profiles = conn.execute('''
             SELECT *
             FROM profiles
-            WHERE profile_number LIKE ? OR generator LIKE ? OR lab_number LIKE ? OR win_code LIKE ? OR epa_id LIKE ?
+            WHERE (profile_number LIKE ? OR generator LIKE ? OR lab_number LIKE ? OR win_code LIKE ? OR epa_id LIKE ?) AND status != 'NOT FOUND'
             ORDER BY profile_number ASC
             LIMIT 50
         ''', (like_query, like_query, like_query, like_query, like_query)).fetchall()

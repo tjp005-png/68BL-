@@ -1,24 +1,24 @@
 /* CSS Variables for Theme Support */
 :root {
-    --bg-color: #0f172a;
-    --card-bg: #172033;
-    --card-border: #334155;
-    --text-primary: #f8fafc;
-    --text-secondary: #a8b4c7;
-    --accent-emerald: #14b8a6;
-    --accent-teal: #0d9488;
-    --accent-indigo: #3b82f6;
+    --bg-color: #171717;
+    --card-bg: #242424;
+    --card-border: #454545;
+    --text-primary: #ffffff;
+    --text-secondary: #c8c8c8;
+    --accent-emerald: #198754;
+    --accent-teal: #970000;
+    --accent-indigo: #6c757d;
     --accent-amber: #f59e0b;
     --accent-gray: #64748b;
-    --accent-rose: #ef4444;
+    --accent-rose: #c00000;
     --glow-emerald: rgba(20, 184, 166, 0.08);
     --glow-teal: rgba(13, 148, 136, 0.08);
     --glow-indigo: rgba(59, 130, 246, 0.08);
     --glow-amber: rgba(245, 158, 11, 0.08);
     --glow-rose: rgba(239, 68, 68, 0.08);
-    --input-bg: #111827;
-    --input-border: #475569;
-    --hover-bg: #1e293b;
+    --input-bg: #1b1b1b;
+    --input-border: #5d5d5d;
+    --hover-bg: #333333;
     --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --card-radius: 10px;
     --transition: all 0.18s ease;
@@ -26,11 +26,11 @@
 
 /* Light Theme overrides */
 [data-theme="light"] {
-    --bg-color: #f1f5f9;
+    --bg-color: #f4f6f9;
     --card-bg: #ffffff;
-    --card-border: #d7e0ea;
-    --text-primary: #0f172a;
-    --text-secondary: #5e6d82;
+    --card-border: #d8dde3;
+    --text-primary: #212529;
+    --text-secondary: #68717d;
     --input-bg: #ffffff;
     --input-border: #cbd5e1;
     --hover-bg: #f8fafc;
@@ -88,8 +88,9 @@ header {
     align-items: center;
     margin-bottom: 32px;
     padding: 20px 24px;
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
+    background: #970000;
+    border: 1px solid #5a0000;
+    border-top: 5px solid #5a0000;
     border-radius: var(--card-radius);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
@@ -98,12 +99,12 @@ header {
     font-size: 28px;
     font-weight: 700;
     letter-spacing: -0.5px;
-    color: var(--text-primary);
+    color: #ffffff;
     margin-bottom: 4px;
 }
 
 .header-title p {
-    color: var(--text-secondary);
+    color: rgba(255, 255, 255, 0.78);
     font-size: 14px;
 }
 
@@ -115,9 +116,9 @@ header {
 
 /* Theme Toggle Button */
 .btn-theme {
-    background: var(--hover-bg);
-    border: 1px solid var(--input-border);
-    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    color: #ffffff;
     width: 44px;
     height: 44px;
     border-radius: 50%;

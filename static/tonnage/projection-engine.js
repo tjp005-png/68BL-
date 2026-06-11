@@ -40,6 +40,7 @@
         const excludedProfiles = options.excludedProfiles || new Set();
         const customCategories = options.customCategories || new Map();
         const excludedWmus = new Set(options.excludedWmus || ['31']);
+        const scheduledTons = Math.max(0, Number(options.scheduledTons) || 0);
         const potentialJobs = (options.potentialJobs || []).filter(job =>
             job &&
             !excludedWmus.has(String(job.wmu)) &&
@@ -150,8 +151,11 @@
                 pipeline.monthlyWeighted[month] += weighted / duration;
             }
         });
+        const ytdTotal = ytd.established + ytd.emerging + ytd.campaign;
+        const linearOrganicTotal = linear.total;
+        linear.schedule_uplift = Math.max(0, scheduledTons - Math.max(0, linearOrganicTotal - ytdTotal));
         linear.potential = pipeline.weighted;
-        linear.total += linear.potential;
+        linear.total = linearOrganicTotal + linear.schedule_uplift + linear.potential;
 
         const scenarioForecasts = {};
         Object.entries(SCENARIOS).forEach(([name, factors]) => {
@@ -164,7 +168,9 @@
                 potential
             };
             forecast.base = forecast.established + forecast.emerging;
-            forecast.total = forecast.base + forecast.campaign + forecast.potential;
+            const organicTotal = forecast.base + forecast.campaign;
+            forecast.schedule_uplift = Math.max(0, scheduledTons - Math.max(0, organicTotal - ytdTotal));
+            forecast.total = organicTotal + forecast.schedule_uplift + forecast.potential;
             scenarioForecasts[name] = forecast;
         });
         const selected = scenarioForecasts[scenarioName];
@@ -189,7 +195,6 @@
             fraction => selected.established * fraction + selected.emerging / 12
         );
         const ytdBase = ytd.established + ytd.emerging;
-        const ytdTotal = ytdBase + ytd.campaign;
         const annualSplits = years.map(year => {
             const base = annual[year].established;
             const campaign = annual[year].campaign + annual[year].emerging;
@@ -217,6 +222,10 @@
             },
             health,
             pipeline,
+            schedule: {
+                estimated_tons: scheduledTons,
+                uplift: selected.schedule_uplift
+            },
             ytd,
             confidence: {
                 low: scenarioForecasts.conservative.total,
