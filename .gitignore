@@ -17,3 +17,16 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+
+# PyInstaller build artifacts
+build/
+dist/
+*.zip
+
+# Local scratch and backup folders
+scratch/
+backups/
+
+# Raw data and project reference folders
+Tonnage Base Project/
+uploads/
