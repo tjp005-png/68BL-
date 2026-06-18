@@ -36,6 +36,7 @@ else:
     app = Flask(__name__)
 
 app.secret_key = 'clh-secret-session-key-2026'
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 socketio.init_app(app)
 
 
@@ -489,6 +490,6 @@ if __name__ == '__main__':
     if getattr(sys, 'frozen', False):
         socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
     else:
-        socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True, debug=False)
+        socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True, debug=True)
 
 
