@@ -335,7 +335,54 @@ class TestSTURedesignFlow(unittest.TestCase):
         self.assertIsNotNone(row_heavy_put)
         self.assertEqual(row_heavy_put['process_type'], 'put pile')
 
+    def test_waste_acceptance_log(self):
+        """Test the waste acceptance active reviews log CRUD endpoints"""
+        # Ensure profile exists for join testing
+        conn = original_connect(TEST_DB_PATH)
+        conn.execute("INSERT OR REPLACE INTO profiles (profile_number, generator) VALUES ('P-TEST-LOG', 'Log Test Gen')")
+        conn.commit()
         conn.close()
+
+        # Add to log
+        res_add = self.client.post('/api/waste_acceptance/log/add', 
+                                   data=json.dumps({'profile_number': 'P-TEST-LOG'}),
+                                   content_type='application/json')
+        self.assertEqual(res_add.status_code, 200)
+        self.assertTrue(json.loads(res_add.data)['success'])
+
+        # Get log
+        res_get = self.client.get('/api/waste_acceptance/log')
+        self.assertEqual(res_get.status_code, 200)
+        logs = json.loads(res_get.data)
+        self.assertEqual(len(logs), 1)
+        self.assertEqual(logs[0]['profile_number'], 'P-TEST-LOG')
+        self.assertEqual(logs[0]['generator'], 'Log Test Gen')
+        self.assertEqual(logs[0]['status'], 'Under Review')
+        log_id = logs[0]['id']
+
+        # Update log
+        res_upd = self.client.post('/api/waste_acceptance/log/update', 
+                                   data=json.dumps({'id': log_id, 'status': 'Pending Lab', 'assigned_to': 'TestUser', 'notes': 'Some notes'}),
+                                   content_type='application/json')
+        self.assertEqual(res_upd.status_code, 200)
+
+        # Get log again to verify update
+        res_get_upd = self.client.get('/api/waste_acceptance/log')
+        logs_upd = json.loads(res_get_upd.data)
+        self.assertEqual(logs_upd[0]['status'], 'Pending Lab')
+        self.assertEqual(logs_upd[0]['assigned_to'], 'TestUser')
+        self.assertEqual(logs_upd[0]['notes'], 'Some notes')
+
+        # Delete log
+        res_del = self.client.post('/api/waste_acceptance/log/delete', 
+                                   data=json.dumps({'id': log_id}),
+                                   content_type='application/json')
+        self.assertEqual(res_del.status_code, 200)
+
+        # Get log to verify deletion
+        res_get_del = self.client.get('/api/waste_acceptance/log')
+        logs_del = json.loads(res_get_del.data)
+        self.assertEqual(len(logs_del), 0)
 
 if __name__ == '__main__':
     unittest.main()

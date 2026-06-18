@@ -435,6 +435,60 @@
                 </div> <!-- End Profile Dashboard -->
                 
             </div>
+        <!-- Active Reviews Panel -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card premium-card border-secondary shadow-sm">
+                    <div class="card-header card-header-dark py-2 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold d-flex align-items-center">
+                            <span class="me-2 fs-5">📋</span> Active Reviews Log
+                        </span>
+                        <div class="d-flex gap-2 align-items-center">
+                            <input type="text" id="addLogInput" class="form-control form-control-sm border-0 fw-bold text-uppercase" placeholder="Profile Number..." style="width: 150px;">
+                            <button class="btn btn-sm btn-crimson fw-bold text-nowrap" onclick="addReviewLog()">➕ Add to Log</button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped align-middle mb-0 text-nowrap">
+                                <thead class="small bg-dark text-white">
+                                    <tr>
+                                        <th>Profile</th>
+                                        <th>Generator</th>
+                                        <th>Status</th>
+                                        <th>Assigned To</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="reviewLogBody" class="small fw-semibold">
+                                    <tr><td colspan="5" class="text-center text-muted py-4">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Notes Modal -->
+    <div class="modal fade" id="reviewNotesModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-dark text-white py-2">
+                    <h5 class="modal-title fs-6 fw-bold">Review Notes</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <input type="hidden" id="modalLogId">
+                    <textarea id="modalLogNotes" class="form-control border-secondary" rows="5" placeholder="Add notes here..."></textarea>
+                </div>
+                <div class="modal-footer py-2 bg-light">
+                    <button type="button" class="btn btn-sm btn-secondary fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-crimson fw-bold" onclick="saveReviewNotes()">Save Notes</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -701,6 +755,133 @@
                     if (match) selectProfile(match);
                 });
         }
+
+        // --- ACTIVE REVIEWS LOG LOGIC ---
+        function loadReviewLog() {
+            fetch('/api/waste_acceptance/log')
+                .then(r => r.json())
+                .then(data => {
+                    const tbody = document.getElementById('reviewLogBody');
+                    if (data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No profiles currently in review.</td></tr>';
+                        return;
+                    }
+                    
+                    tbody.innerHTML = '';
+                    data.forEach(log => {
+                        let statusColor = 'text-dark';
+                        if(log.status === 'Approved') statusColor = 'text-success';
+                        else if(log.status === 'Rejected') statusColor = 'text-danger';
+                        else if(log.status === 'Pending Lab') statusColor = 'text-warning';
+                        else if(log.status === 'Need Info') statusColor = 'text-info';
+                        
+                        tbody.innerHTML += `
+                            <tr>
+                                <td><a href="#" onclick="searchAndSelect('${log.profile_number}'); return false;" class="fw-bold text-decoration-none">${log.profile_number}</a></td>
+                                <td class="text-truncate" style="max-width: 150px;">${log.generator || '---'}</td>
+                                <td>
+                                    <select class="form-select form-select-sm border-0 fw-bold ${statusColor} bg-transparent" onchange="updateReviewLog(${log.id}, 'status', this.value)">
+                                        <option value="Under Review" ${log.status==='Under Review'?'selected':''}>Under Review</option>
+                                        <option value="Pending Lab" ${log.status==='Pending Lab'?'selected':''}>Pending Lab</option>
+                                        <option value="Need Info" ${log.status==='Need Info'?'selected':''}>Need Info</option>
+                                        <option value="Approved" ${log.status==='Approved'?'selected':''}>Approved</option>
+                                        <option value="Rejected" ${log.status==='Rejected'?'selected':''}>Rejected</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" value="${log.assigned_to || ''}" placeholder="Unassigned" onblur="updateReviewLog(${log.id}, 'assigned_to', this.value)">
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-light border p-1" title="Notes" onclick="openReviewNotes(${log.id}, \`${(log.notes || '').replace(/"/g, '&quot;')}\`)">✏️</button>
+                                    <button class="btn btn-sm btn-light border p-1 text-danger" title="Clear from log" onclick="deleteReviewLog(${log.id})">🗑️</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                });
+        }
+
+        function searchAndSelect(profileNum) {
+            // Re-use the existing search API to get the full profile object then select it
+            fetch(`/api/profile/search?q=${encodeURIComponent(profileNum)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if(data.length > 0) {
+                        selectProfile(data[0]);
+                        window.scrollTo(0, 0);
+                    } else {
+                        alert("Profile data not found in master registry.");
+                    }
+                });
+        }
+
+        function addReviewLog() {
+            const input = document.getElementById('addLogInput');
+            const prof = input.value.trim();
+            if(!prof) return;
+            
+            fetch('/api/waste_acceptance/log/add', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({profile_number: prof})
+            }).then(r => r.json()).then(res => {
+                if(res.success) {
+                    input.value = '';
+                    loadReviewLog();
+                } else {
+                    alert('Error adding to log: ' + res.error);
+                }
+            });
+        }
+
+        function updateReviewLog(id, field, value) {
+            const payload = {id: id};
+            payload[field] = value;
+            fetch('/api/waste_acceptance/log/update', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            }).then(r => r.json()).then(res => {
+                if(res.success && field === 'status') {
+                    loadReviewLog(); // Refresh colors
+                }
+            });
+        }
+
+        function deleteReviewLog(id) {
+            if(!confirm("Remove this profile from the active review log?")) return;
+            fetch('/api/waste_acceptance/log/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id: id})
+            }).then(r => r.json()).then(res => {
+                if(res.success) loadReviewLog();
+            });
+        }
+
+        function openReviewNotes(id, currentNotes) {
+            document.getElementById('modalLogId').value = id;
+            document.getElementById('modalLogNotes').value = currentNotes;
+            const modal = new bootstrap.Modal(document.getElementById('reviewNotesModal'));
+            modal.show();
+        }
+
+        function saveReviewNotes() {
+            const id = document.getElementById('modalLogId').value;
+            const notes = document.getElementById('modalLogNotes').value;
+            updateReviewLog(id, 'notes', notes);
+            
+            // Close modal
+            const modalEl = document.getElementById('reviewNotesModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            modal.hide();
+            loadReviewLog(); // Refresh log
+        }
+
+        // Initialize log on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadReviewLog();
+        });
 
     </script>
 </body>

@@ -265,6 +265,18 @@ def upgrade_db():
         ''')
         if not column_exists(cursor, 'profile_wvi', 'is_synced'):
             cursor.execute('ALTER TABLE profile_wvi ADD COLUMN is_synced INTEGER DEFAULT 0')
+            
+        # 8. WASTE ACCEPTANCE ACTIVE REVIEWS LOG
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS waste_acceptance_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_number TEXT UNIQUE,
+                status TEXT DEFAULT 'Under Review',
+                assigned_to TEXT,
+                notes TEXT,
+                last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
         
         # Add performance indexes
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_profiles_win_code ON profiles (win_code)")

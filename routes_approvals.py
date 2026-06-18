@@ -383,3 +383,70 @@ def release_las_truck():
         socketio.emit('truck_update', {'date': received_date})
 
     return redirect(url_for('stu_bp.stu_hub', view='pipeline'))
+
+# --- WASTE ACCEPTANCE ACTIVE REVIEWS LOG API ---
+
+@approvals_bp.route('/api/waste_acceptance/log', methods=['GET'])
+def get_waste_acceptance_log():
+    with closing(get_db_connection()) as conn:
+        logs = conn.execute('''
+            SELECT w.*, p.generator 
+            FROM waste_acceptance_log w
+            LEFT JOIN profiles p ON TRIM(UPPER(w.profile_number)) = TRIM(UPPER(p.profile_number))
+            ORDER BY w.last_updated DESC
+        ''').fetchall()
+    return jsonify([dict(row) for row in logs])
+
+@approvals_bp.route('/api/waste_acceptance/log/add', methods=['POST'])
+def add_waste_acceptance_log():
+    data = request.get_json() or {}
+    profile_number = data.get('profile_number', '').strip().upper()
+    if not profile_number:
+        return jsonify({'error': 'Profile number is required'}), 400
+        
+    with closing(get_db_connection()) as conn:
+        try:
+            conn.execute('''
+                INSERT INTO waste_acceptance_log (profile_number, status, assigned_to, notes)
+                VALUES (?, 'Under Review', '', '')
+            ''', (profile_number,))
+            conn.commit()
+            return jsonify({'success': True})
+        except Exception as e:
+            # Handle UNIQUE constraint failure if it already exists
+            return jsonify({'error': str(e)}), 400
+
+@approvals_bp.route('/api/waste_acceptance/log/update', methods=['POST'])
+def update_waste_acceptance_log():
+    data = request.get_json() or {}
+    log_id = data.get('id')
+    status = data.get('status')
+    assigned_to = data.get('assigned_to')
+    notes = data.get('notes')
+    
+    if not log_id:
+        return jsonify({'error': 'Log ID is required'}), 400
+        
+    with closing(get_db_connection()) as conn:
+        conn.execute('''
+            UPDATE waste_acceptance_log 
+            SET status = COALESCE(?, status),
+                assigned_to = COALESCE(?, assigned_to),
+                notes = COALESCE(?, notes),
+                last_updated = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (status, assigned_to, notes, log_id))
+        conn.commit()
+    return jsonify({'success': True})
+
+@approvals_bp.route('/api/waste_acceptance/log/delete', methods=['POST'])
+def delete_waste_acceptance_log():
+    data = request.get_json() or {}
+    log_id = data.get('id')
+    if not log_id:
+        return jsonify({'error': 'Log ID is required'}), 400
+        
+    with closing(get_db_connection()) as conn:
+        conn.execute('DELETE FROM waste_acceptance_log WHERE id = ?', (log_id,))
+        conn.commit()
+    return jsonify({'success': True})
