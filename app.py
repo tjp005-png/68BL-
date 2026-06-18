@@ -155,6 +155,20 @@ def upgrade_db():
             cursor.execute('ALTER TABLE profiles ADD COLUMN rcra TEXT')
         if not column_exists(cursor, 'profiles', 'comments'):
             cursor.execute('ALTER TABLE profiles ADD COLUMN comments TEXT')
+        if not column_exists(cursor, 'profiles', 'ldr_required'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN ldr_required TEXT DEFAULT "No"')
+        if not column_exists(cursor, 'profiles', 'state_waste_code'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN state_waste_code TEXT')
+        if not column_exists(cursor, 'profiles', 'federal_waste_code'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN federal_waste_code TEXT')
+        if not column_exists(cursor, 'profiles', 'dot_description'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN dot_description TEXT')
+        if not column_exists(cursor, 'profiles', 'cyanide'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN cyanide TEXT DEFAULT "No"')
+        if not column_exists(cursor, 'profiles', 'sulfide'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN sulfide TEXT DEFAULT "No"')
+        if not column_exists(cursor, 'profiles', 'free_liquids'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN free_liquids TEXT DEFAULT "No"')
 
         # 3. DAILY SCHEDULE 
         cursor.execute('''
