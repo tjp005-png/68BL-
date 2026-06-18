@@ -154,66 +154,158 @@ def parse_profile_pdf():
     }
     try:
         import pdfplumber
+        import re
+        import math
+        
+        def get_distance(x1, y1, x2, y2):
+            return math.sqrt((x1-x2)**2 + (y1-y2)**2)
+
+        def find_nearest_word(page, cm, max_dist=100):
+            cx = (cm['x0'] + cm['x1']) / 2
+            cy = (cm['top'] + cm['bottom']) / 2
+            words = page.extract_words()
+            closest = None
+            min_d = max_dist
+            for w in words:
+                wx = (w['x0'] + w['x1']) / 2
+                wy = (w['top'] + w['bottom']) / 2
+                dist = get_distance(cx, cy, wx, wy)
+                if dist < min_d:
+                    min_d = dist
+                    closest = w
+            return closest, min_d
+
         with pdfplumber.open(file) as pdf:
-            full_text = "".join([page.extract_text() + "\n" for page in pdf.pages[:2] if page.extract_text()])
+            full_text = "".join([page.extract_text() + "\n" for page in pdf.pages if page.extract_text()])
             
-            # More resilient Profile Number match
-            prof_match = re.search(r'(?:Profile No\.|Profile:)\s*([A-Z0-9]+)', full_text, re.IGNORECASE)
-            if prof_match: extracted_data['profile_number'] = prof_match.group(1).strip()
-            
-            # Fix Generator Name missing (and make it case insensitive)
-            gen_match = re.search(r'GENERATOR(?: NAME)?:\s*(.*?)\n', full_text, re.IGNORECASE)
-            if gen_match: extracted_data['generator_name'] = gen_match.group(1).strip()
-            
-            desc_match = re.search(r'WASTE DESCRIPTION:\s*(.*?)\n', full_text, re.IGNORECASE)
-            if desc_match: extracted_data['waste_description'] = desc_match.group(1).strip()
-            
-            handling_match = re.search(r'SPECIAL HANDLING.*?:\s*(.*?)\n', full_text, re.IGNORECASE)
-            if handling_match: extracted_data['special_handling'] = handling_match.group(1).strip()
-            
+            # Profile Number
+            prof_match = re.search(r'Profile No\.\s*([A-Z0-9]+)', full_text, re.IGNORECASE)
+            if prof_match:
+                extracted_data['profile_number'] = prof_match.group(1).strip()
+                
+            # Generator Name
+            gen_match = re.search(r'GENERATOR\s+NAME:\s*(.*?)(?:\n|$)', full_text, re.IGNORECASE)
+            if gen_match:
+                extracted_data['generator_name'] = gen_match.group(1).strip()
+                
             # EPA ID
-            epa_match = re.search(r'EPA\s*(?:ID)?\s*(?:No\.)?:\s*([A-Z0-9]+)', full_text, re.IGNORECASE)
-            if epa_match: extracted_data['epa_id'] = epa_match.group(1).strip()
-            
+            epa_match = re.search(r'EPA\s+ID\s*(?:#/REGISTRATION\s*#)?\s*([A-Z0-9]+)', full_text, re.IGNORECASE)
+            if epa_match:
+                extracted_data['epa_id'] = epa_match.group(1).strip()
+                
+            # Waste Description
+            desc_match = re.search(r'CUSTOMER\s+WASTE\s+DESCRIPTION:\s*(.*?)(?:\n|$)', full_text, re.IGNORECASE)
+            if desc_match:
+                extracted_data['waste_description'] = desc_match.group(1).strip()
+                
             # DOT Description
-            dot_match = re.search(r'(?:DOT Description|Shipping Name|Proper Shipping Name):\s*(.*?)\n', full_text, re.IGNORECASE)
-            if dot_match: extracted_data['dot_description'] = dot_match.group(1).strip()
-            
-            # State/Fed waste codes
-            state_match = re.search(r'(?:State Waste Code|State Code|State Codes):\s*([A-Z0-9,\s]+)\n', full_text, re.IGNORECASE)
-            if state_match: extracted_data['state_waste_code'] = state_match.group(1).strip()
-            
-            fed_match = re.search(r'(?:Federal Waste Code|EPA Waste Code|EPA Codes|Federal Codes):\s*([A-Z0-9,\s]+)\n', full_text, re.IGNORECASE)
-            if fed_match: extracted_data['federal_waste_code'] = fed_match.group(1).strip()
-            
-            # pH / Flash point
-            ph_match = re.search(r'pH\s*(?:Range)?:\s*([0-9\.\-\s]+)', full_text, re.IGNORECASE)
-            if ph_match: extracted_data['ph_range'] = ph_match.group(1).strip()
-            
-            fp_match = re.search(r'(?:Flash Point|FP):\s*([A-Z0-9\.\-\s\>\<]+)', full_text, re.IGNORECASE)
-            if fp_match: extracted_data['flash_point'] = fp_match.group(1).strip()
-            
-            # Cyanide / Sulfide / Free Liquids / LDR
-            cyanide_match = re.search(r'Cyanide:\s*(Yes|No)', full_text, re.IGNORECASE)
-            if cyanide_match: extracted_data['cyanide'] = cyanide_match.group(1).strip().capitalize()
-            
-            sulfide_match = re.search(r'Sulfide:\s*(Yes|No)', full_text, re.IGNORECASE)
-            if sulfide_match: extracted_data['sulfide'] = sulfide_match.group(1).strip().capitalize()
+            dot_match = re.search(r'DOT/TDG\s+PROPER\s+SHIPPING\s+NAME:\s*\n\s*(.*?)(?:\n|$)', full_text, re.IGNORECASE)
+            if dot_match:
+                extracted_data['dot_description'] = dot_match.group(1).strip()
+                
+            # State Waste Code
+            state_code = ""
+            m1 = re.search(r'([A-Z0-9]+)\s*\n\s*(?:Texas|State)\s+Waste\s+Code', full_text, re.IGNORECASE)
+            if m1:
+                state_code = m1.group(1).strip()
+            else:
+                m2 = re.search(r'(?:Texas|State)\s+Waste\s+Code\s*\n\s*([A-Z0-9]+)', full_text, re.IGNORECASE)
+                if m2:
+                    state_code = m2.group(1).strip()
+            extracted_data['state_waste_code'] = state_code
 
-            free_liq_match = re.search(r'Free Liquids:\s*(Yes|No)', full_text, re.IGNORECASE)
-            if free_liq_match: extracted_data['free_liquids'] = free_liq_match.group(1).strip().capitalize()
+            # Federal Waste Code - Only search page 2
+            p2_text = pdf.pages[1].extract_text() if len(pdf.pages) >= 2 else ""
+            rcra_codes = sorted(list(set(re.findall(r'\b([DFKPU][0-9]{3})\b', p2_text))))
+            extracted_data['federal_waste_code'] = ", ".join(rcra_codes)
 
-            ldr_match = re.search(r'LDR\s*(?:Required)?:\s*(Yes|No)', full_text, re.IGNORECASE)
-            if ldr_match: extracted_data['ldr_required'] = ldr_match.group(1).strip().capitalize()
-            
-            # Attempt to find physical state checkmarks and normalize to Solid or Liquid
-            state_chk_match = re.search(r'(?:X|☒|☑|\u2611|\u2713|\[X\])\s*(Solid|Liquid|Sludge|Gas|Powder|Debris)', full_text, re.IGNORECASE)
-            if state_chk_match:
-                matched_state = state_chk_match.group(1).strip().lower()
-                if 'liquid' in matched_state or 'sludge' in matched_state:
-                    extracted_data['physical_appearance'] = 'Liquid'
+            # LDR Required
+            ldr_cat_match = re.search(r'LDR\s+CATEGORY:\s*(.*?)(?:\n|$)', full_text, re.IGNORECASE)
+            if ldr_cat_match:
+                cat_text = ldr_cat_match.group(1).strip().lower()
+                if "not subject" in cat_text:
+                    extracted_data['ldr_required'] = "No"
                 else:
-                    extracted_data['physical_appearance'] = 'Solid'
+                    extracted_data['ldr_required'] = "Yes"
+            else:
+                if len(pdf.pages) >= 3:
+                    p3 = pdf.pages[2]
+                    checkmarks = [img for img in p3.images if 8 < img['width'] < 12 and 8 < img['height'] < 12]
+                    checkmarks = sorted(checkmarks, key=lambda c: c['top'])
+                    if checkmarks:
+                        closest, d = find_nearest_word(p3, checkmarks[0])
+                        if closest:
+                            ans = closest['text'].strip().capitalize()
+                            extracted_data['ldr_required'] = "Yes" if ans == "Yes" else "No"
+
+            # Checkmarks on page 1 for Physical Appearance, pH, Flash Point, Free Liquids
+            p1 = pdf.pages[0]
+            p1_checkmarks = [img for img in p1.images if 8 < img['width'] < 12 and 8 < img['height'] < 12]
+            
+            physical_state = "Solid"
+            free_liquids = "No"
+            ph_val = ""
+            fp_val = ""
+            
+            for cm in p1_checkmarks:
+                # 1. Physical State Checkbox (y-coordinate/top is roughly between 250 and 320)
+                if 250 < cm['top'] < 320:
+                    line_words = [w['text'] for w in p1.extract_words() if abs(w['top'] - cm['top']) < 8 and w['x0'] >= cm['x0'] - 2]
+                    line_text = " ".join(line_words).lower()
+                    if "solid without free liquid" in line_text:
+                        physical_state = "Solid"
+                        free_liquids = "No"
+                    elif "liquid" in line_text or "sludge" in line_text:
+                        physical_state = "Liquid"
+                        if "free liquid" in line_text:
+                            free_liquids = "Yes"
+                    elif "powder" in line_text or "monolithic" in line_text:
+                        physical_state = "Solid"
+                
+                # 2. pH Checkbox (top is roughly between 420 and 450, x is roughly between 80 and 130)
+                elif 420 < cm['top'] < 450 and 80 < cm['x0'] < 130:
+                    line_words = [w['text'] for w in p1.extract_words() if abs(w['top'] - cm['top']) < 8 and w['x0'] >= cm['x0'] - 2 and w['x0'] < 160]
+                    line_text = " ".join(line_words)
+                    m = re.search(r'(<=?\s*\d+(?:\.\d+)?|\d+(?:\.\d+)?\s*-\s*\d+(?:\.\d+)?|\d+\s*\(Neutral\)|>=?\s*\d+(?:\.\d+)?)', line_text)
+                    if m:
+                        ph_val = m.group(1)
+
+                # 3. Flash Point Checkbox (top is roughly between 420 and 450, x is roughly less than 50)
+                elif 420 < cm['top'] < 450 and cm['x0'] < 50:
+                    line_words = [w['text'] for w in p1.extract_words() if abs(w['top'] - cm['top']) < 8 and w['x0'] >= cm['x0'] - 2 and w['x0'] < 90]
+                    line_text = " ".join(line_words)
+                    m = re.search(r'(<=?\s*\d+|73\s*-\s*100|\d+\s*-\s*\d+|\d+\s*-\s*\d+|>\s*\d+)', line_text)
+                    if m:
+                        fp_val = m.group(1)
+
+            extracted_data['physical_appearance'] = physical_state
+            extracted_data['free_liquids'] = free_liquids
+            extracted_data['ph_range'] = ph_val if ph_val else "7 (Neutral)"
+            
+            if physical_state == "Solid" and not fp_val:
+                extracted_data['flash_point'] = "Not Required"
+            elif fp_val:
+                extracted_data['flash_point'] = fp_val
+            else:
+                extracted_data['flash_point'] = "> 140"
+
+            # Cyanide and Sulfide (page 2 checkmarks)
+            cyanide = "No"
+            sulfide = "No"
+            if len(pdf.pages) >= 2:
+                p2 = pdf.pages[1]
+                p2_checkmarks = [img for img in p2.images if 8 < img['width'] < 12 and 8 < img['height'] < 12]
+                for cm in p2_checkmarks:
+                    line_words = sorted([w for w in p2.extract_words() if abs(w['top'] - cm['top']) < 8], key=lambda x: x['x0'])
+                    line_text = " ".join([w['text'] for w in line_words]).lower()
+                    if "cyanide" in line_text:
+                        if cm['x0'] < 500:
+                            cyanide = "Yes"
+                    elif "sulfide" in line_text:
+                        if cm['x0'] < 500:
+                            sulfide = "Yes"
+            extracted_data['cyanide'] = cyanide
+            extracted_data['sulfide'] = sulfide
             
         return jsonify(extracted_data)
     except Exception as e:
