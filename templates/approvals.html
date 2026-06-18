@@ -996,11 +996,12 @@
 
         function searchAndSelect(profileNum) {
             // Re-use the existing search API to get the full profile object then select it
-            fetch(`/api/profile/search?q=${encodeURIComponent(profileNum)}`)
+            fetch(`/api/profile/search?q=${encodeURIComponent(profileNum)}&_t=${Date.now()}`)
                 .then(r => r.json())
                 .then(data => {
-                    if(data.length > 0) {
-                        selectProfile(data[0]);
+                    const exactMatch = data.find(p => p.profile_number.toUpperCase() === profileNum.toUpperCase());
+                    if (exactMatch) {
+                        selectProfile(exactMatch);
                         window.scrollTo(0, 0);
                     } else {
                         // Profile not in master registry yet. Open creation form.
