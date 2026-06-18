@@ -706,7 +706,7 @@
             }
 
             searchTimeout = setTimeout(() => {
-                fetch(`/api/profile/search?q=${encodeURIComponent(query)}`)
+                fetch(`/api/profile/search?q=${encodeURIComponent(query)}&_t=${Date.now()}`)
                     .then(r => r.json())
                     .then(data => {
                         searchResults.innerHTML = '';
@@ -853,7 +853,7 @@
             const tbody = document.getElementById('historyTableBody');
             tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">Loading historical data...</td></tr>';
             
-            fetch(`/api/profile/${currentProfile}/history`)
+            fetch(`/api/profile/${currentProfile}/history?_t=${Date.now()}`)
                 .then(r => r.json())
                 .then(data => {
                     if (data.length === 0) {
@@ -877,7 +877,7 @@
             const list = document.getElementById('attachmentList');
             list.innerHTML = '<li class="list-group-item text-muted small text-center py-2">Loading documents...</li>';
             
-            fetch(`/api/profile/${currentProfile}/attachments`)
+            fetch(`/api/profile/${currentProfile}/attachments?_t=${Date.now()}`)
                 .then(r => r.json())
                 .then(data => {
                     if (data.length === 0) {
@@ -939,7 +939,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const preselect = urlParams.get('selected_profile');
         if (preselect) {
-            fetch(`/api/profile/search?q=${encodeURIComponent(preselect)}`)
+            fetch(`/api/profile/search?q=${encodeURIComponent(preselect)}&_t=${Date.now()}`)
                 .then(r => r.json())
                 .then(data => {
                     const match = data.find(p => p.profile_number.toUpperCase() === preselect.toUpperCase());
