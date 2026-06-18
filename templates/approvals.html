@@ -213,6 +213,15 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
         }
+
+        /* Auto-fill micro-animation highlight */
+        @keyframes flashHighlight {
+            0% { background-color: #fffae6; border-color: #ffc107; box-shadow: 0 0 8px rgba(255, 193, 7, 0.4); }
+            100% { background-color: inherit; border-color: inherit; box-shadow: none; }
+        }
+        .flash-highlight {
+            animation: flashHighlight 2s ease-in-out;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -306,11 +315,6 @@
                                             <option value="" selected disabled>Select...</option>
                                             <option value="Solid">Solid</option>
                                             <option value="Liquid">Liquid</option>
-                                            <option value="Sludge">Sludge</option>
-                                            <option value="Powder">Powder</option>
-                                            <option value="Mixture">Mixture</option>
-                                            <option value="Gas/Aerosol">Gas</option>
-                                            <option value="Debris">Debris</option>
                                         </select>
                                     </div>
                                     <div class="col-4">
@@ -324,14 +328,61 @@
                                 </div>
 
                                 <div class="row mb-3">
+                                    <div class="col-4">
+                                        <label class="form-label text-muted small fw-bold mb-1">Cyanide</label>
+                                        <select class="form-select border-secondary px-2" id="form-cyanide" name="cyanide" required>
+                                            <option value="No" selected>No</option>
+                                            <option value="Yes">Yes</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-4">
+                                        <label class="form-label text-muted small fw-bold mb-1">Sulfide</label>
+                                        <select class="form-select border-secondary px-2" id="form-sulfide" name="sulfide" required>
+                                            <option value="No" selected>No</option>
+                                            <option value="Yes">Yes</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-4">
+                                        <label class="form-label text-muted small fw-bold mb-1">Free Liquids</label>
+                                        <select class="form-select border-secondary px-2" id="form-free-liquids" name="free_liquids" required>
+                                            <option value="No" selected>No</option>
+                                            <option value="Yes">Yes</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-4">
+                                        <label class="form-label text-muted small fw-bold mb-1">LDR Required</label>
+                                        <select class="form-select border-secondary px-2" id="form-ldr" name="ldr_required" required>
+                                            <option value="No" selected>No</option>
+                                            <option value="Yes">Yes</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-4">
+                                        <label class="form-label text-muted small fw-bold mb-1">State Waste Code</label>
+                                        <input type="text" class="form-control border-secondary px-2 text-uppercase" id="form-state-code" name="state_waste_code" placeholder="e.g. 352">
+                                    </div>
+                                    <div class="col-4">
+                                        <label class="form-label text-muted small fw-bold mb-1">Federal Waste Code</label>
+                                        <input type="text" class="form-control border-secondary px-2 text-uppercase" id="form-federal-code" name="federal_waste_code" placeholder="e.g. D001">
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
                                     <div class="col-6">
-                                        <label class="form-label text-muted small fw-bold mb-1">Routing / Form Code</label>
+                                        <label class="form-label text-muted small fw-bold mb-1">BL Waste Code</label>
                                         <input type="text" class="form-control border-secondary text-uppercase" id="form-win" name="win_code" placeholder="e.g. CBP, CNO">
                                     </div>
                                     <div class="col-6">
                                         <label class="form-label text-muted small fw-bold mb-1 text-danger">Total VOC (ppm)</label>
                                         <input type="number" step="0.01" class="form-control border-danger bg-light" id="form-voc" name="voc_percentage" value="0">
                                     </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label text-muted small fw-bold mb-1">DOT Description</label>
+                                    <input type="text" class="form-control border-secondary" id="form-dot" name="dot_description" placeholder="e.g. UN3082, Environmentally hazardous substance...">
                                 </div>
 
                                 <div class="mb-4">
@@ -377,8 +428,65 @@
                             </div>
                         </div>
                         <div class="card-footer bg-light py-2 px-3 d-flex gap-4 border-0 rounded-bottom-4">
-                            <span class="fw-bold text-muted small">WIN Code: <span id="dashWin" class="text-dark font-heading">---</span></span>
+                            <span class="fw-bold text-muted small">BL Waste Code: <span id="dashWin" class="text-dark font-heading">---</span></span>
                             <span class="fw-bold text-muted small">Lab Number: <span id="dashLab" class="text-dark font-heading">---</span></span>
+                        </div>
+                    </div>
+
+                    <!-- Profile Specifications & Regulatory Data Card -->
+                    <div class="card premium-card border-secondary">
+                        <div class="card-header card-header-dark py-2">
+                            📋 Profile Specifications & Regulatory Data
+                        </div>
+                        <div class="card-body p-3 bg-white">
+                            <div class="row g-3">
+                                <div class="col-6 col-md-3">
+                                    <div class="small text-muted fw-bold">PHYSICAL STATE</div>
+                                    <div id="dashState" class="fw-semibold text-dark">---</div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="small text-muted fw-bold">PH RANGE</div>
+                                    <div id="dashPh" class="fw-semibold text-dark">---</div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="small text-muted fw-bold">FLASH POINT</div>
+                                    <div id="dashFp" class="fw-semibold text-dark">---</div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="small text-muted fw-bold text-danger">TOTAL VOC (PPM)</div>
+                                    <div id="dashVoc" class="fw-bold text-danger">---</div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="small text-muted fw-bold">CYANIDE</div>
+                                    <div id="dashCyanide" class="fw-semibold text-dark">---</div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="small text-muted fw-bold">SULFIDE</div>
+                                    <div id="dashSulfide" class="fw-semibold text-dark">---</div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="small text-muted fw-bold">FREE LIQUIDS</div>
+                                    <div id="dashFreeLiquids" class="fw-semibold text-dark">---</div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="small text-muted fw-bold">LDR REQUIRED</div>
+                                    <div id="dashLdr" class="fw-semibold text-dark">---</div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="small text-muted fw-bold">STATE WASTE CODE</div>
+                                    <div id="dashStateCode" class="fw-semibold text-dark font-heading">---</div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="small text-muted fw-bold">FEDERAL WASTE CODE</div>
+                                    <div id="dashFederalCode" class="fw-semibold text-dark font-heading">---</div>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <div class="small text-muted fw-bold">DOT DESCRIPTION</div>
+                                    <div id="dashDot" class="fw-semibold text-dark text-truncate" title="">---</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -468,12 +576,43 @@
                 if (data.error) {
                     alert('Error parsing PDF: ' + data.error);
                 } else {
-                    // Populate creation/edit form fields on the fly
-                    document.getElementById('form-profile').value = data.profile_number || '';
-                    document.getElementById('form-generator').value = data.generator_name || '';
-                    document.getElementById('form-description').value = data.waste_description || '';
-                    document.getElementById('form-win').value = data.win_code || '';
+                    // Helper to set and highlight auto-filled fields
+                    function setAndHighlight(id, value) {
+                        const el = document.getElementById(id);
+                        if (!el) return;
+                        if (value !== undefined && value !== null && value !== '') {
+                            el.value = value;
+                            el.classList.remove('flash-highlight');
+                            void el.offsetWidth; // trigger reflow
+                            el.classList.add('flash-highlight');
+                        }
+                    }
+
+                    // Populate fields and trigger highlights
+                    setAndHighlight('form-profile', data.profile_number);
+                    setAndHighlight('form-generator', data.generator_name);
+                    setAndHighlight('form-description', data.waste_description);
+                    setAndHighlight('form-epa-id', data.epa_id);
+                    setAndHighlight('form-dot', data.dot_description);
+                    setAndHighlight('form-state-code', data.state_waste_code);
+                    setAndHighlight('form-federal-code', data.federal_waste_code);
+                    setAndHighlight('form-ph', data.ph_range);
+                    setAndHighlight('form-fp', data.flash_point);
+                    setAndHighlight('form-ldr', data.ldr_required);
                     
+                    // Handle physical state select & dispatch its change listener
+                    if (data.physical_appearance) {
+                        const stateEl = document.getElementById('form-state');
+                        stateEl.value = data.physical_appearance;
+                        stateEl.dispatchEvent(new Event('change'));
+                        setAndHighlight('form-state', data.physical_appearance);
+                    }
+                    
+                    // Cyanide / Sulfide / Free Liquids
+                    setAndHighlight('form-cyanide', data.cyanide);
+                    setAndHighlight('form-sulfide', data.sulfide);
+                    setAndHighlight('form-free-liquids', data.free_liquids);
+
                     // Clear the file input so they know it processed
                     fileInput.value = '';
                 }
@@ -561,6 +700,20 @@
             document.getElementById('dashWin').innerText = p.win_code || '---';
             document.getElementById('dashLab').innerText = p.lab_number || '---';
             
+            // Populate specs card
+            document.getElementById('dashState').innerText = p.physical_appearance || '---';
+            document.getElementById('dashPh').innerText = p.ph_range || '---';
+            document.getElementById('dashFp').innerText = p.flash_point || '---';
+            document.getElementById('dashVoc').innerText = p.voc_percentage !== undefined ? p.voc_percentage : '---';
+            document.getElementById('dashCyanide').innerText = p.cyanide || '---';
+            document.getElementById('dashSulfide').innerText = p.sulfide || '---';
+            document.getElementById('dashFreeLiquids').innerText = p.free_liquids || '---';
+            document.getElementById('dashLdr').innerText = p.ldr_required || '---';
+            document.getElementById('dashStateCode').innerText = p.state_waste_code || '---';
+            document.getElementById('dashFederalCode').innerText = p.federal_waste_code || '---';
+            document.getElementById('dashDot').innerText = p.dot_description || '---';
+            document.getElementById('dashDot').title = p.dot_description || '';
+            
             // Populate and update EPA badge
             const badge = document.getElementById('dashEpaIdBadge');
             if (p.epa_id && p.epa_id.trim() !== '') {
@@ -581,6 +734,14 @@
             document.getElementById('form-fp').value = p.flash_point || '';
             document.getElementById('form-voc').value = p.voc_percentage || 0;
             document.getElementById('form-handling').value = p.special_handling || '';
+            
+            document.getElementById('form-cyanide').value = p.cyanide || 'No';
+            document.getElementById('form-sulfide').value = p.sulfide || 'No';
+            document.getElementById('form-free-liquids').value = p.free_liquids || 'No';
+            document.getElementById('form-ldr').value = p.ldr_required || 'No';
+            document.getElementById('form-state-code').value = p.state_waste_code || '';
+            document.getElementById('form-federal-code').value = p.federal_waste_code || '';
+            document.getElementById('form-dot').value = p.dot_description || '';
 
             // Show 'New Profile' option to allow reverting to creation mode
             document.getElementById('clearFormBtn').classList.remove('d-none');
@@ -701,6 +862,60 @@
                     if (match) selectProfile(match);
                 });
         }
+
+        // Physical State Change Listener for Defaults
+        document.getElementById('form-state').addEventListener('change', function() {
+            const state = this.value;
+            const fpInput = document.getElementById('form-fp');
+            const cyanideSelect = document.getElementById('form-cyanide');
+            const sulfideSelect = document.getElementById('form-sulfide');
+            const freeLiquidsSelect = document.getElementById('form-free-liquids');
+
+            if (state === 'Solid') {
+                fpInput.value = 'Not Required';
+                if (cyanideSelect) cyanideSelect.value = 'No';
+                if (sulfideSelect) sulfideSelect.value = 'No';
+                if (freeLiquidsSelect) freeLiquidsSelect.value = 'No';
+            } else if (state === 'Liquid') {
+                if (fpInput.value === 'Not Required') {
+                    fpInput.value = '';
+                }
+                if (cyanideSelect) cyanideSelect.value = 'No';
+                if (sulfideSelect) sulfideSelect.value = 'No';
+                if (freeLiquidsSelect) freeLiquidsSelect.value = 'Yes';
+            }
+        });
+
+        // Form Submission Validation
+        document.getElementById('profileEntryForm').addEventListener('submit', function(e) {
+            const state = document.getElementById('form-state').value;
+            const fpInput = document.getElementById('form-fp');
+            const fpVal = fpInput.value.trim();
+
+            if (state === 'Liquid') {
+                if (!fpVal) {
+                    alert('For Liquid physical state, Flash Point is required.');
+                    fpInput.focus();
+                    e.preventDefault();
+                    return;
+                }
+                // Match digits (e.g. ">140", "150F", "150")
+                const numMatch = fpVal.match(/\d+/);
+                if (!numMatch) {
+                    alert('For Liquid physical state, Flash Point must contain a numeric value greater than 140 (e.g. >140, 150).');
+                    fpInput.focus();
+                    e.preventDefault();
+                    return;
+                }
+                const num = parseFloat(numMatch[0]);
+                if (num <= 140) {
+                    alert('For Liquid physical state, Flash Point must be greater than 140.');
+                    fpInput.focus();
+                    e.preventDefault();
+                    return;
+                }
+            }
+        });
 
     </script>
 </body>

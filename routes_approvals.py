@@ -145,8 +145,15 @@ def parse_profile_pdf():
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
         
-    extracted_data = {'profile_number': '', 'generator_name': '', 'waste_description': '', 'win_code': '', 'special_handling': '', 'physical_appearance': ''}
+    extracted_data = {
+        'profile_number': '', 'generator_name': '', 'waste_description': '', 
+        'special_handling': '', 'physical_appearance': '',
+        'epa_id': '', 'dot_description': '', 'state_waste_code': '', 
+        'federal_waste_code': '', 'ph_range': '', 'flash_point': '',
+        'cyanide': 'No', 'sulfide': 'No', 'free_liquids': 'No', 'ldr_required': 'No'
+    }
     try:
+        import pdfplumber
         with pdfplumber.open(file) as pdf:
             full_text = "".join([page.extract_text() + "\n" for page in pdf.pages[:2] if page.extract_text()])
             
@@ -164,12 +171,49 @@ def parse_profile_pdf():
             handling_match = re.search(r'SPECIAL HANDLING.*?:\s*(.*?)\n', full_text, re.IGNORECASE)
             if handling_match: extracted_data['special_handling'] = handling_match.group(1).strip()
             
-            form_code_match = re.search(r'(?:FORM CODE|WIN|Routing).*?([A-Z][0-9]{3})', full_text, re.IGNORECASE | re.DOTALL)
-            if form_code_match: extracted_data['win_code'] = form_code_match.group(1).strip()
+            # EPA ID
+            epa_match = re.search(r'EPA\s*(?:ID)?\s*(?:No\.)?:\s*([A-Z0-9]+)', full_text, re.IGNORECASE)
+            if epa_match: extracted_data['epa_id'] = epa_match.group(1).strip()
             
-            # Attempt to find physical state checkmarks (look for Solid, Liquid, Sludge near a checkmark 'X' or unicode checkbox)
-            state_match = re.search(r'(?:X|☒|☑|\u2611|\u2713|\[X\])\s*(Solid|Liquid|Sludge|Gas|Powder|Debris)', full_text, re.IGNORECASE)
-            if state_match: extracted_data['physical_appearance'] = state_match.group(1).strip().capitalize()
+            # DOT Description
+            dot_match = re.search(r'(?:DOT Description|Shipping Name|Proper Shipping Name):\s*(.*?)\n', full_text, re.IGNORECASE)
+            if dot_match: extracted_data['dot_description'] = dot_match.group(1).strip()
+            
+            # State/Fed waste codes
+            state_match = re.search(r'(?:State Waste Code|State Code|State Codes):\s*([A-Z0-9,\s]+)\n', full_text, re.IGNORECASE)
+            if state_match: extracted_data['state_waste_code'] = state_match.group(1).strip()
+            
+            fed_match = re.search(r'(?:Federal Waste Code|EPA Waste Code|EPA Codes|Federal Codes):\s*([A-Z0-9,\s]+)\n', full_text, re.IGNORECASE)
+            if fed_match: extracted_data['federal_waste_code'] = fed_match.group(1).strip()
+            
+            # pH / Flash point
+            ph_match = re.search(r'pH\s*(?:Range)?:\s*([0-9\.\-\s]+)', full_text, re.IGNORECASE)
+            if ph_match: extracted_data['ph_range'] = ph_match.group(1).strip()
+            
+            fp_match = re.search(r'(?:Flash Point|FP):\s*([A-Z0-9\.\-\s\>\<]+)', full_text, re.IGNORECASE)
+            if fp_match: extracted_data['flash_point'] = fp_match.group(1).strip()
+            
+            # Cyanide / Sulfide / Free Liquids / LDR
+            cyanide_match = re.search(r'Cyanide:\s*(Yes|No)', full_text, re.IGNORECASE)
+            if cyanide_match: extracted_data['cyanide'] = cyanide_match.group(1).strip().capitalize()
+            
+            sulfide_match = re.search(r'Sulfide:\s*(Yes|No)', full_text, re.IGNORECASE)
+            if sulfide_match: extracted_data['sulfide'] = sulfide_match.group(1).strip().capitalize()
+
+            free_liq_match = re.search(r'Free Liquids:\s*(Yes|No)', full_text, re.IGNORECASE)
+            if free_liq_match: extracted_data['free_liquids'] = free_liq_match.group(1).strip().capitalize()
+
+            ldr_match = re.search(r'LDR\s*(?:Required)?:\s*(Yes|No)', full_text, re.IGNORECASE)
+            if ldr_match: extracted_data['ldr_required'] = ldr_match.group(1).strip().capitalize()
+            
+            # Attempt to find physical state checkmarks and normalize to Solid or Liquid
+            state_chk_match = re.search(r'(?:X|☒|☑|\u2611|\u2713|\[X\])\s*(Solid|Liquid|Sludge|Gas|Powder|Debris)', full_text, re.IGNORECASE)
+            if state_chk_match:
+                matched_state = state_chk_match.group(1).strip().lower()
+                if 'liquid' in matched_state or 'sludge' in matched_state:
+                    extracted_data['physical_appearance'] = 'Liquid'
+                else:
+                    extracted_data['physical_appearance'] = 'Solid'
             
         return jsonify(extracted_data)
     except Exception as e:
@@ -177,21 +221,64 @@ def parse_profile_pdf():
 
 @approvals_bp.route('/add_master_profile', methods=['POST'])
 def add_master_profile():
-    with closing(get_db_connection()) as conn:
-        generator = request.form.get('generator') or request.form.get('generator_name') or ''
-        voc_pct = 0.0
-        try:
-            voc_pct = float(request.form.get('voc_percentage', 0.0) or 0.0)
-        except (ValueError, TypeError):
-            pass
+    profile_number = (request.form.get('profile_number') or '').strip().upper()
+    if not profile_number:
+        return "Profile Number is required", 400
 
-        epa_id = request.form.get('epa_id', '').strip()
-        conn.execute('''
-            REPLACE INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, special_handling, ph_range, physical_appearance, flash_point, expiration_date, epa_id, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'S')
-        ''', (request.form.get('profile_number').upper(), generator, request.form.get('waste_description', ''), request.form.get('win_code', ''), voc_pct, request.form.get('special_handling', ''), request.form.get('ph_range', ''), request.form.get('physical_appearance', ''), request.form.get('flash_point', ''), request.form.get('expiration_date', ''), epa_id))
+    generator = request.form.get('generator') or request.form.get('generator_name') or ''
+    epa_id = request.form.get('epa_id', '').strip()
+    waste_description = request.form.get('waste_description', '').strip()
+    win_code = request.form.get('win_code', '').strip()
+    special_handling = request.form.get('special_handling', '').strip()
+    ph_range = request.form.get('ph_range', '').strip()
+    physical_appearance = request.form.get('physical_appearance', '').strip()
+    flash_point = request.form.get('flash_point', '').strip()
+    expiration_date = request.form.get('expiration_date', '').strip()
+    
+    ldr_required = request.form.get('ldr_required', 'No').strip()
+    state_waste_code = request.form.get('state_waste_code', '').strip()
+    federal_waste_code = request.form.get('federal_waste_code', '').strip()
+    dot_description = request.form.get('dot_description', '').strip()
+    cyanide = request.form.get('cyanide', 'No').strip()
+    sulfide = request.form.get('sulfide', 'No').strip()
+    free_liquids = request.form.get('free_liquids', 'No').strip()
+
+    voc_pct = 0.0
+    try:
+        voc_pct = float(request.form.get('voc_percentage', 0.0) or 0.0)
+    except (ValueError, TypeError):
+        pass
+
+    with closing(get_db_connection()) as conn:
+        existing = conn.execute('SELECT profile_number FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (profile_number,)).fetchone()
+        if existing:
+            conn.execute('''
+                UPDATE profiles 
+                SET generator = ?, waste_description = ?, win_code = ?, voc_percentage = ?, 
+                    special_handling = ?, ph_range = ?, physical_appearance = ?, flash_point = ?, 
+                    expiration_date = ?, epa_id = ?, ldr_required = ?, state_waste_code = ?, 
+                    federal_waste_code = ?, dot_description = ?, cyanide = ?, sulfide = ?, 
+                    free_liquids = ?
+                WHERE TRIM(UPPER(profile_number)) = ?
+            ''', (generator, waste_description, win_code, voc_pct, 
+                  special_handling, ph_range, physical_appearance, flash_point, 
+                  expiration_date, epa_id, ldr_required, state_waste_code, 
+                  federal_waste_code, dot_description, cyanide, sulfide, 
+                  free_liquids, profile_number))
+        else:
+            conn.execute('''
+                INSERT INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, 
+                                      special_handling, ph_range, physical_appearance, flash_point, expiration_date, 
+                                      epa_id, status, ldr_required, state_waste_code, federal_waste_code, 
+                                      dot_description, cyanide, sulfide, free_liquids)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'S', ?, ?, ?, ?, ?, ?, ?)
+            ''', (profile_number, generator, waste_description, win_code, voc_pct, 
+                  special_handling, ph_range, physical_appearance, flash_point, expiration_date, 
+                  epa_id, ldr_required, state_waste_code, federal_waste_code, 
+                  dot_description, cyanide, sulfide, free_liquids))
         conn.commit()
-    return redirect(url_for('approvals_bp.approvals_portal', selected_profile=request.form.get('profile_number').upper()))
+        
+    return redirect(url_for('approvals_bp.approvals_portal', selected_profile=profile_number))
 
 @approvals_bp.route('/api/auto_sync_profiles', methods=['POST'])
 def auto_sync_profiles():
