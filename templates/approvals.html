@@ -251,6 +251,41 @@
             </div>
         </div>
 
+        <!-- Active Reviews Panel -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card premium-card border-secondary shadow-sm">
+                    <div class="card-header card-header-dark py-2 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold d-flex align-items-center">
+                            <span class="me-2 fs-5">📋</span> Active Reviews Log
+                        </span>
+                        <div class="d-flex gap-2 align-items-center">
+                            <input type="text" id="addLogInput" class="form-control form-control-sm border-0 fw-bold text-uppercase" placeholder="Profile Number..." style="width: 150px;">
+                            <button class="btn btn-sm btn-crimson fw-bold text-nowrap" onclick="addReviewLog()">➕ Add to Log</button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped align-middle mb-0 text-nowrap">
+                                <thead class="small bg-dark text-white">
+                                    <tr>
+                                        <th>Profile</th>
+                                        <th>Generator</th>
+                                        <th>Status</th>
+                                        <th>Assigned To</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="reviewLogBody" class="small fw-semibold">
+                                    <tr><td colspan="5" class="text-center text-muted py-4">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Main Workspace split -->
         <div class="row d-none" id="mainWorkspace">
             <!-- Left Side: Profile Form (Creation and Edit Panel) -->
@@ -438,40 +473,7 @@
                 </div> <!-- End Profile Dashboard -->
                 
             </div>
-        <!-- Active Reviews Panel -->
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="card premium-card border-secondary shadow-sm">
-                    <div class="card-header card-header-dark py-2 d-flex justify-content-between align-items-center">
-                        <span class="fw-bold d-flex align-items-center">
-                            <span class="me-2 fs-5">📋</span> Active Reviews Log
-                        </span>
-                        <div class="d-flex gap-2 align-items-center">
-                            <input type="text" id="addLogInput" class="form-control form-control-sm border-0 fw-bold text-uppercase" placeholder="Profile Number..." style="width: 150px;">
-                            <button class="btn btn-sm btn-crimson fw-bold text-nowrap" onclick="addReviewLog()">➕ Add to Log</button>
-                        </div>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-hover table-striped align-middle mb-0 text-nowrap">
-                                <thead class="small bg-dark text-white">
-                                    <tr>
-                                        <th>Profile</th>
-                                        <th>Generator</th>
-                                        <th>Status</th>
-                                        <th>Assigned To</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="reviewLogBody" class="small fw-semibold">
-                                    <tr><td colspan="5" class="text-center text-muted py-4">Loading...</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+
 
     </div>
 
