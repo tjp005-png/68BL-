@@ -221,11 +221,13 @@ class TestSTURedesignFlow(unittest.TestCase):
         conn.close()
 
     def test_permitted_codes(self):
-        """Test that D80L is part of the permitted STU WIN codes"""
+        """Test that D80L and LLF are part of the permitted STU WIN codes"""
         from stu_services import PERMITTED_CODES as pc_services
         from app import PERMITTED_CODES as pc_app
         self.assertIn('D80L', pc_services)
         self.assertIn('D80L', pc_app)
+        self.assertIn('LLF', pc_services)
+        self.assertIn('LLF', pc_app)
 
     def test_add_schedule_dates(self):
         """Test that scheduling a profile via /add_schedule correctly parses dates and inserts them"""
