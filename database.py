@@ -91,6 +91,9 @@ def ensure_profile_exists(conn, profile_number):
         matched = df[df['Profile #'] == clean_profile]
         
         if matched.empty:
+            if row and row['status'] != 'NOT FOUND':
+                # Keep manually created/saved profiles intact instead of marking them NOT FOUND
+                return row
             conn.execute('''
                 INSERT OR REPLACE INTO profiles (profile_number, status, last_synced_mtime)
                 VALUES (?, 'NOT FOUND', ?)

@@ -194,5 +194,39 @@ class TestProfileSync(unittest.TestCase):
 
         conn.close()
 
+    def test_manual_profile_not_overwritten(self):
+        """Verify that manually created profiles in local DB are not wiped out by Excel lookup if missing from Excel"""
+        conn = original_connect(TEST_DB_PATH)
+        conn.row_factory = sqlite3.Row
+
+        # Insert manual profile with status 'S'
+        conn.execute("INSERT INTO profiles (profile_number, status, generator) VALUES ('CH-MANUAL-1', 'S', 'My Generator')")
+        conn.commit()
+
+        # Create mock Excel that does NOT have CH-MANUAL-1
+        mock_data = {
+            'Profile #': ['P-VALID'],
+            'GENERATOR': ['Gen Valid'],
+            'STATUS': ['ACTIVE'],
+            'EXP DATE': ['2030-01-01'],
+            'WASTE NAME': ['Valid Waste'],
+            'VOC #': ['0.0'],
+            'WIN CODE': ['W-VAL']
+        }
+        self.create_mock_excel(mock_data)
+
+        # Trigger ensure_profile_exists
+        row = ensure_profile_exists(conn, 'CH-MANUAL-1')
+        self.assertIsNotNone(row)
+        self.assertEqual(row['status'], 'S')
+        self.assertEqual(row['generator'], 'My Generator')
+
+        # Double check DB directly
+        db_row = conn.execute("SELECT * FROM profiles WHERE profile_number = 'CH-MANUAL-1'").fetchone()
+        self.assertIsNotNone(db_row)
+        self.assertEqual(db_row['status'], 'S')
+
+        conn.close()
+
 if __name__ == '__main__':
     unittest.main()
