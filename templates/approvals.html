@@ -229,7 +229,10 @@
                         <p class="mb-0 text-white-50 small">Manage facilities compliance documentation and master profile registries</p>
                     </div>
                 </div>
-                <a href="/" class="btn btn-light fw-bold shadow-sm text-dark px-3 py-2">⬅️ Hub</a>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-light fw-bold shadow-sm px-3 py-2" onclick="showNewProfileWorkspace()">➕ New Profile</button>
+                    <a href="/" class="btn btn-light fw-bold shadow-sm text-dark px-3 py-2">⬅️ Hub</a>
+                </div>
             </div>
         </div>
 
@@ -249,7 +252,7 @@
         </div>
 
         <!-- Main Workspace split -->
-        <div class="row">
+        <div class="row d-none" id="mainWorkspace">
             <!-- Left Side: Profile Form (Creation and Edit Panel) -->
             <div class="col-lg-5 mb-4">
                 <div class="d-flex flex-column gap-4">
@@ -601,6 +604,9 @@
             searchResults.classList.add('d-none');
             searchInput.value = '';
 
+            // Unhide the main workspace
+            document.getElementById('mainWorkspace').classList.remove('d-none');
+
             // Swap placeholders for the active dashboard
             noSelectionCard.classList.add('d-none');
             dashboard.classList.remove('d-none');
@@ -643,6 +649,12 @@
             // Fetch History and Attachments
             loadHistory();
             loadAttachments();
+        }
+
+        function showNewProfileWorkspace() {
+            document.getElementById('mainWorkspace').classList.remove('d-none');
+            resetEntryForm();
+            window.scrollTo(0, 0);
         }
 
         // Reset editing form back to creation mode
