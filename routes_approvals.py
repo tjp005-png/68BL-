@@ -452,25 +452,52 @@ def api_profile_history(profile_number):
 def api_profile_upload(profile_number):
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
+    
+    files = request.files.getlist('file')
+    if not files or all(file.filename == '' for file in files):
+        return jsonify({'error': 'No selected files'}), 400
         
-    if file:
-        filename = secure_filename(file.filename)
-        # Prepend profile number to ensure uniqueness in the folder
-        save_name = f"{secure_filename(profile_number)}_{filename}"
-        file_path = os.path.join(UPLOAD_FOLDER, save_name)
-        file.save(file_path)
+    uploaded_files = []
+    with closing(get_db_connection()) as conn:
+        for file in files:
+            if file and file.filename != '':
+                filename = secure_filename(file.filename)
+                # Prepend profile number to ensure uniqueness in the folder
+                save_name = f"{secure_filename(profile_number)}_{filename}"
+                file_path = os.path.join(UPLOAD_FOLDER, save_name)
+                file.save(file_path)
+                
+                conn.execute('''
+                    INSERT INTO profile_attachments (profile_number, filename, file_path)
+                    VALUES (?, ?, ?)
+                ''', (profile_number, filename, save_name))
+                uploaded_files.append(filename)
+        conn.commit()
         
-        with closing(get_db_connection()) as conn:
-            conn.execute('''
-                INSERT INTO profile_attachments (profile_number, filename, file_path)
-                VALUES (?, ?, ?)
-            ''', (profile_number, filename, save_name))
-            conn.commit()
-            
-        return jsonify({'success': True, 'filename': filename})
+    return jsonify({'success': True, 'filenames': uploaded_files})
+
+@approvals_bp.route('/api/profile/attachment/<int:attachment_id>/delete', methods=['POST'])
+def api_delete_attachment(attachment_id):
+    with closing(get_db_connection()) as conn:
+        attachment = conn.execute('SELECT file_path FROM profile_attachments WHERE id = ?', (attachment_id,)).fetchone()
+        if not attachment:
+            return jsonify({'error': 'Attachment not found'}), 404
+        
+        file_path = attachment['file_path']
+        full_path = os.path.join(UPLOAD_FOLDER, file_path)
+        
+        # Delete from database
+        conn.execute('DELETE FROM profile_attachments WHERE id = ?', (attachment_id,))
+        conn.commit()
+        
+        # Delete physical file
+        if os.path.exists(full_path):
+            try:
+                os.remove(full_path)
+            except Exception as e:
+                print(f"Error deleting file {full_path}: {e}")
+                
+    return jsonify({'success': True})
 
 @approvals_bp.route('/api/profile/<profile_number>/attachments')
 def api_profile_attachments(profile_number):

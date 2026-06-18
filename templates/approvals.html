@@ -542,7 +542,7 @@
                                 <div class="card-body bg-light p-3 d-flex flex-column gap-3">
                                     <div class="p-2 border rounded bg-white">
                                         <label class="form-label text-muted small fw-bold mb-1">Attach compliant documentation:</label>
-                                        <input class="form-control form-control-sm border-secondary mb-2" type="file" id="fileUploader" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg">
+                                        <input class="form-control form-control-sm border-secondary mb-2" type="file" id="fileUploader" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg" multiple>
                                         <button class="btn btn-sm btn-crimson w-100 fw-bold shadow-sm" id="btnUpload" onclick="uploadAttachment()">Upload & Attach</button>
                                     </div>
                                     <div>
@@ -888,26 +888,51 @@
                     data.forEach(file => {
                         list.innerHTML += `
                             <li class="list-group-item d-flex justify-content-between align-items-center py-2 bg-white">
-                                <a href="/uploads/profiles/${encodeURIComponent(file.file_path)}" target="_blank" class="text-decoration-none small text-truncate fw-bold text-primary" style="max-width: 180px;">
+                                <a href="/uploads/profiles/${encodeURIComponent(file.file_path)}" target="_blank" class="text-decoration-none small text-truncate fw-bold text-primary" style="max-width: 160px;">
                                     📄 ${file.filename}
                                 </a>
-                                <small class="text-muted" style="font-size: 0.7rem;">${file.upload_date.split(' ')[0]}</small>
+                                <div class="d-flex align-items-center gap-2">
+                                    <small class="text-muted" style="font-size: 0.7rem;">${file.upload_date.split(' ')[0]}</small>
+                                    <button class="btn btn-sm btn-link text-danger p-0 border-0" style="font-size: 0.95rem; line-height: 1;" onclick="deleteAttachment(${file.id}, '${file.filename.replace(/'/g, "\\'")}')" title="Delete attachment">🗑️</button>
+                                </div>
                             </li>
                         `;
                     });
                 });
         }
 
+        function deleteAttachment(id, filename) {
+            if (!confirm(`Are you sure you want to delete the attachment "${filename}"?`)) {
+                return;
+            }
+            fetch(`/api/profile/attachment/${id}/delete`, {
+                method: 'POST'
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    loadAttachments();
+                } else {
+                    alert('Delete failed: ' + data.error);
+                }
+            })
+            .catch(e => {
+                alert('Network error during deletion.');
+            });
+        }
+
         function uploadAttachment() {
             if (!currentProfile) return;
             const fileInput = document.getElementById('fileUploader');
             if (fileInput.files.length === 0) {
-                alert('Please select a file to upload.');
+                alert('Please select one or more files to upload.');
                 return;
             }
 
             const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
+            for (let i = 0; i < fileInput.files.length; i++) {
+                formData.append('file', fileInput.files[i]);
+            }
 
             const btn = document.getElementById('btnUpload');
             btn.disabled = true;
