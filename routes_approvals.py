@@ -350,7 +350,7 @@ def add_master_profile():
                     special_handling = ?, ph_range = ?, physical_appearance = ?, flash_point = ?, 
                     expiration_date = ?, epa_id = ?, ldr_required = ?, state_waste_code = ?, 
                     federal_waste_code = ?, dot_description = ?, cyanide = ?, sulfide = ?, 
-                    free_liquids = ?
+                    free_liquids = ?, status = 'S'
                 WHERE TRIM(UPPER(profile_number)) = ?
             ''', (generator, waste_description, win_code, voc_pct, 
                   special_handling, ph_range, physical_appearance, flash_point, 
