@@ -230,12 +230,14 @@
                     </div>
                 </div>
                 <div class="d-flex gap-2">
-                    <button class="btn btn-outline-light fw-bold shadow-sm px-3 py-2" onclick="showNewProfileWorkspace()">➕ New Profile</button>
-                    <a href="/" class="btn btn-light fw-bold shadow-sm text-dark px-3 py-2">⬅️ Hub</a>
+                    <button id="btnNewProfile" class="btn btn-outline-light fw-bold shadow-sm px-3 py-2" onclick="showNewProfileWorkspace()">➕ New Profile</button>
+                    <button id="btnBackLog" class="btn btn-light fw-bold shadow-sm text-dark px-3 py-2 d-none" onclick="showApprovalsHome()">⬅️ Active Log</button>
+                    <a href="/" class="btn btn-light fw-bold shadow-sm text-dark px-3 py-2">🏠 Hub</a>
                 </div>
             </div>
         </div>
 
+        <div id="approvalsHome">
         <!-- Search Section (Full Width, Centered, Prominent) -->
         <div class="row mb-4">
             <div class="col-12">
@@ -285,6 +287,8 @@
                 </div>
             </div>
         </div>
+
+        </div> <!-- End approvalsHome -->
 
         <!-- Main Workspace split -->
         <div class="row d-none" id="mainWorkspace">
@@ -598,6 +602,21 @@
             }
         });
 
+        function showApprovalsHome() {
+            document.getElementById('approvalsHome').classList.remove('d-none');
+            document.getElementById('mainWorkspace').classList.add('d-none');
+            document.getElementById('btnNewProfile').classList.remove('d-none');
+            document.getElementById('btnBackLog').classList.add('d-none');
+            loadReviewLog();
+        }
+
+        function showWorkspace() {
+            document.getElementById('approvalsHome').classList.add('d-none');
+            document.getElementById('mainWorkspace').classList.remove('d-none');
+            document.getElementById('btnNewProfile').classList.add('d-none');
+            document.getElementById('btnBackLog').classList.remove('d-none');
+        }
+
         // Select Profile and load dashboard + populate form for editing
         function selectProfile(p) {
             currentProfile = p.profile_number;
@@ -607,7 +626,7 @@
             searchInput.value = '';
 
             // Unhide the main workspace
-            document.getElementById('mainWorkspace').classList.remove('d-none');
+            showWorkspace();
 
             // Swap placeholders for the active dashboard
             noSelectionCard.classList.add('d-none');
@@ -654,7 +673,7 @@
         }
 
         function showNewProfileWorkspace() {
-            document.getElementById('mainWorkspace').classList.remove('d-none');
+            showWorkspace();
             resetEntryForm();
             window.scrollTo(0, 0);
         }
