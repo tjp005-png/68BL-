@@ -390,7 +390,7 @@ def release_las_truck():
 def get_waste_acceptance_log():
     with closing(get_db_connection()) as conn:
         logs = conn.execute('''
-            SELECT w.*, p.generator 
+            SELECT w.*, COALESCE(w.generator_requestor, p.generator) AS generator 
             FROM waste_acceptance_log w
             LEFT JOIN profiles p ON TRIM(UPPER(w.profile_number)) = TRIM(UPPER(p.profile_number))
             ORDER BY w.last_updated DESC
@@ -423,6 +423,7 @@ def update_waste_acceptance_log():
     status = data.get('status')
     assigned_to = data.get('assigned_to')
     notes = data.get('notes')
+    generator_requestor = data.get('generator_requestor')
     
     if not log_id:
         return jsonify({'error': 'Log ID is required'}), 400
@@ -433,9 +434,10 @@ def update_waste_acceptance_log():
             SET status = COALESCE(?, status),
                 assigned_to = COALESCE(?, assigned_to),
                 notes = COALESCE(?, notes),
+                generator_requestor = COALESCE(?, generator_requestor),
                 last_updated = CURRENT_TIMESTAMP
             WHERE id = ?
-        ''', (status, assigned_to, notes, log_id))
+        ''', (status, assigned_to, notes, generator_requestor, log_id))
         conn.commit()
     return jsonify({'success': True})
 

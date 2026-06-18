@@ -278,6 +278,8 @@ def upgrade_db():
                 last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        if not column_exists(cursor, 'waste_acceptance_log', 'generator_requestor'):
+            cursor.execute('ALTER TABLE waste_acceptance_log ADD COLUMN generator_requestor TEXT')
         
         # Add performance indexes
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_profiles_win_code ON profiles (win_code)")

@@ -230,7 +230,6 @@
                     </div>
                 </div>
                 <div class="d-flex gap-2">
-                    <button id="btnNewProfile" class="btn btn-outline-light fw-bold shadow-sm px-3 py-2" onclick="showNewProfileWorkspace()">➕ New Profile</button>
                     <button id="btnBackLog" class="btn btn-light fw-bold shadow-sm text-dark px-3 py-2 d-none" onclick="showApprovalsHome()">⬅️ Active Log</button>
                     <a href="/" class="btn btn-light fw-bold shadow-sm text-dark px-3 py-2">🏠 Hub</a>
                 </div>
@@ -605,7 +604,6 @@
         function showApprovalsHome() {
             document.getElementById('approvalsHome').classList.remove('d-none');
             document.getElementById('mainWorkspace').classList.add('d-none');
-            document.getElementById('btnNewProfile').classList.remove('d-none');
             document.getElementById('btnBackLog').classList.add('d-none');
             loadReviewLog();
         }
@@ -613,7 +611,6 @@
         function showWorkspace() {
             document.getElementById('approvalsHome').classList.add('d-none');
             document.getElementById('mainWorkspace').classList.remove('d-none');
-            document.getElementById('btnNewProfile').classList.add('d-none');
             document.getElementById('btnBackLog').classList.remove('d-none');
         }
 
@@ -811,7 +808,9 @@
                         tbody.innerHTML += `
                             <tr>
                                 <td><a href="#" onclick="searchAndSelect('${log.profile_number}'); return false;" class="fw-bold text-decoration-none">${log.profile_number}</a></td>
-                                <td class="text-truncate" style="max-width: 150px;">${log.generator || '---'}</td>
+                                <td>
+                                    <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" value="${log.generator || ''}" placeholder="Generator..." onblur="updateReviewLog(${log.id}, 'generator_requestor', this.value)">
+                                </td>
                                 <td>
                                     <select class="form-select form-select-sm border-0 fw-bold ${statusColor} bg-transparent" onchange="updateReviewLog(${log.id}, 'status', this.value)">
                                         <option value="Under Review" ${log.status==='Under Review'?'selected':''}>Under Review</option>
