@@ -391,6 +391,15 @@ def drum_action():
         elif action == 'REJECT':
             conn.execute("UPDATE drum_inventory SET status = 'REJECTED', reject_notes = ?, outgoing_manifest = ? WHERE id = ?", (notes, manifest, drum_id))
             new_status = 'REJECTED'
+        elif action == 'UPDATE_STATUS':
+            target_status = request.form.get('status')
+            if target_status == 'REJECTED':
+                conn.execute("UPDATE drum_inventory SET status = 'REJECTED', reject_notes = ?, outgoing_manifest = ? WHERE id = ?", 
+                             (notes, manifest, drum_id))
+            else:
+                conn.execute("UPDATE drum_inventory SET status = ?, reject_notes = NULL, outgoing_manifest = NULL WHERE id = ?", 
+                             (target_status, drum_id))
+            new_status = target_status
         conn.commit()
         
     if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':

@@ -362,5 +362,51 @@ class TestSTURedesignFlow(unittest.TestCase):
 
         conn.close()
 
+    def test_manual_status_update(self):
+        """Test manually updating drum status using the UPDATE_STATUS action"""
+        conn = original_connect(TEST_DB_PATH)
+        # Insert a drum
+        conn.execute('''
+            INSERT INTO drum_inventory (track_no, inb_prof, process_type, status, reject_notes, outgoing_manifest)
+            VALUES ('DRUM-UPDATE-TEST', 'P-STU-TEST', 'direct land haz', 'FINAL CODED', 'Some old notes', 'OUT-OLD')
+        ''')
+        conn.commit()
+        
+        drum_row = conn.execute("SELECT id FROM drum_inventory WHERE track_no = 'DRUM-UPDATE-TEST'").fetchone()
+        drum_id = drum_row[0]
+        conn.close()
+        
+        # 1. Update status to MISSING
+        response = self.client.post('/stu/drum_action', data={
+            'drum_id': str(drum_id),
+            'action': 'UPDATE_STATUS',
+            'status': 'MISSING'
+        })
+        self.assertEqual(response.status_code, 302)
+        
+        # Verify status is updated and reject_notes/manifest are cleared
+        conn = original_connect(TEST_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT * FROM drum_inventory WHERE id = ?", (drum_id,)).fetchone()
+        self.assertEqual(row['status'], 'MISSING')
+        self.assertIsNone(row['reject_notes'])
+        self.assertIsNone(row['outgoing_manifest'])
+        
+        # 2. Update status to REJECTED with notes and manifest
+        response = self.client.post('/stu/drum_action', data={
+            'drum_id': str(drum_id),
+            'action': 'UPDATE_STATUS',
+            'status': 'REJECTED',
+            'reject_notes': 'Damaged seal',
+            'outgoing_manifest': 'OUT-NEW'
+        })
+        self.assertEqual(response.status_code, 302)
+        
+        row = conn.execute("SELECT * FROM drum_inventory WHERE id = ?", (drum_id,)).fetchone()
+        self.assertEqual(row['status'], 'REJECTED')
+        self.assertEqual(row['reject_notes'], 'Damaged seal')
+        self.assertEqual(row['outgoing_manifest'], 'OUT-NEW')
+        conn.close()
+
 if __name__ == '__main__':
     unittest.main()

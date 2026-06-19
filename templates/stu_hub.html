@@ -11,6 +11,17 @@
         .bucket-btn.active { border-color: #000; box-shadow: 0 4px 6px rgba(0,0,0,0.15); font-weight: bold;}
         .table-row-clickable { cursor: pointer; }
         .progress-bar-custom { background-color: #3860b2; }
+        .status-select-dropdown {
+            cursor: pointer;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            text-align: center;
+            text-align-last: center;
+        }
+        .status-select-dropdown::-ms-expand {
+            display: none;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -347,6 +358,7 @@
                                     <option value="REJECTED">Rejected</option>
                                     <option value="PASS">Pass (Put Pile)</option>
                                     <option value="FAIL">Fail (Put Pile)</option>
+                                    <option value="MISSING">Missing</option>
                                 </select>
                             </div>
                             <div class="align-self-end ms-2">
@@ -404,21 +416,22 @@
                                                 {% endif %}
                                             </td>
                                             <td id="status-cell-{{ drum.id }}">
-                                                {% if status == 'PLANT RECEIVED' %}
-                                                    <span class="badge bg-primary">Plant Received</span>
-                                                {% elif status == 'RESAMPLE' %}
-                                                    <span class="badge bg-warning text-dark">Resample</span>
-                                                {% elif status == 'REJECTED' %}
-                                                    <span class="badge bg-danger">Rejected</span>
+                                                <select class="form-select form-select-sm fw-bold border-0 text-white status-select-dropdown" 
+                                                        data-drum-id="{{ drum.id }}" 
+                                                        data-old-status="{{ status }}"
+                                                        style="width: 130px; border-radius: 4px; padding: 2px 8px; font-size: 0.75rem; 
+                                                               background-color: {% if status == 'PLANT RECEIVED' %}#0d6efd{% elif status == 'RESAMPLE' %}#ffc107; color: #212529 !important;{% elif status == 'REJECTED' %}#dc3545{% elif status == 'PASS' %}#0dcaf0; color: #212529 !important;{% elif status == 'FAIL' %}#212529{% elif status == 'FINAL CODED' %}#198754{% elif status == 'MISSING' %}#6c757d{% else %}#6c757d{% endif %};"
+                                                        onchange="changeDrumStatus('{{ drum.id }}', this)">
+                                                    <option value="FINAL CODED" class="bg-white text-dark" {% if status == 'FINAL CODED' %}selected{% endif %}>Final Coded</option>
+                                                    <option value="PLANT RECEIVED" class="bg-white text-dark" {% if status == 'PLANT RECEIVED' %}selected{% endif %}>Plant Received</option>
+                                                    <option value="RESAMPLE" class="bg-white text-dark" {% if status == 'RESAMPLE' %}selected{% endif %}>Resample</option>
+                                                    <option value="REJECTED" class="bg-white text-dark" {% if status == 'REJECTED' %}selected{% endif %}>Rejected</option>
+                                                    <option value="PASS" class="bg-white text-dark" {% if status == 'PASS' %}selected{% endif %}>Passed</option>
+                                                    <option value="FAIL" class="bg-white text-dark" {% if status == 'FAIL' %}selected{% endif %}>Failed</option>
+                                                    <option value="MISSING" class="bg-white text-dark" {% if status == 'MISSING' %}selected{% endif %}>Missing</option>
+                                                </select>
+                                                {% if status == 'REJECTED' and drum.get('reject_notes') %}
                                                     <div class="small text-muted mt-1" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ drum.get('reject_notes') }}">{{ drum.get('reject_notes') }}</div>
-                                                {% elif status == 'PASS' %}
-                                                    <span class="badge bg-info text-dark">Passed</span>
-                                                {% elif status == 'FAIL' %}
-                                                    <span class="badge bg-dark">Failed</span>
-                                                {% elif status == 'FINAL CODED' %}
-                                                    <span class="badge bg-success">Final Coded</span>
-                                                {% else %}
-                                                    <span class="badge bg-secondary">{{ status }}</span>
                                                 {% endif %}
                                             </td>
                                             <td>{{ drum.weight }} lbs</td>
@@ -647,23 +660,12 @@
 
             const statusCell = document.getElementById('status-cell-' + drumId);
             if (statusCell) {
-                let badgeHtml = '';
-                if (newStatus === 'PLANT RECEIVED') {
-                    badgeHtml = '<span class="badge bg-primary">Plant Received</span>';
-                } else if (newStatus === 'RESAMPLE') {
-                    badgeHtml = '<span class="badge bg-warning text-dark">Resample</span>';
-                } else if (newStatus === 'REJECTED') {
-                    badgeHtml = '<span class="badge bg-danger">Rejected</span>';
-                } else if (newStatus === 'PASS') {
-                    badgeHtml = '<span class="badge bg-info text-dark">Passed</span>';
-                } else if (newStatus === 'FAIL') {
-                    badgeHtml = '<span class="badge bg-dark">Failed</span>';
-                } else if (newStatus === 'FINAL CODED') {
-                    badgeHtml = '<span class="badge bg-success">Final Coded</span>';
-                } else {
-                    badgeHtml = `<span class="badge bg-secondary">${newStatus}</span>`;
+                const selectElem = statusCell.querySelector('select');
+                if (selectElem) {
+                    selectElem.value = newStatus;
+                    selectElem.setAttribute('data-old-status', newStatus);
+                    updateSelectBgColor(selectElem, newStatus);
                 }
-                statusCell.innerHTML = badgeHtml;
             }
 
             const resampleBtn = document.getElementById('btn-resample-' + drumId);
@@ -685,6 +687,75 @@
             }
 
             applyFilters();
+        }
+
+        function updateSelectBgColor(selectElem, status) {
+            let bgColor = '#6c757d'; // default secondary
+            let textColor = '#ffffff';
+            if (status === 'PLANT RECEIVED') {
+                bgColor = '#0d6efd';
+            } else if (status === 'RESAMPLE') {
+                bgColor = '#ffc107';
+                textColor = '#212529';
+            } else if (status === 'REJECTED') {
+                bgColor = '#dc3545';
+            } else if (status === 'PASS') {
+                bgColor = '#0dcaf0';
+                textColor = '#212529';
+            } else if (status === 'FAIL') {
+                bgColor = '#212529';
+            } else if (status === 'FINAL CODED') {
+                bgColor = '#198754';
+            } else if (status === 'MISSING') {
+                bgColor = '#6c757d';
+            }
+            selectElem.style.backgroundColor = bgColor;
+            selectElem.style.setProperty('color', textColor, status === 'RESAMPLE' || status === 'PASS' ? 'important' : '');
+        }
+
+        function changeDrumStatus(drumId, selectElem) {
+            const newStatus = selectElem.value;
+            const oldStatus = selectElem.getAttribute('data-old-status');
+            
+            if (newStatus === 'REJECTED') {
+                const rejectModal = new bootstrap.Modal(document.getElementById('rejectDrumModal' + drumId));
+                rejectModal.show();
+                selectElem.value = oldStatus;
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('drum_id', drumId);
+            formData.append('action', 'UPDATE_STATUS');
+            formData.append('status', newStatus);
+            
+            fetch('/stu/drum_action', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    selectElem.setAttribute('data-old-status', newStatus);
+                    updateSelectBgColor(selectElem, newStatus);
+                    const row = document.getElementById('row-' + drumId);
+                    if (row) {
+                        row.setAttribute('data-status', newStatus);
+                    }
+                    applyFilters();
+                } else {
+                    alert('Failed to update drum status.');
+                    selectElem.value = oldStatus;
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Error updating drum status.');
+                selectElem.value = oldStatus;
+            });
         }
 
         function toggleResampleSingle(drumId) {
