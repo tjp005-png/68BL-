@@ -72,17 +72,68 @@ def stu_hub():
         last_upload = last_upload_row[0] if last_upload_row else 'NO DATA'
         
         # Get active LAS bulk trucks pending release (Load As Sample)
-        # Select parameters directly from the profiles table in the database
         las_trucks_raw = conn.execute('''
             SELECT tl.*, 
                    p.generator, p.waste_description, p.win_code, p.voc_percentage, p.special_handling,
-                   p.ph_range, p.physical_appearance, p.flash_point, p.expiration_date
+                   p.ph_range, p.physical_appearance, p.flash_point, p.expiration_date,
+                   COALESCE(w.cyanide, p.cyanide) AS wvi_cyanide,
+                   COALESCE(w.sulfides, p.sulfide) AS wvi_sulfides,
+                   COALESCE(w.free_liquids, p.free_liquids) AS wvi_free_liquids,
+                   w.ph_min, w.ph_max, w.voc_ppm AS wvi_voc_ppm, w.flashpoint AS wvi_flashpoint
             FROM truck_logs tl
             LEFT JOIN profiles p ON TRIM(UPPER(tl.profile_number)) = TRIM(UPPER(p.profile_number))
+            LEFT JOIN profile_wvi w ON TRIM(UPPER(tl.profile_number)) = TRIM(UPPER(w.profile))
             WHERE tl.test_assigned LIKE 'LAS%' AND tl.test_status = 'WEIGHED IN'
             ORDER BY tl.id DESC
         ''').fetchall()
-        las_trucks = [dict(t) for t in las_trucks_raw]
+        
+        import re
+        las_trucks = []
+        for row in las_trucks_raw:
+            t = dict(row)
+            
+            # Compute default pH
+            ph_val = 7.0
+            if t.get('ph_min') is not None and t.get('ph_max') is not None:
+                ph_val = round((t['ph_min'] + t['ph_max']) / 2.0, 1)
+            elif t.get('ph_range'):
+                m = re.findall(r'(\d+\.?\d*)', str(t['ph_range']))
+                if len(m) >= 2:
+                    try:
+                        ph_val = round((float(m[0]) + float(m[1])) / 2.0, 1)
+                    except:
+                        pass
+                elif len(m) == 1:
+                    try:
+                        ph_val = float(m[0])
+                    except:
+                        pass
+            t['default_ph'] = ph_val
+            
+            # Compute default VOC
+            voc_val = 0.0
+            if t.get('wvi_voc_ppm') is not None:
+                voc_val = t['wvi_voc_ppm']
+            elif t.get('voc_percentage') is not None:
+                val = t['voc_percentage']
+                # If voc_percentage is a small percentage fraction, multiply to get ppm
+                voc_val = val * 10000 if val < 10 else val
+            t['default_voc'] = round(voc_val, 1)
+            
+            # Compute default sulfides
+            t['default_sulfides'] = 'Positive' if str(t.get('wvi_sulfides') or '').strip().lower() in ['yes', 'true', 'pos', 'positive', 'y', 'neg or pos'] else 'Negative'
+            
+            # Compute default cyanide
+            t['default_cyanide'] = 'Positive' if str(t.get('wvi_cyanide') or '').strip().lower() in ['yes', 'true', 'pos', 'positive', 'y', 'neg or pos'] else 'Negative'
+            
+            # Compute default free liquids
+            t['default_free_liquids'] = 'Yes' if str(t.get('wvi_free_liquids') or '').strip().lower() in ['yes', 'true', 'y', 'free'] else 'No'
+            
+            # Compute default flashpoint
+            fp = str(t.get('wvi_flashpoint') or t.get('flash_point') or 'Not Required').strip()
+            t['default_flashpoint'] = fp
+            
+            las_trucks.append(t)
         
     return render_template('stu_hub.html', 
                            pipeline_loads=pipeline_loads, 

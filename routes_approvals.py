@@ -660,3 +660,262 @@ def delete_waste_acceptance_log():
         conn.execute('DELETE FROM waste_acceptance_log WHERE id = ?', (log_id,))
         conn.commit()
     return jsonify({'success': True})
+
+@approvals_bp.route('/api/profile/<profile_number>/wvi')
+def export_wvi_excel(profile_number):
+    import io
+    import xlrd
+    import openpyxl
+    from openpyxl.styles import Font, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from flask import send_file
+    import re
+    
+    profile_clean = str(profile_number).strip().upper()
+    
+    # 1. Fetch data from profiles and profile_wvi tables
+    with closing(get_db_connection()) as conn:
+        p_row = conn.execute('SELECT * FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (profile_clean,)).fetchone()
+        w_row = conn.execute('SELECT * FROM profile_wvi WHERE TRIM(UPPER(profile)) = ?', (profile_clean,)).fetchone()
+        
+    if not p_row and not w_row:
+        return "Profile not found in database", 404
+        
+    # Helper to parse pH range (like "7.0 to 12.4" or "7.0-12.0")
+    def parse_ph_range(ph_range):
+        if not ph_range:
+            return None, None
+        m = re.findall(r'(\d+\.?\d*)', str(ph_range))
+        if len(m) >= 2:
+            try:
+                return float(m[0]), float(m[1])
+            except:
+                pass
+        elif len(m) == 1:
+            try:
+                return float(m[0]), float(m[0])
+            except:
+                pass
+        return None, None
+
+    # Helper to convert/clean voc_percentage to voc_ppm
+    def get_voc_ppm(percentage):
+        if percentage is None:
+            return None
+        try:
+            val = float(percentage)
+            return val * 10000 if val < 10 else val
+        except:
+            return None
+
+    # Combine data from tables
+    combined = {
+        'profile': profile_clean,
+        'generator_name': w_row['generator_name'] if (w_row and w_row['generator_name']) else (p_row['generator'] if p_row else ''),
+        'waste_name': w_row['waste_name'] if (w_row and w_row['waste_name']) else (p_row['waste_description'] if p_row else ''),
+        'physical_description': w_row['physical_description'] if (w_row and w_row['physical_description']) else (p_row['physical_appearance'] if p_row else ''),
+        'ldr': w_row['ldr'] if (w_row and w_row['ldr']) else (p_row['ldr_required'] if p_row else ''),
+        'state_waste_codes': w_row['state_waste_codes'] if (w_row and w_row['state_waste_codes']) else (p_row['state_waste_code'] if p_row else ''),
+        'federal_waste_codes': w_row['federal_waste_codes'] if (w_row and w_row['federal_waste_codes']) else (p_row['federal_waste_code'] if p_row else ''),
+        'dot_description': w_row['dot_description'] if (w_row and w_row['dot_description']) else (p_row['dot_description'] if p_row else ''),
+        'handling_instruction': w_row['handling_instruction'] if (w_row and w_row['handling_instruction']) else (p_row['special_handling'] if p_row else ''),
+        'sample_procedures': w_row['sample_procedures'] if (w_row and w_row['sample_procedures']) else '',
+        'verification_procedures': w_row['verification_procedures'] if (w_row and w_row['verification_procedures']) else 'VISUAL',
+        'ph_min': w_row['ph_min'] if (w_row and w_row['ph_min'] is not None) else None,
+        'ph_max': w_row['ph_max'] if (w_row and w_row['ph_max'] is not None) else None,
+        'sulfides': w_row['sulfides'] if (w_row and w_row['sulfides']) else (p_row['sulfide'] if p_row else ''),
+        'cyanide': w_row['cyanide'] if (w_row and w_row['cyanide']) else (p_row['cyanide'] if p_row else ''),
+        'free_liquids': w_row['free_liquids'] if (w_row and w_row['free_liquids']) else (p_row['free_liquids'] if p_row else ''),
+        'flashpoint': w_row['flashpoint'] if (w_row and w_row['flashpoint']) else (p_row['flash_point'] if p_row else ''),
+        'unloading_instructions': w_row['unloading_instructions'] if (w_row and w_row['unloading_instructions']) else '',
+        'reactivity_codes': w_row['reactivity_codes'] if (w_row and w_row['reactivity_codes']) else 'NONE',
+        'approved_date': w_row['approved_date'] if (w_row and w_row['approved_date']) else '',
+        'expiration_date': w_row['expiration_date'] if (w_row and w_row['expiration_date']) else (p_row['expiration_date'] if p_row else ''),
+        'lab_num': w_row['lab_num'] if (w_row and w_row['lab_num']) else (p_row['lab_number'] if p_row else ''),
+        'voc_ppm': w_row['voc_ppm'] if (w_row and w_row['voc_ppm'] is not None) else None,
+        'treatment_information': w_row['treatment_information'] if (w_row and w_row['treatment_information']) else 'Not applicable',
+        'notes_revisions': w_row['notes_revisions'] if (w_row and w_row['notes_revisions']) else ''
+    }
+
+    # Fill in fallback parsed range/voc
+    if combined['ph_min'] is None or combined['ph_max'] is None:
+        if p_row and p_row['ph_range']:
+            ph_min_parsed, ph_max_parsed = parse_ph_range(p_row['ph_range'])
+            if combined['ph_min'] is None:
+                combined['ph_min'] = ph_min_parsed
+            if combined['ph_max'] is None:
+                combined['ph_max'] = ph_max_parsed
+
+    if combined['voc_ppm'] is None and p_row and p_row['voc_percentage'] is not None:
+        combined['voc_ppm'] = get_voc_ppm(p_row['voc_percentage'])
+
+    # Format Sulfides/Cyanide/Free Liquids to NEG/POS style or YES/NO style
+    def to_neg_pos(val):
+        if not val:
+            return 'NEG'
+        v_str = str(val).strip().upper()
+        if v_str in ['YES', 'TRUE', 'POS', 'POSITIVE', 'Y']:
+            return 'POS'
+        if v_str in ['NO', 'FALSE', 'NEG', 'NEGATIVE', 'N']:
+            return 'NEG'
+        return val
+
+    def to_yes_no(val):
+        if not val:
+            return 'NO'
+        v_str = str(val).strip().upper()
+        if v_str in ['YES', 'TRUE', 'POS', 'POSITIVE', 'Y']:
+            return 'YES'
+        if v_str in ['NO', 'FALSE', 'NEG', 'NEGATIVE', 'N']:
+            return 'NO'
+        return val
+
+    combined['sulfides'] = to_neg_pos(combined['sulfides'])
+    combined['cyanide'] = to_neg_pos(combined['cyanide'])
+    combined['free_liquids'] = to_yes_no(combined['free_liquids'])
+
+    # Format date outputs
+    def format_date_serial_or_string(val):
+        if not val:
+            return ''
+        return str(val)
+
+    combined['approved_date'] = format_date_serial_or_string(combined['approved_date'])
+    combined['expiration_date'] = format_date_serial_or_string(combined['expiration_date'])
+
+    # Locate the template Excel file
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+    template_path = os.path.join(app_dir, 'CH2951500.xls')
+    if not os.path.exists(template_path):
+        return f"Template file CH2951500.xls not found in app directory: {template_path}", 500
+
+    # Load template sheet
+    try:
+        workbook = xlrd.open_workbook(template_path, formatting_info=True)
+        sheet = workbook.sheet_by_index(0)
+    except Exception as e:
+        return f"Error loading template: {str(e)}", 500
+
+    # Build openpyxl workbook
+    wb = openpyxl.Workbook()
+    if "Sheet" in wb.sheetnames:
+        wb.remove(wb["Sheet"])
+    ws = wb.create_sheet(title=f"WVI {combined['profile']}")
+    ws.views.sheetView[0].showGridLines = True
+
+    # 1. Replicate column widths
+    for c in range(sheet.ncols):
+        col_letter = get_column_letter(c + 1)
+        width = 12
+        if c in sheet.colinfo_map:
+            width = max(sheet.colinfo_map[c].width / 256.0, 10)
+        ws.column_dimensions[col_letter].width = width
+
+    # 2. Map coordinates for dynamic fields
+    cell_mapping = {
+        (3, 1): 'profile',
+        (5, 1): 'generator_name',
+        (7, 1): 'waste_name',
+        (9, 1): 'physical_description',
+        (10, 1): 'ldr',
+        (11, 1): 'state_waste_codes',
+        (12, 1): 'federal_waste_codes',
+        (13, 1): 'dot_description',
+        (15, 1): 'handling_instruction',
+        (18, 1): 'sample_procedures',
+        (20, 1): 'verification_procedures',
+        (21, 2): 'ph_min',
+        (21, 4): 'ph_max',
+        (22, 2): 'sulfides',
+        (23, 2): 'cyanide',
+        (24, 2): 'free_liquids',
+        (29, 1): 'unloading_instructions',
+        (31, 1): 'reactivity_codes',
+        (33, 1): 'approved_date',
+        (34, 1): 'expiration_date',
+        (38, 2): 'lab_num',
+        (41, 2): 'voc_ppm',
+        (43, 1): 'treatment_information',
+        (37, 1): 'notes_revisions'
+    }
+
+    align_map_h = {1: 'left', 2: 'center', 3: 'right', 5: 'justify'}
+    align_map_v = {0: 'top', 1: 'center', 2: 'bottom'}
+
+    def format_output_val(key, val):
+        if val is None:
+            return ''
+        if key in ['ph_min', 'ph_max', 'voc_ppm']:
+            try:
+                return float(val)
+            except:
+                return val
+        return str(val)
+
+    # 3. Copy cells and apply styles/values
+    for r in range(sheet.nrows):
+        if r in sheet.rowinfo_map:
+            height = sheet.rowinfo_map[r].height / 20.0
+            if height > 0:
+                ws.row_dimensions[r + 1].height = height
+                
+        for c in range(sheet.ncols):
+            cell = sheet.cell(r, c)
+            cell_val = cell.value
+            
+            if (r, c) in cell_mapping:
+                key = cell_mapping[(r, c)]
+                cell_val = format_output_val(key, combined.get(key, cell_val))
+            
+            new_cell = ws.cell(row=r + 1, column=c + 1, value=cell_val)
+            
+            # Formatting
+            xf = workbook.xf_list[cell.xf_index]
+            font = workbook.font_list[xf.font_index]
+            
+            # Alignments
+            h_align = align_map_h.get(xf.alignment.hor_align, 'left')
+            v_align = align_map_v.get(xf.alignment.vert_align, 'center')
+            new_cell.alignment = Alignment(
+                horizontal=h_align,
+                vertical=v_align,
+                wrap_text=True if (c == 1 and r in [5, 7, 9, 13, 15, 29, 37, 43]) else False
+            )
+            
+            # Font
+            new_cell.font = Font(
+                name=font.name,
+                size=font.height // 20,
+                bold=bool(font.bold),
+                italic=bool(font.italic),
+                color="000000" if font.colour_index == 32767 else None
+            )
+            
+            # Borders for parameter table (B22:E25)
+            if r in range(21, 25) and c in range(1, 5):
+                thin_side = Side(border_style="thin", color="000000")
+                new_cell.border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+
+    # 4. Copy merged ranges
+    for crange in sheet.merged_cells:
+        rlo, rhi, clo, chi = crange
+        ws.merge_cells(
+            start_row=rlo + 1,
+            end_row=rhi,
+            start_column=clo + 1,
+            end_column=chi
+        )
+
+    # Save to a memory buffer
+    output_io = io.BytesIO()
+    wb.save(output_io)
+    output_io.seek(0)
+
+    filename = f"WVI_{combined['profile']}.xlsx"
+    return send_file(
+        output_io,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename
+    )
+

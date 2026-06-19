@@ -229,11 +229,11 @@
                                 <div class="row g-3">
                                     <div class="col-md-6">
                                         <label class="form-label fw-bold text-dark">Measured pH <span class="text-danger">*</span></label>
-                                        <input type="text" class="form-control border-secondary" name="measured_ph" placeholder="e.g. 7.2" required>
+                                        <input type="text" class="form-control border-secondary" name="measured_ph" value="{{ truck.default_ph if truck.default_ph is not none else '' }}" placeholder="e.g. 7.2" required>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label fw-bold text-dark">Measured VOC (ppm) <span class="text-danger">*</span></label>
-                                        <input type="text" class="form-control border-secondary" name="measured_voc" placeholder="e.g. 15.0" required>
+                                        <input type="text" class="form-control border-secondary" name="measured_voc" value="{{ truck.default_voc if truck.default_voc is not none else '' }}" placeholder="e.g. 15.0" required>
                                     </div>
                                     
                                     {% set is_special = false %}
@@ -247,28 +247,28 @@
                                     <div class="col-md-6">
                                         <label class="form-label fw-bold text-danger">Measured Sulfides <span class="text-danger">*</span></label>
                                         <select class="form-select border-danger" name="measured_sulfides" required>
-                                            <option value="Negative" selected>Negative</option>
-                                            <option value="Positive">Positive</option>
+                                            <option value="Negative" {% if truck.default_sulfides == 'Negative' %}selected{% endif %}>Negative</option>
+                                            <option value="Positive" {% if truck.default_sulfides == 'Positive' %}selected{% endif %}>Positive</option>
                                         </select>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label fw-bold text-danger">Measured Cyanide <span class="text-danger">*</span></label>
                                         <select class="form-select border-danger" name="measured_cyanide" required>
-                                            <option value="Negative" selected>Negative</option>
-                                            <option value="Positive">Positive</option>
+                                            <option value="Negative" {% if truck.default_cyanide == 'Negative' %}selected{% endif %}>Negative</option>
+                                            <option value="Positive" {% if truck.default_cyanide == 'Positive' %}selected{% endif %}>Positive</option>
                                         </select>
                                     </div>
                                     {% endif %}
 
                                     <div class="col-md-6">
                                         <label class="form-label fw-bold text-dark">Measured Flashpoint</label>
-                                        <input type="text" class="form-control border-secondary" name="measured_flashpoint" placeholder="e.g. >200F">
+                                        <input type="text" class="form-control border-secondary" name="measured_flashpoint" value="{{ truck.default_flashpoint if truck.default_flashpoint is not none else '' }}" placeholder="e.g. >200F">
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label fw-bold text-dark">Free Liquids? <span class="text-danger">*</span></label>
                                         <select class="form-select border-secondary" name="measured_free_liquids" required>
-                                            <option value="No" selected>No</option>
-                                            <option value="Yes">Yes</option>
+                                            <option value="No" {% if truck.default_free_liquids == 'No' %}selected{% endif %}>No</option>
+                                            <option value="Yes" {% if truck.default_free_liquids == 'Yes' %}selected{% endif %}>Yes</option>
                                         </select>
                                     </div>
                                     <div class="col-12">
