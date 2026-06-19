@@ -411,13 +411,21 @@
                                 </div>
 
                                 <div class="row mb-3">
-                                    <div class="col-6">
+                                    <div class="col-4">
                                         <label class="form-label text-muted small fw-bold mb-1">BL Waste Code</label>
                                         <input type="text" class="form-control border-secondary text-uppercase" id="form-win" name="win_code" placeholder="e.g. CBP, CNO">
                                     </div>
-                                    <div class="col-6">
+                                    <div class="col-4">
                                         <label class="form-label text-muted small fw-bold mb-1 text-danger">Total VOC (ppm)</label>
                                         <input type="number" step="0.01" class="form-control border-danger bg-light" id="form-voc" name="voc_percentage" value="0">
+                                    </div>
+                                    <div class="col-4">
+                                        <label class="form-label text-muted small fw-bold mb-1">Approval Status</label>
+                                        <select class="form-select border-secondary px-2" id="form-status" name="status" required>
+                                            <option value="ACTIVE">Active</option>
+                                            <option value="S" selected>Pending LAS (S)</option>
+                                            <option value="NOT APPROVED">Not Approved</option>
+                                        </select>
                                     </div>
                                 </div>
 
@@ -719,7 +727,7 @@
                                 btn.innerHTML = `
                                     <div class="d-flex w-100 justify-content-between align-items-center">
                                         <h6 class="mb-0 fw-bold text-primary">${p.profile_number}</h6>
-                                        <small class="${p.status === 'ACTIVE' ? 'text-success' : (p.status === 'S' ? 'text-warning' : 'text-muted')} fw-bold me-3">${p.status === 'S' ? 'PENDING LAS (S)' : (p.status || 'UNKNOWN')}</small>
+                                        <small class="${p.status === 'ACTIVE' ? 'text-success' : (p.status === 'S' ? 'text-warning' : (p.status === 'NOT APPROVED' ? 'text-danger' : 'text-muted'))} fw-bold me-3">${p.status === 'S' ? 'PENDING LAS (S)' : (p.status || 'UNKNOWN')}</small>
                                     </div>
                                     <p class="mb-1 mt-1 small text-truncate w-100" style="color: var(--text-main); font-weight: 500;">${p.generator || 'No Generator'}</p>
                                     <small class="text-muted d-block text-truncate w-100">Desc: ${p.waste_description || '---'} | Lab: ${p.lab_number || '---'} | WIN: ${p.win_code || '---'}</small>
@@ -772,8 +780,19 @@
             // Populate Meta Data
             document.getElementById('dashProfileNum').innerText = p.profile_number;
             document.getElementById('dashGenerator').innerText = p.generator || '---';
-            document.getElementById('dashStatus').innerText = p.status === 'S' ? 'PENDING LAS (S)' : (p.status || 'UNKNOWN');
-            document.getElementById('dashStatus').className = `badge mb-1 px-3 py-2 fs-6 ${p.status === 'ACTIVE' ? 'bg-success' : (p.status === 'S' ? 'bg-warning text-dark' : 'bg-secondary')}`;
+            
+            let statusText = p.status || 'UNKNOWN';
+            if (p.status === 'S') statusText = 'PENDING LAS (S)';
+            else if (p.status === 'ACTIVE') statusText = 'ACTIVE';
+            else if (p.status === 'NOT APPROVED') statusText = 'NOT APPROVED';
+
+            let badgeClass = 'bg-secondary';
+            if (p.status === 'ACTIVE') badgeClass = 'bg-success';
+            else if (p.status === 'S') badgeClass = 'bg-warning text-dark';
+            else if (p.status === 'NOT APPROVED') badgeClass = 'bg-danger';
+
+            document.getElementById('dashStatus').innerText = statusText;
+            document.getElementById('dashStatus').className = `badge mb-1 px-3 py-2 fs-6 ${badgeClass}`;
             document.getElementById('dashExp').innerText = p.expiration_date || 'No Date';
             document.getElementById('dashWin').innerText = p.win_code || '---';
             document.getElementById('dashLab').innerText = p.lab_number || '---';
@@ -820,6 +839,7 @@
             document.getElementById('form-state-code').value = p.state_waste_code || '';
             document.getElementById('form-federal-code').value = p.federal_waste_code || '';
             document.getElementById('form-dot').value = p.dot_description || '';
+            document.getElementById('form-status').value = p.status || 'S';
 
             // Show 'New Profile' option to allow reverting to creation mode
             document.getElementById('clearFormBtn').classList.remove('d-none');

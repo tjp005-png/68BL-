@@ -341,6 +341,8 @@ def add_master_profile():
     except (ValueError, TypeError):
         pass
 
+    status = request.form.get('status', 'S').strip().upper()
+
     with closing(get_db_connection()) as conn:
         existing = conn.execute('SELECT profile_number FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (profile_number,)).fetchone()
         if existing:
@@ -350,23 +352,23 @@ def add_master_profile():
                     special_handling = ?, ph_range = ?, physical_appearance = ?, flash_point = ?, 
                     expiration_date = ?, epa_id = ?, ldr_required = ?, state_waste_code = ?, 
                     federal_waste_code = ?, dot_description = ?, cyanide = ?, sulfide = ?, 
-                    free_liquids = ?, status = 'S'
+                    free_liquids = ?, status = ?
                 WHERE TRIM(UPPER(profile_number)) = ?
             ''', (generator, waste_description, win_code, voc_pct, 
                   special_handling, ph_range, physical_appearance, flash_point, 
                   expiration_date, epa_id, ldr_required, state_waste_code, 
                   federal_waste_code, dot_description, cyanide, sulfide, 
-                  free_liquids, profile_number))
+                  free_liquids, status, profile_number))
         else:
             conn.execute('''
                 INSERT INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, 
                                       special_handling, ph_range, physical_appearance, flash_point, expiration_date, 
                                       epa_id, status, ldr_required, state_waste_code, federal_waste_code, 
                                       dot_description, cyanide, sulfide, free_liquids)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'S', ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (profile_number, generator, waste_description, win_code, voc_pct, 
                   special_handling, ph_range, physical_appearance, flash_point, expiration_date, 
-                  epa_id, ldr_required, state_waste_code, federal_waste_code, 
+                  epa_id, status, ldr_required, state_waste_code, federal_waste_code, 
                   dot_description, cyanide, sulfide, free_liquids))
         conn.commit()
         
