@@ -783,11 +783,24 @@ def export_wvi_excel(profile_number):
     combined['approved_date'] = format_date_serial_or_string(combined['approved_date'])
     combined['expiration_date'] = format_date_serial_or_string(combined['expiration_date'])
 
-    # Locate the template Excel file
+    # Locate the template Excel file dynamically
     app_dir = os.path.dirname(os.path.abspath(__file__))
-    template_path = os.path.join(app_dir, 'CH2951500.xls')
+    win_code = str(p_row['win_code'] if p_row else '').strip().upper()
+    
+    template_path = None
+    if win_code:
+        # Try to find a template matching the win_code (e.g. CBP.xls or CBP.xlsx)
+        for ext in ['.xls', '.xlsx']:
+            p = os.path.join(app_dir, f"{win_code}{ext}")
+            if os.path.exists(p):
+                template_path = p
+                break
+                
+    if not template_path:
+        template_path = os.path.join(app_dir, 'CH2951500.xls')
+        
     if not os.path.exists(template_path):
-        return f"Template file CH2951500.xls not found in app directory: {template_path}", 500
+        return f"Template file not found in app directory. Tried {win_code}.xls/xlsx and fallback CH2951500.xls.", 500
 
     # Load template sheet
     try:
@@ -811,33 +824,64 @@ def export_wvi_excel(profile_number):
             width = max(sheet.colinfo_map[c].width / 256.0, 10)
         ws.column_dimensions[col_letter].width = width
 
-    # 2. Map coordinates for dynamic fields
-    cell_mapping = {
-        (3, 1): 'profile',
-        (5, 1): 'generator_name',
-        (7, 1): 'waste_name',
-        (9, 1): 'physical_description',
-        (10, 1): 'ldr',
-        (11, 1): 'state_waste_codes',
-        (12, 1): 'federal_waste_codes',
-        (13, 1): 'dot_description',
-        (15, 1): 'handling_instruction',
-        (18, 1): 'sample_procedures',
-        (20, 1): 'verification_procedures',
-        (21, 2): 'ph_min',
-        (21, 4): 'ph_max',
-        (22, 2): 'sulfides',
-        (23, 2): 'cyanide',
-        (24, 2): 'free_liquids',
-        (29, 1): 'unloading_instructions',
-        (31, 1): 'reactivity_codes',
-        (33, 1): 'approved_date',
-        (34, 1): 'expiration_date',
-        (38, 2): 'lab_num',
-        (41, 2): 'voc_ppm',
-        (43, 1): 'treatment_information',
-        (37, 1): 'notes_revisions'
-    }
+    # 2. Build dynamic cell mapping by scanning labels in the template sheet
+    cell_mapping = {}
+    for r in range(sheet.nrows):
+        col0_val = str(sheet.cell_value(r, 0)).strip()
+        col1_val = str(sheet.cell_value(r, 1)).strip()
+        
+        # Check Column 0 labels
+        c0_upper = col0_val.upper()
+        if c0_upper == 'PROFILE':
+            cell_mapping[(r, 1)] = 'profile'
+        elif c0_upper == 'GENERATOR NAME':
+            cell_mapping[(r, 1)] = 'generator_name'
+        elif c0_upper == 'WASTE NAME':
+            cell_mapping[(r, 1)] = 'waste_name'
+        elif c0_upper == 'PHYSICAL DESCRIPTION':
+            cell_mapping[(r, 1)] = 'physical_description'
+        elif c0_upper == 'LDR':
+            cell_mapping[(r, 1)] = 'ldr'
+        elif c0_upper in ['STATE WASTE CODES', 'STATE WASTE CODE']:
+            cell_mapping[(r, 1)] = 'state_waste_codes'
+        elif c0_upper in ['FEDERAL WASTE CODES', 'FEDERAL WASTE CODE']:
+            cell_mapping[(r, 1)] = 'federal_waste_codes'
+        elif c0_upper == 'DOT DESCRIPTION':
+            cell_mapping[(r, 1)] = 'dot_description'
+        elif c0_upper == 'HANDLING INSTRUCTION':
+            cell_mapping[(r, 1)] = 'handling_instruction'
+        elif c0_upper == 'SAMPLE PROCEDURES':
+            cell_mapping[(r, 1)] = 'sample_procedures'
+        elif c0_upper == 'VERIFICATION PROCEDURES':
+            cell_mapping[(r, 1)] = 'verification_procedures'
+        elif c0_upper == 'UNLOADING INSTRUCTIONS':
+            cell_mapping[(r, 1)] = 'unloading_instructions'
+        elif c0_upper == 'REACTIVITY CODES':
+            cell_mapping[(r, 1)] = 'reactivity_codes'
+        elif c0_upper == 'APPROVED DATE':
+            cell_mapping[(r, 1)] = 'approved_date'
+        elif c0_upper == 'EXPIRATION DATE':
+            cell_mapping[(r, 1)] = 'expiration_date'
+        elif c0_upper == 'TREATMENT INFORMATION':
+            cell_mapping[(r, 1)] = 'treatment_information'
+        elif c0_upper == 'NOTES/REVISIONS':
+            cell_mapping[(r, 1)] = 'notes_revisions'
+            
+        # Check Column 1 labels
+        c1_upper = col1_val.upper()
+        if 'PH RANGE' in c1_upper:
+            cell_mapping[(r, 2)] = 'ph_min'
+            cell_mapping[(r, 4)] = 'ph_max'
+        elif 'SULFIDES' in c1_upper:
+            cell_mapping[(r, 2)] = 'sulfides'
+        elif 'CYANIDE' in c1_upper:
+            cell_mapping[(r, 2)] = 'cyanide'
+        elif 'FREE LIQUIDS' in c1_upper:
+            cell_mapping[(r, 2)] = 'free_liquids'
+        elif 'LAB.' in c1_upper or 'LAB #' in c1_upper:
+            cell_mapping[(r, 2)] = 'lab_num'
+        elif 'VOC' in c1_upper:
+            cell_mapping[(r, 2)] = 'voc_ppm'
 
     align_map_h = {1: 'left', 2: 'center', 3: 'right', 5: 'justify'}
     align_map_v = {0: 'top', 1: 'center', 2: 'bottom'}
