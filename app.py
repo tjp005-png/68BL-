@@ -205,10 +205,15 @@ def upgrade_db():
         ''')
         if not column_exists(cursor, 'drum_inventory', 'manifest'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN manifest TEXT')
         if not column_exists(cursor, 'drum_inventory', 'job_id'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN job_id TEXT')
-        if not column_exists(cursor, 'drum_inventory', 'status'): cursor.execute("ALTER TABLE drum_inventory ADD COLUMN status TEXT DEFAULT 'PENDING'")
+        if not column_exists(cursor, 'drum_inventory', 'status'): 
+            cursor.execute("ALTER TABLE drum_inventory ADD COLUMN status TEXT DEFAULT 'FINAL CODED'")
+        else:
+            # Fix legacy PENDING status values to FINAL CODED
+            cursor.execute("UPDATE drum_inventory SET status = 'FINAL CODED' WHERE status = 'PENDING'")
         if not column_exists(cursor, 'drum_inventory', 'location'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN location TEXT')
         if not column_exists(cursor, 'drum_inventory', 'reject_notes'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN reject_notes TEXT')
         if not column_exists(cursor, 'drum_inventory', 'outgoing_manifest'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN outgoing_manifest TEXT')
+        if not column_exists(cursor, 'drum_inventory', 'last_scan_date'): cursor.execute('ALTER TABLE drum_inventory ADD COLUMN last_scan_date TEXT')
 
         # 5. DRUM SAMPLING COMPLIANCE TABLES
         cursor.execute('''

@@ -64,7 +64,28 @@ def stu_hub():
             
         # Get all active inventory drums (including pending sampling)
         drums_raw = conn.execute("SELECT * FROM drum_inventory ORDER BY age DESC").fetchall()
-        drums = [dict(d) for d in drums_raw]
+        drums = []
+        from datetime import datetime
+        today = date.today()
+        for row in drums_raw:
+            d = dict(row)
+            d['last_scan_date_display'] = d.get('last_scan_date') or 'N/A'
+            d['days_since_scanned'] = 'N/A'
+            
+            scan_date_str = d.get('last_scan_date')
+            if scan_date_str:
+                scan_date_str = str(scan_date_str).strip()
+                if scan_date_str and scan_date_str.lower() != 'none' and scan_date_str.lower() != 'nan':
+                    # Try parsing multiple date formats
+                    for fmt in ('%m/%d/%Y', '%Y-%m-%d', '%d/%m/%Y', '%m/%d/%y'):
+                        try:
+                            scan_dt = datetime.strptime(scan_date_str, fmt).date()
+                            delta = today - scan_dt
+                            d['days_since_scanned'] = max(0, delta.days)
+                            break
+                        except ValueError:
+                            continue
+            drums.append(d)
         
         process_types = sorted(list(set([str(d['process_type']).strip().upper() for d in drums if d.get('process_type')])))
 
@@ -309,9 +330,14 @@ def upload_vpi():
                 df['location'] = df['location'].replace({'nan': None, 'None': None, '': None})
             else:
                 df['location'] = None
+
+            if 'Last Scan Date' in df.columns:
+                df['last_scan_date'] = df['Last Scan Date'].astype(str).str.strip().str.replace("nan", "")
+            else:
+                df['last_scan_date'] = None
                 
-            cleaned_data = list(zip(df['Track No'], df['Inb Prof'], df['Process Type'], df['Weight'], df['pH'], df['Age'], df['voc_ppm'], df['voc_weight'], [date.today().isoformat()]*len(df), ['FINAL CODED']*len(df), df['location']))
-            conn.executemany("INSERT INTO drum_inventory (track_no, inb_prof, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, status, location) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", cleaned_data)
+            cleaned_data = list(zip(df['Track No'], df['Inb Prof'], df['Process Type'], df['Weight'], df['pH'], df['Age'], df['voc_ppm'], df['voc_weight'], [date.today().isoformat()]*len(df), ['FINAL CODED']*len(df), df['location'], df['last_scan_date']))
+            conn.executemany("INSERT INTO drum_inventory (track_no, inb_prof, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, status, location, last_scan_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", cleaned_data)
             
             # Re-apply preserved statuses and re-insert missing ones
             imported_tracks_upper = {str(t).strip().upper() for t in df['Track No']}
@@ -333,13 +359,13 @@ def upload_vpi():
                         INSERT INTO drum_inventory (
                             track_no, inb_prof, manifest, process_type, weight, ph, age, 
                             voc_ppm, voc_weight, import_date, job_id, status, reject_notes, 
-                            outgoing_manifest, location
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            outgoing_manifest, location, last_scan_date
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         p['track_no'], p['inb_prof'], p['manifest'], p['process_type'], 
                         p['weight'], p['ph'], p['age'], p['voc_ppm'], p['voc_weight'], 
                         p['import_date'], p['job_id'], status_val, p['reject_notes'], 
-                        p['outgoing_manifest'], loc_val
+                        p['outgoing_manifest'], loc_val, p.get('last_scan_date')
                     ))
                 
             conn.commit()
@@ -442,6 +468,15 @@ def drum_action():
         elif action == 'REJECT':
             conn.execute("UPDATE drum_inventory SET status = 'REJECTED', reject_notes = ?, outgoing_manifest = ? WHERE id = ?", (notes, manifest, drum_id))
             new_status = 'REJECTED'
+        elif action == 'UPDATE_STATUS':
+            target_status = request.form.get('status')
+            if target_status == 'REJECTED':
+                conn.execute("UPDATE drum_inventory SET status = 'REJECTED', reject_notes = ?, outgoing_manifest = ? WHERE id = ?", 
+                             (notes, manifest, drum_id))
+            else:
+                conn.execute("UPDATE drum_inventory SET status = ?, reject_notes = NULL, outgoing_manifest = NULL WHERE id = ?", 
+                             (target_status, drum_id))
+            new_status = target_status
         conn.commit()
         
     if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':

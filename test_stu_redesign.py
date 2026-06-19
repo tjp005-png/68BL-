@@ -285,6 +285,10 @@ class TestSTURedesignFlow(unittest.TestCase):
     def test_upload_vpi(self):
         """Test uploading a VPI CSV file and verifying database ingestion and pending preservation"""
         import io
+        from datetime import date, timedelta
+        
+        today = date.today()
+        scan_date_4_days_ago = (today - timedelta(days=4)).strftime('%m/%d/%Y')
         
         # 1. Insert a pending sampling drum to verify it gets preserved during upload
         conn = original_connect(TEST_DB_PATH)
@@ -296,11 +300,11 @@ class TestSTURedesignFlow(unittest.TestCase):
         conn.close()
 
         csv_data = (
-            "Track No,Process Type,Weight,pH,Inb Prof,Age,Type,Area\n"
-            "DRUM-NEW,direct land haz,450.0,6.5,P-STU-TEST,5.0,DM,Area-51\n"
-            "DRUM-PENDING-OVERWRITE,pending sampling,200.0,8.0,P-STU-TEST,2.0,DM,Area-52\n"
-            "DRUM-HEAVY-BULK,direct land nh,42000.0,7.0,P-STU-TEST,5.0,Roll-Off,Area-53\n"
-            "DRUM-HEAVY-PUT,put pile,35000.0,7.0,P-STU-TEST,5.0,Roll-Off,Cell 34 Open\n"
+            f"Track No,Process Type,Weight,pH,Inb Prof,Age,Type,Area,Last Scan Date\n"
+            f"DRUM-NEW,direct land haz,450.0,6.5,P-STU-TEST,5.0,DM,Area-51,{scan_date_4_days_ago}\n"
+            f"DRUM-PENDING-OVERWRITE,pending sampling,200.0,8.0,P-STU-TEST,2.0,DM,Area-52,{scan_date_4_days_ago}\n"
+            f"DRUM-HEAVY-BULK,direct land nh,42000.0,7.0,P-STU-TEST,5.0,Roll-Off,Area-53,{scan_date_4_days_ago}\n"
+            f"DRUM-HEAVY-PUT,put pile,35000.0,7.0,P-STU-TEST,5.0,Roll-Off,Cell 34 Open,{scan_date_4_days_ago}\n"
         )
         
         data = {
@@ -320,6 +324,7 @@ class TestSTURedesignFlow(unittest.TestCase):
         self.assertEqual(row_new['process_type'], 'direct land haz')
         self.assertEqual(row_new['location'], 'Area-51')
         self.assertEqual(row_new['status'], 'FINAL CODED')
+        self.assertEqual(row_new['last_scan_date'], scan_date_4_days_ago)
 
         # The pending sampling drum DRUM-PENDING (which was not in CSV) should be preserved
         row_pending = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-PENDING'").fetchone()
@@ -335,6 +340,96 @@ class TestSTURedesignFlow(unittest.TestCase):
         row_heavy_put = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-HEAVY-PUT'").fetchone()
         self.assertIsNotNone(row_heavy_put)
         self.assertEqual(row_heavy_put['process_type'], 'put pile')
+        
+        # Now verify the STU hub returns the scan date calculations
+        conn.close()
+        hub_res = self.client.get('/stu/hub?view=inventory')
+        self.assertEqual(hub_res.status_code, 200)
+        self.assertIn(b'4 days', hub_res.data)
+        self.assertIn(b'Last Scanned', hub_res.data)
+
+    def test_manual_status_update(self):
+        """Test manually updating drum status and verifying preservation"""
+        # Insert a drum
+        conn = original_connect(TEST_DB_PATH)
+        conn.execute('''
+            INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, status)
+            VALUES ('DRUM-UPDATE-TEST', 'P-STU-TEST', 'MAN-333', 'direct land haz', 300.0, 7.0, 5.0, 10.0, 3000.0, '2026-06-01', 'FINAL CODED')
+        ''')
+        conn.commit()
+        # Fetch the inserted drum's id
+        drum_id = conn.execute("SELECT id FROM drum_inventory WHERE track_no = 'DRUM-UPDATE-TEST'").fetchone()[0]
+        conn.close()
+
+        # Update status to RESAMPLE
+        res = self.client.post('/stu/drum_action', data={
+            'drum_id': drum_id,
+            'action': 'UPDATE_STATUS',
+            'status': 'RESAMPLE'
+        }, headers={'X-Requested-With': 'XMLHttpRequest'})
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.data.decode('utf-8'))
+        self.assertTrue(data['status'] == 'success')
+
+        # Verify DB updated
+        conn = original_connect(TEST_DB_PATH)
+        row = conn.execute("SELECT status, reject_notes, outgoing_manifest FROM drum_inventory WHERE id = ?", (drum_id,)).fetchone()
+        self.assertEqual(row[0], 'RESAMPLE')
+        self.assertIsNone(row[1]) # reject_notes should be NULL
+        conn.close()
+
+        # Update status to REJECTED (which should require reject_notes and outgoing_manifest)
+        res_reject = self.client.post('/stu/drum_action', data={
+            'drum_id': drum_id,
+            'action': 'UPDATE_STATUS',
+            'status': 'REJECTED',
+            'reject_notes': 'Drum is leaking',
+            'outgoing_manifest': 'OUT-MAN-999'
+        }, headers={'X-Requested-With': 'XMLHttpRequest'})
+        self.assertEqual(res_reject.status_code, 200)
+        data_rej = json.loads(res_reject.data.decode('utf-8'))
+        self.assertTrue(data_rej['status'] == 'success')
+
+        # Verify DB rejected fields
+        conn = original_connect(TEST_DB_PATH)
+        row_rej = conn.execute("SELECT status, reject_notes, outgoing_manifest FROM drum_inventory WHERE id = ?", (drum_id,)).fetchone()
+        self.assertEqual(row_rej[0], 'REJECTED')
+        self.assertEqual(row_rej[1], 'Drum is leaking')
+        self.assertEqual(row_rej[2], 'OUT-MAN-999')
+        conn.close()
+
+        # Update status to MISSING
+        res_missing = self.client.post('/stu/drum_action', data={
+            'drum_id': drum_id,
+            'action': 'UPDATE_STATUS',
+            'status': 'MISSING'
+        }, headers={'X-Requested-With': 'XMLHttpRequest'})
+        self.assertEqual(res_missing.status_code, 200)
+
+        # Verify status is MISSING
+        conn = original_connect(TEST_DB_PATH)
+        row_missing = conn.execute("SELECT status FROM drum_inventory WHERE id = ?", (drum_id,)).fetchone()
+        self.assertEqual(row_missing[0], 'MISSING')
+        conn.close()
+
+        # Verify that upload_vpi preserves a MISSING drum even if it's NOT in the upload CSV
+        csv_data = (
+            "Track No,Process Type,Weight,pH,Inb Prof,Age,Type,Area,Last Scan Date\n"
+            "DRUM-NEW,direct land haz,450.0,6.5,P-STU-TEST,5.0,DM,Area-51,06/15/2026\n"
+        )
+        import io
+        data_upload = {
+            'vpi_file': (io.BytesIO(csv_data.encode('utf-8')), 'test_vpi.csv')
+        }
+        res_upload = self.client.post('/upload_vpi', data=data_upload, content_type='multipart/form-data')
+        self.assertEqual(res_upload.status_code, 302)
+
+        # The MISSING drum should still be in the database
+        conn = original_connect(TEST_DB_PATH)
+        row_preserved = conn.execute("SELECT status FROM drum_inventory WHERE track_no = 'DRUM-UPDATE-TEST'").fetchone()
+        self.assertIsNotNone(row_preserved)
+        self.assertEqual(row_preserved[0], 'MISSING')
+        conn.close()
 
     def test_waste_acceptance_log(self):
         """Test the waste acceptance active reviews log CRUD endpoints"""
