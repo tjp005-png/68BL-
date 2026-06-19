@@ -296,6 +296,16 @@ class TestSTURedesignFlow(unittest.TestCase):
             INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status)
             VALUES ('DRUM-PENDING', 'P-STU-TEST', 'MAN-111', 'PENDING SAMPLING', 100.0, 7.0, 10.0, 10.0, 1000.0, '2026-06-01', 'JOB-111', 'PLANT RECEIVED')
         ''')
+        # Insert a rejected drum that WILL be in the VPI file (case-insensitive test)
+        conn.execute('''
+            INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status, reject_notes, outgoing_manifest)
+            VALUES ('drum-rejected-in-vpi', 'P-STU-TEST', 'MAN-111', 'direct land haz', 300.0, 7.0, 5.0, 0.0, 0.0, '2026-06-01', 'JOB-111', 'REJECTED', 'Failed pH test', 'OUT-123')
+        ''')
+        # Insert a rejected drum that WILL NOT be in the VPI file
+        conn.execute('''
+            INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status, reject_notes, outgoing_manifest)
+            VALUES ('DRUM-REJECTED-MISSING', 'P-STU-TEST', 'MAN-111', 'direct land haz', 320.0, 7.0, 5.0, 0.0, 0.0, '2026-06-01', 'JOB-111', 'REJECTED', 'Leaking container', 'OUT-456')
+        ''')
         conn.commit()
         conn.close()
 
@@ -305,6 +315,7 @@ class TestSTURedesignFlow(unittest.TestCase):
             f"DRUM-PENDING-OVERWRITE,pending sampling,200.0,8.0,P-STU-TEST,2.0,DM,Area-52,{scan_date_4_days_ago}\n"
             f"DRUM-HEAVY-BULK,direct land nh,42000.0,7.0,P-STU-TEST,5.0,Roll-Off,Area-53,{scan_date_4_days_ago}\n"
             f"DRUM-HEAVY-PUT,put pile,35000.0,7.0,P-STU-TEST,5.0,Roll-Off,Cell 34 Open,{scan_date_4_days_ago}\n"
+            f"DRUM-REJECTED-IN-VPI,direct land haz,300.0,7.0,P-STU-TEST,5.0,DM,Area-51,{scan_date_4_days_ago}\n"
         )
         
         data = {
@@ -340,28 +351,76 @@ class TestSTURedesignFlow(unittest.TestCase):
         row_heavy_put = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-HEAVY-PUT'").fetchone()
         self.assertIsNotNone(row_heavy_put)
         self.assertEqual(row_heavy_put['process_type'], 'put pile')
+
+        # Verify that drum-rejected-in-vpi (casing differed in CSV: DRUM-REJECTED-IN-VPI) preserved its REJECTED status and notes
+        row_rejected_in = conn.execute("SELECT * FROM drum_inventory WHERE TRIM(UPPER(track_no)) = 'DRUM-REJECTED-IN-VPI'").fetchone()
+        self.assertIsNotNone(row_rejected_in)
+        self.assertEqual(row_rejected_in['status'], 'REJECTED')
+        self.assertEqual(row_rejected_in['reject_notes'], 'Failed pH test')
+        self.assertEqual(row_rejected_in['outgoing_manifest'], 'OUT-123')
+
+        # Verify that DRUM-REJECTED-MISSING (omitted from CSV) was fully preserved/re-inserted
+        row_rejected_missing = conn.execute("SELECT * FROM drum_inventory WHERE TRIM(UPPER(track_no)) = 'DRUM-REJECTED-MISSING'").fetchone()
+        self.assertIsNotNone(row_rejected_missing)
+        self.assertEqual(row_rejected_missing['status'], 'REJECTED')
+        self.assertEqual(row_rejected_missing['reject_notes'], 'Leaking container')
+        self.assertEqual(row_rejected_missing['outgoing_manifest'], 'OUT-456')
+
+        conn.close()
         
         # Now verify the STU hub returns the scan date calculations
-        conn.close()
         hub_res = self.client.get('/stu/hub?view=inventory')
         self.assertEqual(hub_res.status_code, 200)
         self.assertIn(b'4 days', hub_res.data)
         self.assertIn(b'Last Scanned', hub_res.data)
 
     def test_manual_status_update(self):
-        """Test manually updating drum status and verifying preservation"""
-        # Insert a drum
+        """Test manually updating drum status using the UPDATE_STATUS action (both Form POST and AJAX)"""
         conn = original_connect(TEST_DB_PATH)
+        # Insert a drum
         conn.execute('''
-            INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, status)
-            VALUES ('DRUM-UPDATE-TEST', 'P-STU-TEST', 'MAN-333', 'direct land haz', 300.0, 7.0, 5.0, 10.0, 3000.0, '2026-06-01', 'FINAL CODED')
+            INSERT INTO drum_inventory (track_no, inb_prof, process_type, status, reject_notes, outgoing_manifest)
+            VALUES ('DRUM-UPDATE-TEST', 'P-STU-TEST', 'direct land haz', 'FINAL CODED', 'Some old notes', 'OUT-OLD')
         ''')
         conn.commit()
-        # Fetch the inserted drum's id
-        drum_id = conn.execute("SELECT id FROM drum_inventory WHERE track_no = 'DRUM-UPDATE-TEST'").fetchone()[0]
+        
+        drum_row = conn.execute("SELECT id FROM drum_inventory WHERE track_no = 'DRUM-UPDATE-TEST'").fetchone()
+        drum_id = drum_row[0]
+        conn.close()
+        
+        # 1. Update status to MISSING via redirect POST
+        response = self.client.post('/stu/drum_action', data={
+            'drum_id': str(drum_id),
+            'action': 'UPDATE_STATUS',
+            'status': 'MISSING'
+        })
+        self.assertEqual(response.status_code, 302)
+        
+        # Verify status is updated and reject_notes/manifest are cleared
+        conn = original_connect(TEST_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT * FROM drum_inventory WHERE id = ?", (drum_id,)).fetchone()
+        self.assertEqual(row['status'], 'MISSING')
+        self.assertIsNone(row['reject_notes'])
+        self.assertIsNone(row['outgoing_manifest'])
+        
+        # 2. Update status to REJECTED via redirect POST
+        response = self.client.post('/stu/drum_action', data={
+            'drum_id': str(drum_id),
+            'action': 'UPDATE_STATUS',
+            'status': 'REJECTED',
+            'reject_notes': 'Damaged seal',
+            'outgoing_manifest': 'OUT-NEW'
+        })
+        self.assertEqual(response.status_code, 302)
+        
+        row = conn.execute("SELECT * FROM drum_inventory WHERE id = ?", (drum_id,)).fetchone()
+        self.assertEqual(row['status'], 'REJECTED')
+        self.assertEqual(row['reject_notes'], 'Damaged seal')
+        self.assertEqual(row['outgoing_manifest'], 'OUT-NEW')
         conn.close()
 
-        # Update status to RESAMPLE
+        # 3. Update status to RESAMPLE via AJAX/XMLHttpRequest
         res = self.client.post('/stu/drum_action', data={
             'drum_id': drum_id,
             'action': 'UPDATE_STATUS',
@@ -371,14 +430,14 @@ class TestSTURedesignFlow(unittest.TestCase):
         data = json.loads(res.data.decode('utf-8'))
         self.assertTrue(data['status'] == 'success')
 
-        # Verify DB updated
+        # Verify DB updated and reject notes cleared
         conn = original_connect(TEST_DB_PATH)
         row = conn.execute("SELECT status, reject_notes, outgoing_manifest FROM drum_inventory WHERE id = ?", (drum_id,)).fetchone()
         self.assertEqual(row[0], 'RESAMPLE')
-        self.assertIsNone(row[1]) # reject_notes should be NULL
+        self.assertIsNone(row[1])
         conn.close()
 
-        # Update status to REJECTED (which should require reject_notes and outgoing_manifest)
+        # 4. Update status to REJECTED via AJAX/XMLHttpRequest
         res_reject = self.client.post('/stu/drum_action', data={
             'drum_id': drum_id,
             'action': 'UPDATE_STATUS',
@@ -398,7 +457,7 @@ class TestSTURedesignFlow(unittest.TestCase):
         self.assertEqual(row_rej[2], 'OUT-MAN-999')
         conn.close()
 
-        # Update status to MISSING
+        # 5. Update status to MISSING via AJAX/XMLHttpRequest
         res_missing = self.client.post('/stu/drum_action', data={
             'drum_id': drum_id,
             'action': 'UPDATE_STATUS',
@@ -412,7 +471,7 @@ class TestSTURedesignFlow(unittest.TestCase):
         self.assertEqual(row_missing[0], 'MISSING')
         conn.close()
 
-        # Verify that upload_vpi preserves a MISSING drum even if it's NOT in the upload CSV
+        # 6. Verify that upload_vpi preserves a MISSING drum even if it's NOT in the upload CSV
         csv_data = (
             "Track No,Process Type,Weight,pH,Inb Prof,Age,Type,Area,Last Scan Date\n"
             "DRUM-NEW,direct land haz,450.0,6.5,P-STU-TEST,5.0,DM,Area-51,06/15/2026\n"
