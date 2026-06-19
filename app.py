@@ -286,7 +286,7 @@ def upgrade_db():
             CREATE TABLE IF NOT EXISTS waste_acceptance_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 profile_number TEXT UNIQUE,
-                status TEXT DEFAULT 'Under Review',
+                status TEXT DEFAULT 'Needs Review',
                 assigned_to TEXT,
                 notes TEXT,
                 last_updated DATETIME DEFAULT CURRENT_TIMESTAMP

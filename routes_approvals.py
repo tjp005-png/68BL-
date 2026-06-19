@@ -614,7 +614,7 @@ def add_waste_acceptance_log():
         try:
             conn.execute('''
                 INSERT INTO waste_acceptance_log (profile_number, status, assigned_to, notes)
-                VALUES (?, 'Under Review', '', '')
+                VALUES (?, 'Needs Review', '', '')
             ''', (profile_number,))
             conn.commit()
             return jsonify({'success': True})
