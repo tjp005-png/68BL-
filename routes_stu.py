@@ -229,14 +229,20 @@ def upload_vpi():
             
             df = df.drop_duplicates(subset=['Track No'], keep='last')
             
-            # Preserve existing statuses and pending sampling
+            # Preserve existing statuses, pending sampling, and rejected/failed/resample drums
             try:
-                preserved_statuses = pd.read_sql_query("SELECT track_no, status, reject_notes, outgoing_manifest FROM drum_inventory WHERE status NOT IN ('FINAL CODED', 'ACTIVE') OR reject_notes IS NOT NULL OR outgoing_manifest IS NOT NULL", conn)
-            except Exception:
-                preserved_statuses = pd.DataFrame()
+                preserved_drums_raw = conn.execute("""
+                    SELECT * FROM drum_inventory 
+                    WHERE status NOT IN ('FINAL CODED', 'ACTIVE') 
+                       OR reject_notes IS NOT NULL 
+                       OR outgoing_manifest IS NOT NULL
+                       OR process_type = 'PENDING SAMPLING'
+                """).fetchall()
+                preserved_drums = [dict(d) for d in preserved_drums_raw]
+            except Exception as ex:
+                print(f"Error fetching preserved drums: {ex}")
+                preserved_drums = []
                 
-            pending_sampling = conn.execute("SELECT * FROM drum_inventory WHERE process_type = 'PENDING SAMPLING'").fetchall()
-            
             conn.execute('DELETE FROM drum_inventory')
             
             # Query profiles database to map voc_percentage
@@ -256,22 +262,34 @@ def upload_vpi():
             cleaned_data = list(zip(df['Track No'], df['Inb Prof'], df['Process Type'], df['Weight'], df['pH'], df['Age'], df['voc_ppm'], df['voc_weight'], [date.today().isoformat()]*len(df), ['FINAL CODED']*len(df), df['location']))
             conn.executemany("INSERT INTO drum_inventory (track_no, inb_prof, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, status, location) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", cleaned_data)
             
-            # Re-apply preserved statuses
-            if not preserved_statuses.empty:
-                for row in preserved_statuses.itertuples():
-                    conn.execute("UPDATE drum_inventory SET status = ?, reject_notes = ?, outgoing_manifest = ? WHERE track_no = ?", 
-                                 (row.status, row.reject_notes, row.outgoing_manifest, row.track_no))
+            # Re-apply preserved statuses and re-insert missing ones
+            imported_tracks_upper = {str(t).strip().upper() for t in df['Track No']}
             
-            # Re-insert pending sampling drums ONLY if they were not imported in the new VPI file
-            imported_tracks = set(df['Track No'].astype(str).str.strip().str.upper())
-            for p in pending_sampling:
-                track = str(p['track_no']).strip().upper()
-                if track in imported_tracks:
-                    continue
-                loc_val = p['location']
-                status_val = p['status'] if p['status'] is not None else 'PLANT RECEIVED'
-                conn.execute("INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status, reject_notes, outgoing_manifest, location) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                             (p['track_no'], p['inb_prof'], p['manifest'], p['process_type'], p['weight'], p['ph'], p['age'], p['voc_ppm'], p['voc_weight'], p['import_date'], p['job_id'], status_val, p['reject_notes'], p['outgoing_manifest'], loc_val))
+            for p in preserved_drums:
+                track_upper = str(p['track_no']).strip().upper()
+                if track_upper in imported_tracks_upper:
+                    # Update status, reject_notes, outgoing_manifest for the imported drum case-insensitively
+                    conn.execute("""
+                        UPDATE drum_inventory 
+                        SET status = ?, reject_notes = ?, outgoing_manifest = ? 
+                        WHERE TRIM(UPPER(track_no)) = ?
+                    """, (p['status'], p['reject_notes'], p['outgoing_manifest'], track_upper))
+                else:
+                    # Re-insert the full row because it was not in the new VPI feed
+                    loc_val = p['location']
+                    status_val = p['status'] if p['status'] is not None else 'PLANT RECEIVED'
+                    conn.execute("""
+                        INSERT INTO drum_inventory (
+                            track_no, inb_prof, manifest, process_type, weight, ph, age, 
+                            voc_ppm, voc_weight, import_date, job_id, status, reject_notes, 
+                            outgoing_manifest, location
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        p['track_no'], p['inb_prof'], p['manifest'], p['process_type'], 
+                        p['weight'], p['ph'], p['age'], p['voc_ppm'], p['voc_weight'], 
+                        p['import_date'], p['job_id'], status_val, p['reject_notes'], 
+                        p['outgoing_manifest'], loc_val
+                    ))
                 
             conn.commit()
     except Exception as e: 

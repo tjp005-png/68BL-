@@ -291,6 +291,16 @@ class TestSTURedesignFlow(unittest.TestCase):
             INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status)
             VALUES ('DRUM-PENDING', 'P-STU-TEST', 'MAN-111', 'PENDING SAMPLING', 100.0, 7.0, 10.0, 10.0, 1000.0, '2026-06-01', 'JOB-111', 'PLANT RECEIVED')
         ''')
+        # Insert a rejected drum that WILL be in the VPI file (case-insensitive test)
+        conn.execute('''
+            INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status, reject_notes, outgoing_manifest)
+            VALUES ('drum-rejected-in-vpi', 'P-STU-TEST', 'MAN-111', 'direct land haz', 300.0, 7.0, 5.0, 0.0, 0.0, '2026-06-01', 'JOB-111', 'REJECTED', 'Failed pH test', 'OUT-123')
+        ''')
+        # Insert a rejected drum that WILL NOT be in the VPI file
+        conn.execute('''
+            INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status, reject_notes, outgoing_manifest)
+            VALUES ('DRUM-REJECTED-MISSING', 'P-STU-TEST', 'MAN-111', 'direct land haz', 320.0, 7.0, 5.0, 0.0, 0.0, '2026-06-01', 'JOB-111', 'REJECTED', 'Leaking container', 'OUT-456')
+        ''')
         conn.commit()
         conn.close()
 
@@ -300,6 +310,7 @@ class TestSTURedesignFlow(unittest.TestCase):
             "DRUM-PENDING-OVERWRITE,pending sampling,200.0,8.0,P-STU-TEST,2.0,DM,Area-52\n"
             "DRUM-HEAVY-BULK,direct land nh,42000.0,7.0,P-STU-TEST,5.0,Roll-Off,Area-53\n"
             "DRUM-HEAVY-PUT,put pile,35000.0,7.0,P-STU-TEST,5.0,Roll-Off,Cell 34 Open\n"
+            "DRUM-REJECTED-IN-VPI,direct land haz,300.0,7.0,P-STU-TEST,5.0,DM,Area-51\n"
         )
         
         data = {
@@ -334,6 +345,20 @@ class TestSTURedesignFlow(unittest.TestCase):
         row_heavy_put = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-HEAVY-PUT'").fetchone()
         self.assertIsNotNone(row_heavy_put)
         self.assertEqual(row_heavy_put['process_type'], 'put pile')
+
+        # Verify that drum-rejected-in-vpi (casing differed in CSV: DRUM-REJECTED-IN-VPI) preserved its REJECTED status and notes
+        row_rejected_in = conn.execute("SELECT * FROM drum_inventory WHERE TRIM(UPPER(track_no)) = 'DRUM-REJECTED-IN-VPI'").fetchone()
+        self.assertIsNotNone(row_rejected_in)
+        self.assertEqual(row_rejected_in['status'], 'REJECTED')
+        self.assertEqual(row_rejected_in['reject_notes'], 'Failed pH test')
+        self.assertEqual(row_rejected_in['outgoing_manifest'], 'OUT-123')
+
+        # Verify that DRUM-REJECTED-MISSING (omitted from CSV) was fully preserved/re-inserted
+        row_rejected_missing = conn.execute("SELECT * FROM drum_inventory WHERE TRIM(UPPER(track_no)) = 'DRUM-REJECTED-MISSING'").fetchone()
+        self.assertIsNotNone(row_rejected_missing)
+        self.assertEqual(row_rejected_missing['status'], 'REJECTED')
+        self.assertEqual(row_rejected_missing['reject_notes'], 'Leaking container')
+        self.assertEqual(row_rejected_missing['outgoing_manifest'], 'OUT-456')
 
         conn.close()
 
