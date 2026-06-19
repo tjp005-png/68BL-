@@ -37,6 +37,7 @@ class TestSTURedesignFlow(unittest.TestCase):
             conn.execute("DELETE FROM drum_inventory")
             conn.execute("DELETE FROM drum_lab_queue")
             conn.execute("DELETE FROM daily_schedule")
+            conn.execute("DELETE FROM waste_acceptance_log")
             conn.commit()
         except sqlite3.OperationalError:
             pass
@@ -357,7 +358,7 @@ class TestSTURedesignFlow(unittest.TestCase):
         self.assertEqual(len(logs), 1)
         self.assertEqual(logs[0]['profile_number'], 'P-TEST-LOG')
         self.assertEqual(logs[0]['generator'], 'Log Test Gen')
-        self.assertEqual(logs[0]['status'], 'Under Review')
+        self.assertEqual(logs[0]['status'], 'Needs Review')
         log_id = logs[0]['id']
 
         # Update log
