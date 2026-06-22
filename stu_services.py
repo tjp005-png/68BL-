@@ -347,7 +347,13 @@ def create_annotated_pdf(original_pdf_stream, output_buffer, picklist_data):
             can = canvas.Canvas(packet, pagesize=(w, h))
             for item in stamps_by_page[page_num]:
                 x, y, text = item['coord_x'], item['coord_y'], item['sample_num']
-                cx, cy = x - 15, y + 25 
+                
+                # Position stamp in lower right quadrant if it is a new landscape format label, otherwise use original coordinates
+                if w > h:
+                    cx, cy = w - 80, 70
+                else:
+                    cx, cy = x - 15, y + 25
+                    
                 is_double = len(text) > 2
                 radius, font_size = (35, 34) if is_double else (30, 36)
 
