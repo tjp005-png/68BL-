@@ -1054,9 +1054,15 @@
                             ? `<button class="btn btn-sm btn-warning border p-1 position-relative" title="${escapedNotesForTitle}" onclick="openReviewNotes(${log.id}, \`${escapedNotesForJS}\`)">📝<span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle" style="font-size: 0px;"></span></button>`
                             : `<button class="btn btn-sm btn-light border p-1" title="Add notes" onclick="openReviewNotes(${log.id}, '')">✏️</button>`;
 
+                        const upProf = log.profile_number.toUpperCase().trim();
+                        const isPlaceholder = upProf === 'PENDING' || upProf === 'TBD' || upProf.startsWith('PENDING') || upProf.startsWith('TBD');
+                        const profileCell = isPlaceholder 
+                            ? `<span class="fw-bold text-muted">${log.profile_number}</span>`
+                            : `<a href="#" onclick="searchAndSelect('${log.profile_number}'); return false;" class="fw-bold text-decoration-none">${log.profile_number}</a>`;
+
                         tbody.innerHTML += `
                             <tr>
-                                <td><a href="#" onclick="searchAndSelect('${log.profile_number}'); return false;" class="fw-bold text-decoration-none">${log.profile_number}</a></td>
+                                <td>${profileCell}</td>
                                 <td>
                                     <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" value="${log.generator || ''}" placeholder="Generator..." onblur="updateReviewLog(${log.id}, 'generator_requestor', this.value)">
                                 </td>
