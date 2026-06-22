@@ -632,22 +632,32 @@ def update_waste_acceptance_log():
     assigned_to = data.get('assigned_to')
     notes = data.get('notes')
     generator_requestor = data.get('generator_requestor')
+    profile_number = data.get('profile_number')
     
+    if profile_number is not None:
+        profile_number = profile_number.strip().upper()
+        if not profile_number:
+            return jsonify({'success': False, 'error': 'Profile number cannot be empty'}), 400
+            
     if not log_id:
-        return jsonify({'error': 'Log ID is required'}), 400
+        return jsonify({'success': False, 'error': 'Log ID is required'}), 400
         
     with closing(get_db_connection()) as conn:
-        conn.execute('''
-            UPDATE waste_acceptance_log 
-            SET status = COALESCE(?, status),
-                assigned_to = COALESCE(?, assigned_to),
-                notes = COALESCE(?, notes),
-                generator_requestor = COALESCE(?, generator_requestor),
-                last_updated = CURRENT_TIMESTAMP
-            WHERE id = ?
-        ''', (status, assigned_to, notes, generator_requestor, log_id))
-        conn.commit()
-    return jsonify({'success': True})
+        try:
+            conn.execute('''
+                UPDATE waste_acceptance_log 
+                SET status = COALESCE(?, status),
+                    assigned_to = COALESCE(?, assigned_to),
+                    notes = COALESCE(?, notes),
+                    generator_requestor = COALESCE(?, generator_requestor),
+                    profile_number = COALESCE(?, profile_number),
+                    last_updated = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (status, assigned_to, notes, generator_requestor, profile_number, log_id))
+            conn.commit()
+            return jsonify({'success': True})
+        except Exception as e:
+            return jsonify({'success': False, 'error': 'Profile number must be unique in the log.'}), 400
 
 @approvals_bp.route('/api/waste_acceptance/log/delete', methods=['POST'])
 def delete_waste_acceptance_log():
