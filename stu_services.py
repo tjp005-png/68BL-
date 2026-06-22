@@ -182,7 +182,8 @@ def parse_drum_labels_from_pdf(file_stream):
                             drum_x, drum_y = w['x1'], page_h - w['top'] 
                             break
 
-                profile_match = re.search(r'(?:Profile|Prof)[:\s]*([A-Z0-9-]+)', text, re.IGNORECASE)
+                # Support PROFILE#: style labels
+                profile_match = re.search(r'(?:Profile|Prof)[:\s#]*([A-Z0-9-]+)', text, re.IGNORECASE)
                 profile_val = profile_match.group(1).upper() if profile_match else None
                 if profile_val: excluded_values.add(profile_val)
 
@@ -196,16 +197,19 @@ def parse_drum_labels_from_pdf(file_stream):
                         profile_val = orig_profile 
 
                 manifest_str, min_x0 = "N/A", page.width 
-                IGNORE_LIST = ['WEIGHT', 'PROFILE', 'FACILITY', 'GENERATOR', 'WASTE', 'UN/NA', 'INVENTORY', 'CUSTOMER', 'DRUM', 'MGT', 'NUMBER', 'SHIPPER', 'DATE']
+                IGNORE_LIST = ['WEIGHT', 'PROFILE', 'FACILITY', 'GENERATOR', 'WASTE', 'UN/NA', 'INVENTORY', 'CUSTOMER', 'DRUM', 'MGT', 'NUMBER', 'SHIPPER', 'DATE', 'TRACKING', 'ADDRESS', 'TELEPHONE', 'ZIP', 'CAR', 'EPA', 'CLASS', 'HAZARD', 'ACCUMULATION']
 
                 for word in words:
-                    clean_text = re.sub(r'[^\w\-]', '', word['text']).upper()
-                    if (len(clean_text) >= 5 and any(c.isdigit() for c in clean_text) and 
-                        re.match(r'^[A-Z0-9-]+$', clean_text) and clean_text not in excluded_values and 
-                        not any(x in clean_text for x in IGNORE_LIST)):
-                        if word['x0'] < min_x0:
-                            min_x0 = word['x0']
-                            manifest_str = clean_text
+                    # Split by whitespace to handle combined words caused by keep_blank_chars=True
+                    parts = word['text'].split()
+                    for part in parts:
+                        clean_part = re.sub(r'[^\w\-]', '', part).upper()
+                        if (len(clean_part) >= 5 and any(c.isdigit() for c in clean_part) and 
+                            re.match(r'^[A-Z0-9-]+$', clean_part) and clean_part not in excluded_values and 
+                            not any(x in clean_part for x in IGNORE_LIST)):
+                            if word['x0'] < min_x0:
+                                min_x0 = word['x0']
+                                manifest_str = clean_part
 
                 is_asbestos, manifest_line_num, container_size, waste_code = False, "N/A", "N/A", "N/A"
                 
@@ -218,20 +222,43 @@ def parse_drum_labels_from_pdf(file_stream):
                 if search_anchor:
                     lines = text.split('\n')
                     for line in lines:
-                        if search_anchor in line.upper():
-                            if 'CNIA' in line.upper(): is_asbestos = True
+                        line_upper = line.upper()
+                        cleaned_line = re.sub(r'\s+', '', line_upper)
+                        
+                        if search_anchor in cleaned_line:
+                            if 'CNIA' in line_upper: is_asbestos = True
                             try:
-                                idx = line.upper().find(search_anchor) + len(search_anchor)
+                                # Find where search anchor is in the raw line (so we preserve spaces for rest of the line)
+                                idx = line_upper.find(search_anchor) + len(search_anchor)
                                 rest_of_line = line[idx:]
-                                line_num_match = re.search(r'^\s*([0-9]+[A-Z]?)', rest_of_line)
-                                if line_num_match: manifest_line_num = line_num_match.group(1)
+                                
+                                # Unified line number match: supports both " 1" and " Line#: 1"
+                                line_num_match = re.search(r'^\s*(?:Line#?[:\s]*)?([0-9]+[A-Z]?)', rest_of_line, re.IGNORECASE)
+                                if line_num_match: 
+                                    manifest_line_num = line_num_match.group(1)
+                                    
+                                # Search manifest line for container size
                                 size_match = re.search(r'\b(?:(\d{1,4}\s?(?:DM|DF|DP|CF|TP|GAL|G|TT|FBIN|BIN|BA))|((?:PAL|BAG|BA|CTN|BOX|CY|YARD|YD|FBIN|BIN)))\b', rest_of_line, re.IGNORECASE)
                                 if size_match: 
                                     container_size = (size_match.group(1) if size_match.group(1) else size_match.group(2)).upper()
                                     wc_match = re.search(r'\b([A-Z0-9]{3,4})\b', rest_of_line[size_match.end():].strip())
-                                    if wc_match: waste_code = wc_match.group(1).upper()
-                            except: pass
+                                    if wc_match: 
+                                        waste_code = wc_match.group(1).upper()
+                            except Exception as ex: 
+                                print(f"Error parsing detail lines: {ex}")
                             break 
+                
+                # Fallback searches if container size or waste code are not found on the manifest line
+                if container_size == "N/A":
+                    size_match = re.search(r'\b(?:(\d{1,4}\s?(?:DM|DF|DP|CF|TP|GAL|G|TT|FBIN|BIN|BA))|((?:PAL|BAG|BA|CTN|BOX|CY|YARD|YD|FBIN|BIN)))\b', text, re.IGNORECASE)
+                    if size_match: 
+                        container_size = (size_match.group(1) if size_match.group(1) else size_match.group(2)).upper()
+                        
+                if waste_code not in PERMITTED_CODES:
+                    for code in PERMITTED_CODES:
+                        if re.search(rf'\b{code}\b', text.upper()):
+                            waste_code = code
+                            break
                             
                 # UPGRADED: Never delete asbestos drums just because they lack a waste code
                 if waste_code not in PERMITTED_CODES and not is_asbestos: 
