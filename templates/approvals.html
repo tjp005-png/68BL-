@@ -268,8 +268,16 @@
                     <div class="card-header card-header-dark py-2 d-flex justify-content-between align-items-center">
                         <span class="fw-bold d-flex align-items-center">
                             <span class="me-2 fs-5">📋</span> Active Reviews Log
+                            <small id="logLastUpdated" class="text-white-50 ms-3 fw-normal" style="font-size: 0.75rem;"></small>
                         </span>
                         <div class="d-flex gap-2 align-items-center">
+                            <select id="logRefreshSelect" class="form-select form-select-sm border-0 fw-bold px-2" style="width: 140px; font-size: 0.85rem; background-color: #1e293b; color: #ffffff; border: 1px solid rgba(255,255,255,0.15);" onchange="setupLogRefresh()">
+                                <option value="0">Refresh: Off</option>
+                                <option value="5000">Refresh: 5s</option>
+                                <option value="15000">Refresh: 15s</option>
+                                <option value="30000" selected>Refresh: 30s</option>
+                                <option value="60000">Refresh: 1m</option>
+                            </select>
                             <input type="text" id="addLogInput" class="form-control form-control-sm border-0 fw-bold text-uppercase" placeholder="Profile Number..." style="width: 250px;">
                             <button class="btn btn-sm btn-crimson fw-bold text-nowrap" onclick="addReviewLog()">➕ Add to Log</button>
                         </div>
@@ -1003,14 +1011,30 @@
                 });
         }
 
+        let logRefreshIntervalId = null;
+
         // --- ACTIVE REVIEWS LOG LOGIC ---
         function loadReviewLog() {
+            // Check if any element inside reviewLogBody has focus to avoid losing user input
+            const tbody = document.getElementById('reviewLogBody');
+            if (tbody) {
+                const activeEl = document.activeElement;
+                if (activeEl && tbody.contains(activeEl)) {
+                    // Skip refresh if user is currently editing a field
+                    return;
+                }
+            }
+
             fetch('/api/waste_acceptance/log')
                 .then(r => r.json())
                 .then(data => {
                     const tbody = document.getElementById('reviewLogBody');
                     if (data.length === 0) {
                         tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No profiles currently in review.</td></tr>';
+                        const now = new Date();
+                        const timeStr = now.toTimeString().split(' ')[0];
+                        const lastUpdatedEl = document.getElementById('logLastUpdated');
+                        if (lastUpdatedEl) lastUpdatedEl.innerText = `Synced at ${timeStr}`;
                         return;
                     }
                     
@@ -1056,6 +1080,11 @@
                             </tr>
                         `;
                     });
+
+                    const now = new Date();
+                    const timeStr = now.toTimeString().split(' ')[0];
+                    const lastUpdatedEl = document.getElementById('logLastUpdated');
+                    if (lastUpdatedEl) lastUpdatedEl.innerText = `Synced at ${timeStr}`;
                 });
         }
 
@@ -1143,9 +1172,28 @@
             modal.hide();
         }
 
+        function setupLogRefresh() {
+            if (logRefreshIntervalId) {
+                clearInterval(logRefreshIntervalId);
+                logRefreshIntervalId = null;
+            }
+            const select = document.getElementById('logRefreshSelect');
+            if (!select) return;
+            const val = parseInt(select.value);
+            if (val > 0) {
+                logRefreshIntervalId = setInterval(() => {
+                    const approvalsHome = document.getElementById('approvalsHome');
+                    if (approvalsHome && !approvalsHome.classList.contains('d-none')) {
+                        loadReviewLog();
+                    }
+                }, val);
+            }
+        }
+
         // Initialize log on page load
         document.addEventListener('DOMContentLoaded', () => {
             loadReviewLog();
+            setupLogRefresh();
         });
 
         // Physical State Change Listener for Defaults
