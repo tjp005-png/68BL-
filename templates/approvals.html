@@ -1014,14 +1014,16 @@
         let logRefreshIntervalId = null;
 
         // --- ACTIVE REVIEWS LOG LOGIC ---
-        function loadReviewLog() {
+        function loadReviewLog(force = false) {
             // Check if any element inside reviewLogBody has focus to avoid losing user input
             const tbody = document.getElementById('reviewLogBody');
-            if (tbody) {
+            if (tbody && !force) {
                 const activeEl = document.activeElement;
                 if (activeEl && tbody.contains(activeEl)) {
-                    // Skip refresh if user is currently editing a field
-                    return;
+                    // Skip refresh only if user is currently editing a text input
+                    if (activeEl.tagName === 'INPUT' && activeEl.type === 'text') {
+                        return;
+                    }
                 }
             }
 
@@ -1056,15 +1058,28 @@
 
                         const upProf = log.profile_number.toUpperCase().trim();
                         const isPlaceholder = upProf === 'PENDING' || upProf === 'TBD' || upProf.startsWith('PENDING') || upProf.startsWith('TBD');
-                        const profileCell = isPlaceholder 
-                            ? `<span class="fw-bold text-muted">${log.profile_number}</span>`
-                            : `<a href="#" onclick="searchAndSelect('${log.profile_number}'); return false;" class="fw-bold text-decoration-none">${log.profile_number}</a>`;
+                        
+                        const linkBtn = isPlaceholder
+                            ? ''
+                            : `<a href="#" onclick="searchAndSelect('${log.profile_number}'); return false;" class="text-decoration-none ms-1" style="font-size: 1rem;" title="Open Profile">📑</a>`;
+
+                        const profileCell = `
+                            <div class="d-flex align-items-center">
+                                <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold ${isPlaceholder ? 'text-muted' : 'text-primary'}" 
+                                       value="${log.profile_number}" placeholder="Profile..." style="width: 140px;"
+                                       onfocus="this.dataset.oldVal = this.value"
+                                       onblur="if(this.value.toUpperCase().trim() !== (this.dataset.oldVal || '').toUpperCase().trim()) { updateReviewLog(${log.id}, 'profile_number', this.value.toUpperCase().trim()); }">
+                                ${linkBtn}
+                            </div>
+                        `;
 
                         tbody.innerHTML += `
                             <tr>
                                 <td>${profileCell}</td>
                                 <td>
-                                    <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" value="${log.generator || ''}" placeholder="Generator..." onblur="updateReviewLog(${log.id}, 'generator_requestor', this.value)">
+                                    <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" value="${log.generator || ''}" placeholder="Generator..." 
+                                           onfocus="this.dataset.oldVal = this.value"
+                                           onblur="if(this.value.trim() !== (this.dataset.oldVal || '').trim()) { updateReviewLog(${log.id}, 'generator_requestor', this.value.trim()); }">
                                 </td>
                                 <td>
                                     <select class="form-select form-select-sm border-0 fw-bold ${statusColor} bg-transparent" onchange="updateReviewLog(${log.id}, 'status', this.value)">
@@ -1077,7 +1092,9 @@
                                     </select>
                                 </td>
                                 <td>
-                                    <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" value="${log.assigned_to || ''}" placeholder="Unassigned" onblur="updateReviewLog(${log.id}, 'assigned_to', this.value)">
+                                    <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" value="${log.assigned_to || ''}" placeholder="Unassigned" 
+                                           onfocus="this.dataset.oldVal = this.value"
+                                           onblur="if(this.value.trim() !== (this.dataset.oldVal || '').trim()) { updateReviewLog(${log.id}, 'assigned_to', this.value.trim()); }">
                                 </td>
                                 <td>
                                     ${notesBtn}
@@ -1123,7 +1140,7 @@
             }).then(r => r.json()).then(res => {
                 if(res.success) {
                     input.value = '';
-                    loadReviewLog();
+                    loadReviewLog(true);
                 } else {
                     alert('Error adding to log: ' + res.error);
                 }
@@ -1138,8 +1155,13 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(payload)
             }).then(r => r.json()).then(res => {
-                if(res.success && field === 'status') {
-                    loadReviewLog(); // Refresh colors
+                if (res.success) {
+                    if (field === 'status' || field === 'profile_number') {
+                        loadReviewLog(true);
+                    }
+                } else {
+                    alert('Update failed: ' + (res.error || 'Unknown error'));
+                    loadReviewLog(true); // Revert inputs
                 }
                 return res;
             });
@@ -1152,7 +1174,7 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({id: id})
             }).then(r => r.json()).then(res => {
-                if(res.success) loadReviewLog();
+                if(res.success) loadReviewLog(true);
             });
         }
 
@@ -1168,7 +1190,7 @@
             const notes = document.getElementById('modalLogNotes').value;
             updateReviewLog(id, 'notes', notes).then(res => {
                 if (res && res.success) {
-                    loadReviewLog(); // Refresh log only after database commit is successful
+                    loadReviewLog(true); // Refresh log only after database commit is successful
                 }
             });
             
@@ -1198,7 +1220,7 @@
 
         // Initialize log on page load
         document.addEventListener('DOMContentLoaded', () => {
-            loadReviewLog();
+            loadReviewLog(true);
             setupLogRefresh();
         });
 
