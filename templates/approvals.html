@@ -267,10 +267,19 @@
                 <div class="card premium-card border-secondary shadow-sm">
                     <div class="card-header card-header-dark py-2 d-flex justify-content-between align-items-center">
                         <span class="fw-bold d-flex align-items-center">
-                            <span class="me-2 fs-5">📋</span> Active Reviews Log
+                            <span class="me-2 fs-5">📋</span> Reviews Log
                             <small id="logLastUpdated" class="text-white-50 ms-3 fw-normal" style="font-size: 0.75rem;"></small>
                         </span>
                         <div class="d-flex gap-2 align-items-center">
+                            <!-- Active/Archived toggle -->
+                            <div class="btn-group btn-group-sm me-2" role="group">
+                                <input type="radio" class="btn-check" name="logViewMode" id="logModeActive" autocomplete="off" checked onclick="setLogArchivedMode(0)">
+                                <label class="btn btn-outline-light fw-bold px-3 mb-0" for="logModeActive">Active</label>
+
+                                <input type="radio" class="btn-check" name="logViewMode" id="logModeArchived" autocomplete="off" onclick="setLogArchivedMode(1)">
+                                <label class="btn btn-outline-light fw-bold px-3 mb-0" for="logModeArchived">Archived</label>
+                            </div>
+
                             <select id="logRefreshSelect" class="form-select form-select-sm border-0 fw-bold px-2" style="width: 140px; font-size: 0.85rem; background-color: #1e293b; color: #ffffff; border: 1px solid rgba(255,255,255,0.15);" onchange="setupLogRefresh()">
                                 <option value="0">Refresh: Off</option>
                                 <option value="5000">Refresh: 5s</option>
@@ -278,19 +287,38 @@
                                 <option value="30000" selected>Refresh: 30s</option>
                                 <option value="60000">Refresh: 1m</option>
                             </select>
-                            <input type="text" id="addLogInput" class="form-control form-control-sm border-0 fw-bold text-uppercase" placeholder="Profile Number..." style="width: 250px;">
-                            <button class="btn btn-sm btn-crimson fw-bold text-nowrap" onclick="addReviewLog()">➕ Add to Log</button>
+                            <div id="addLogControls" class="d-flex gap-2 align-items-center">
+                                <input type="text" id="addLogInput" class="form-control form-control-sm border-0 fw-bold text-uppercase" placeholder="Profile Number..." style="width: 250px;">
+                                <button class="btn btn-sm btn-crimson fw-bold text-nowrap" onclick="addReviewLog()">➕ Add to Log</button>
+                            </div>
                         </div>
                     </div>
                     <div class="card-body p-0">
+                        <!-- Filters Panel -->
+                        <div class="d-flex align-items-center justify-content-between p-2 border-bottom bg-light">
+                            <div class="d-flex gap-2 align-items-center w-100">
+                                <span class="text-muted small fw-bold text-nowrap"><span class="me-1">🔍</span>Filter:</span>
+                                <input type="text" id="logFilterSearch" class="form-control form-control-sm border" placeholder="Search profile, generator, reviewer..." style="max-width: 250px;" oninput="applyLogFilters()">
+                                
+                                <select id="logFilterStatus" class="form-select form-select-sm fw-bold border" style="max-width: 150px;" onchange="applyLogFilters()">
+                                    <option value="ALL">All Statuses</option>
+                                    <option value="Needs Review">Needs Review</option>
+                                    <option value="Under Review">Under Review</option>
+                                    <option value="Pending Lab">Pending Lab</option>
+                                    <option value="Need Info">Need Info</option>
+                                    <option value="Approved">Approved</option>
+                                    <option value="Rejected">Rejected</option>
+                                </select>
+                            </div>
+                        </div>
                         <div class="table-responsive">
                             <table class="table table-hover table-striped align-middle mb-0 text-nowrap">
-                                <thead class="small bg-dark text-white">
+                                <thead class="small bg-dark text-white user-select-none">
                                     <tr>
-                                        <th>Profile</th>
-                                        <th>Generator / Requestor</th>
-                                        <th>Status</th>
-                                        <th>Reviewer</th>
+                                        <th onclick="toggleLogSort('profile_number')" style="cursor: pointer;">Profile <span id="sortIndicator-profile_number" class="ms-1" style="font-size: 0.7rem;"></span></th>
+                                        <th onclick="toggleLogSort('generator')" style="cursor: pointer;">Generator / Requestor <span id="sortIndicator-generator" class="ms-1" style="font-size: 0.7rem;"></span></th>
+                                        <th onclick="toggleLogSort('status')" style="cursor: pointer;">Status <span id="sortIndicator-status" class="ms-1" style="font-size: 0.7rem;"></span></th>
+                                        <th onclick="toggleLogSort('assigned_to')" style="cursor: pointer;">Reviewer <span id="sortIndicator-assigned_to" class="ms-1" style="font-size: 0.7rem;"></span></th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -1014,6 +1042,11 @@
         let logRefreshIntervalId = null;
 
         // --- ACTIVE REVIEWS LOG LOGIC ---
+        let currentArchivedMode = 0; // 0 = Active, 1 = Archived
+        let currentSortKey = 'last_updated'; // default sort field
+        let currentSortDir = 'desc'; // default sort direction
+        window.activeLogData = []; // cached log records
+
         function loadReviewLog(force = false) {
             // Check if any element inside reviewLogBody has focus to avoid losing user input
             const tbody = document.getElementById('reviewLogBody');
@@ -1027,88 +1060,215 @@
                 }
             }
 
-            fetch('/api/waste_acceptance/log')
+            fetch(`/api/waste_acceptance/log?archived=${currentArchivedMode}`)
                 .then(r => r.json())
                 .then(data => {
-                    const tbody = document.getElementById('reviewLogBody');
-                    if (data.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No profiles currently in review.</td></tr>';
-                        const now = new Date();
-                        const timeStr = now.toTimeString().split(' ')[0];
-                        const lastUpdatedEl = document.getElementById('logLastUpdated');
-                        if (lastUpdatedEl) lastUpdatedEl.innerText = `Synced at ${timeStr}`;
-                        return;
-                    }
-                    
-                    tbody.innerHTML = '';
-                    data.forEach(log => {
-                        let statusColor = 'text-dark';
-                        if(log.status === 'Approved') statusColor = 'text-success';
-                        else if(log.status === 'Rejected') statusColor = 'text-danger';
-                        else if(log.status === 'Pending Lab') statusColor = 'text-warning';
-                        else if(log.status === 'Need Info') statusColor = 'text-info';
-                        else if(log.status === 'Needs Review') statusColor = 'text-primary';
-                        
-                        const hasNotes = log.notes && log.notes.trim() !== '';
-                        const escapedNotesForTitle = (log.notes || '').replace(/"/g, '&quot;');
-                        const escapedNotesForJS = (log.notes || '').replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
-                        const notesBtn = hasNotes
-                            ? `<button class="btn btn-sm btn-warning border p-1 position-relative" title="${escapedNotesForTitle}" onclick="openReviewNotes(${log.id}, \`${escapedNotesForJS}\`)">📝<span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle" style="font-size: 0px;"></span></button>`
-                            : `<button class="btn btn-sm btn-light border p-1" title="Add notes" onclick="openReviewNotes(${log.id}, '')">✏️</button>`;
-
-                        const upProf = log.profile_number.toUpperCase().trim();
-                        const isPlaceholder = upProf === 'PENDING' || upProf === 'TBD' || upProf.startsWith('PENDING') || upProf.startsWith('TBD');
-                        
-                        const linkBtn = isPlaceholder
-                            ? ''
-                            : `<a href="#" onclick="searchAndSelect('${log.profile_number}'); return false;" class="text-decoration-none ms-1" style="font-size: 1rem;" title="Open Profile">📑</a>`;
-
-                        const profileCell = `
-                            <div class="d-flex align-items-center">
-                                <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold ${isPlaceholder ? 'text-muted' : 'text-primary'}" 
-                                       value="${log.profile_number}" placeholder="Profile..." style="width: 140px;"
-                                       onfocus="this.dataset.oldVal = this.value"
-                                       onblur="if(this.value.toUpperCase().trim() !== (this.dataset.oldVal || '').toUpperCase().trim()) { updateReviewLog(${log.id}, 'profile_number', this.value.toUpperCase().trim()); }">
-                                ${linkBtn}
-                            </div>
-                        `;
-
-                        tbody.innerHTML += `
-                            <tr>
-                                <td>${profileCell}</td>
-                                <td>
-                                    <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" value="${log.generator || ''}" placeholder="Generator..." 
-                                           onfocus="this.dataset.oldVal = this.value"
-                                           onblur="if(this.value.trim() !== (this.dataset.oldVal || '').trim()) { updateReviewLog(${log.id}, 'generator_requestor', this.value.trim()); }">
-                                </td>
-                                <td>
-                                    <select class="form-select form-select-sm border-0 fw-bold ${statusColor} bg-transparent" onchange="updateReviewLog(${log.id}, 'status', this.value)">
-                                        <option value="Needs Review" ${log.status==='Needs Review'?'selected':''}>Needs Review</option>
-                                        <option value="Under Review" ${log.status==='Under Review'?'selected':''}>Under Review</option>
-                                        <option value="Pending Lab" ${log.status==='Pending Lab'?'selected':''}>Pending Lab</option>
-                                        <option value="Need Info" ${log.status==='Need Info'?'selected':''}>Need Info</option>
-                                        <option value="Approved" ${log.status==='Approved'?'selected':''}>Approved</option>
-                                        <option value="Rejected" ${log.status==='Rejected'?'selected':''}>Rejected</option>
-                                    </select>
-                                </td>
-                                <td>
-                                    <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" value="${log.assigned_to || ''}" placeholder="Unassigned" 
-                                           onfocus="this.dataset.oldVal = this.value"
-                                           onblur="if(this.value.trim() !== (this.dataset.oldVal || '').trim()) { updateReviewLog(${log.id}, 'assigned_to', this.value.trim()); }">
-                                </td>
-                                <td>
-                                    ${notesBtn}
-                                    <button class="btn btn-sm btn-light border p-1 text-danger" title="Clear from log" onclick="deleteReviewLog(${log.id})">🗑️</button>
-                                </td>
-                            </tr>
-                        `;
-                    });
-
-                    const now = new Date();
-                    const timeStr = now.toTimeString().split(' ')[0];
-                    const lastUpdatedEl = document.getElementById('logLastUpdated');
-                    if (lastUpdatedEl) lastUpdatedEl.innerText = `Synced at ${timeStr}`;
+                    window.activeLogData = data;
+                    applyLogFilters();
                 });
+        }
+
+        function applyLogFilters() {
+            const searchText = (document.getElementById('logFilterSearch')?.value || '').toLowerCase().trim();
+            const statusFilter = document.getElementById('logFilterStatus')?.value || 'ALL';
+
+            const filtered = window.activeLogData.filter(log => {
+                // 1. Filter by Status
+                if (statusFilter !== 'ALL' && log.status !== statusFilter) {
+                    return false;
+                }
+
+                // 2. Filter by Search Text (Profile #, Generator, or Reviewer/assigned_to)
+                if (searchText !== '') {
+                    const prof = (log.profile_number || '').toLowerCase();
+                    const gen = (log.generator || '').toLowerCase();
+                    const req = (log.generator_requestor || '').toLowerCase();
+                    const assigned = (log.assigned_to || '').toLowerCase();
+                    
+                    if (!prof.includes(searchText) && 
+                        !gen.includes(searchText) && 
+                        !req.includes(searchText) && 
+                        !assigned.includes(searchText)) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            renderReviewLogTable(filtered);
+        }
+
+        function renderReviewLogTable(dataList) {
+            const tbody = document.getElementById('reviewLogBody');
+            if (!tbody) return;
+
+            // 1. Sort the list
+            let sortedList = [...dataList];
+            if (currentSortKey) {
+                sortedList.sort((a, b) => {
+                    let valA = '';
+                    let valB = '';
+
+                    if (currentSortKey === 'generator') {
+                        valA = (a.generator || a.generator_requestor || '').toString().toLowerCase().trim();
+                        valB = (b.generator || b.generator_requestor || '').toString().toLowerCase().trim();
+                    } else {
+                        valA = (a[currentSortKey] || '').toString().toLowerCase().trim();
+                        valB = (b[currentSortKey] || '').toString().toLowerCase().trim();
+                    }
+
+                    if (valA < valB) return currentSortDir === 'asc' ? -1 : 1;
+                    if (valA > valB) return currentSortDir === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }
+
+            // Update Sort Indicators
+            const indicators = ['profile_number', 'generator', 'status', 'assigned_to'];
+            indicators.forEach(k => {
+                const el = document.getElementById(`sortIndicator-${k}`);
+                if (el) {
+                    if (currentSortKey === k) {
+                        el.innerText = currentSortDir === 'asc' ? '▲' : '▼';
+                    } else {
+                        el.innerText = '';
+                    }
+                }
+            });
+
+            // 2. Render HTML
+            if (sortedList.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No matching profiles in review log.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '';
+            sortedList.forEach(log => {
+                let statusColor = 'text-dark';
+                if(log.status === 'Approved') statusColor = 'text-success';
+                else if(log.status === 'Rejected') statusColor = 'text-danger';
+                else if(log.status === 'Pending Lab') statusColor = 'text-warning';
+                else if(log.status === 'Need Info') statusColor = 'text-info';
+                else if(log.status === 'Needs Review') statusColor = 'text-primary';
+                
+                const hasNotes = log.notes && log.notes.trim() !== '';
+                const escapedNotesForTitle = (log.notes || '').replace(/"/g, '&quot;');
+                const escapedNotesForJS = (log.notes || '').replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+                const notesBtn = hasNotes
+                    ? `<button class="btn btn-sm btn-warning border p-1 position-relative" title="${escapedNotesForTitle}" onclick="openReviewNotes(${log.id}, \`${escapedNotesForJS}\`)">📝<span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle" style="font-size: 0px;"></span></button>`
+                    : `<button class="btn btn-sm btn-light border p-1" title="Add notes" onclick="openReviewNotes(${log.id}, '')">✏️</button>`;
+
+                const upProf = log.profile_number.toUpperCase().trim();
+                const isPlaceholder = upProf === 'PENDING' || upProf === 'TBD' || upProf.startsWith('PENDING') || upProf.startsWith('TBD');
+                
+                const linkBtn = isPlaceholder
+                    ? ''
+                    : `<a href="#" onclick="searchAndSelect('${log.profile_number}'); return false;" class="text-decoration-none ms-1" style="font-size: 1rem;" title="Open Profile">📑</a>`;
+
+                const disabledAttr = currentArchivedMode === 1 ? 'disabled style="pointer-events: none;"' : '';
+
+                const profileCell = `
+                    <div class="d-flex align-items-center">
+                        <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold ${isPlaceholder ? 'text-muted' : 'text-primary'}" 
+                               value="${log.profile_number}" placeholder="Profile..." style="width: 140px;"
+                               onfocus="this.dataset.oldVal = this.value"
+                               onblur="if(this.value.toUpperCase().trim() !== (this.dataset.oldVal || '').toUpperCase().trim()) { updateReviewLog(${log.id}, 'profile_number', this.value.toUpperCase().trim()); }"
+                               ${disabledAttr}>
+                        ${linkBtn}
+                    </div>
+                `;
+
+                const archiveBtn = currentArchivedMode === 0
+                    ? `<button class="btn btn-sm btn-light border p-1" title="Archive log" onclick="archiveReviewLog(${log.id}, 1)">📦</button>`
+                    : `<button class="btn btn-sm btn-light border p-1" title="Restore log" onclick="archiveReviewLog(${log.id}, 0)">📤</button>`;
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${profileCell}</td>
+                        <td>
+                            <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" value="${log.generator || ''}" placeholder="Generator..." 
+                                   onfocus="this.dataset.oldVal = this.value"
+                                   onblur="if(this.value.trim() !== (this.dataset.oldVal || '').trim()) { updateReviewLog(${log.id}, 'generator_requestor', this.value.trim()); }"
+                                   ${disabledAttr}>
+                        </td>
+                        <td>
+                            <select class="form-select form-select-sm border-0 fw-bold ${statusColor} bg-transparent" onchange="updateReviewLog(${log.id}, 'status', this.value)" ${disabledAttr}>
+                                <option value="Needs Review" ${log.status==='Needs Review'?'selected':''}>Needs Review</option>
+                                <option value="Under Review" ${log.status==='Under Review'?'selected':''}>Under Review</option>
+                                <option value="Pending Lab" ${log.status==='Pending Lab'?'selected':''}>Pending Lab</option>
+                                <option value="Need Info" ${log.status==='Need Info'?'selected':''}>Need Info</option>
+                                <option value="Approved" ${log.status==='Approved'?'selected':''}>Approved</option>
+                                <option value="Rejected" ${log.status==='Rejected'?'selected':''}>Rejected</option>
+                            </select>
+                        </td>
+                        <td>
+                            <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" value="${log.assigned_to || ''}" placeholder="Unassigned" 
+                                   onfocus="this.dataset.oldVal = this.value"
+                                   onblur="if(this.value.trim() !== (this.dataset.oldVal || '').trim()) { updateReviewLog(${log.id}, 'assigned_to', this.value.trim()); }"
+                                   ${disabledAttr}>
+                        </td>
+                        <td>
+                            ${notesBtn}
+                            ${archiveBtn}
+                            <button class="btn btn-sm btn-light border p-1 text-danger" title="Clear permanently" onclick="deleteReviewLog(${log.id})">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            const now = new Date();
+            const timeStr = now.toTimeString().split(' ')[0];
+            const lastUpdatedEl = document.getElementById('logLastUpdated');
+            if (lastUpdatedEl) lastUpdatedEl.innerText = `Synced at ${timeStr}`;
+        }
+
+        function toggleLogSort(key) {
+            if (currentSortKey === key) {
+                currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortKey = key;
+                currentSortDir = 'asc';
+            }
+            applyLogFilters();
+        }
+
+        function setLogArchivedMode(mode) {
+            currentArchivedMode = mode;
+            
+            // Toggle Add controls visibility
+            const addControls = document.getElementById('addLogControls');
+            if (addControls) {
+                if (mode === 1) {
+                    addControls.classList.add('d-none');
+                } else {
+                    addControls.classList.remove('d-none');
+                }
+            }
+
+            // Reset filters to show all by default in new tab
+            const searchInput = document.getElementById('logFilterSearch');
+            if (searchInput) searchInput.value = '';
+            const statusSelect = document.getElementById('logFilterStatus');
+            if (statusSelect) statusSelect.value = 'ALL';
+
+            loadReviewLog(true);
+        }
+
+        function archiveReviewLog(id, isArchived) {
+            const actionText = isArchived ? 'Archive' : 'Restore';
+            if(!confirm(`${actionText} this review log entry?`)) return;
+
+            fetch('/api/waste_acceptance/log/archive', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id: id, is_archived: isArchived})
+            }).then(r => r.json()).then(res => {
+                if(res.success) {
+                    loadReviewLog(true);
+                } else {
+                    alert('Archive action failed: ' + (res.error || 'Unknown error'));
+                }
+            });
         }
 
         function searchAndSelect(profileNum) {
@@ -1168,7 +1328,7 @@
         }
 
         function deleteReviewLog(id) {
-            if(!confirm("Remove this profile from the active review log?")) return;
+            if(!confirm("Permanently delete this review log entry from the database?")) return;
             fetch('/api/waste_acceptance/log/delete', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},

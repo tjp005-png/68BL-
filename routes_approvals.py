@@ -596,13 +596,16 @@ def release_las_truck():
 
 @approvals_bp.route('/api/waste_acceptance/log', methods=['GET'])
 def get_waste_acceptance_log():
+    archived = request.args.get('archived', '0')
+    archived_val = 1 if archived == '1' else 0
     with closing(get_db_connection()) as conn:
         logs = conn.execute('''
             SELECT w.*, COALESCE(w.generator_requestor, p.generator) AS generator 
             FROM waste_acceptance_log w
             LEFT JOIN profiles p ON TRIM(UPPER(w.profile_number)) = TRIM(UPPER(p.profile_number))
+            WHERE COALESCE(w.is_archived, 0) = ?
             ORDER BY w.last_updated DESC
-        ''').fetchall()
+        ''', (archived_val,)).fetchall()
     return jsonify([dict(row) for row in logs])
 
 @approvals_bp.route('/api/waste_acceptance/log/add', methods=['POST'])
@@ -668,6 +671,24 @@ def delete_waste_acceptance_log():
         
     with closing(get_db_connection()) as conn:
         conn.execute('DELETE FROM waste_acceptance_log WHERE id = ?', (log_id,))
+        conn.commit()
+    return jsonify({'success': True})
+
+@approvals_bp.route('/api/waste_acceptance/log/archive', methods=['POST'])
+def archive_waste_acceptance_log():
+    data = request.get_json() or {}
+    log_id = data.get('id')
+    is_archived = data.get('is_archived', 1)
+    if not log_id:
+        return jsonify({'error': 'Log ID is required'}), 400
+        
+    archived_val = 1 if is_archived else 0
+    with closing(get_db_connection()) as conn:
+        conn.execute('''
+            UPDATE waste_acceptance_log 
+            SET is_archived = ?, last_updated = CURRENT_TIMESTAMP 
+            WHERE id = ?
+        ''', (archived_val, log_id))
         conn.commit()
     return jsonify({'success': True})
 

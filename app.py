@@ -299,6 +299,8 @@ def upgrade_db():
         ''')
         if not column_exists(cursor, 'waste_acceptance_log', 'generator_requestor'):
             cursor.execute('ALTER TABLE waste_acceptance_log ADD COLUMN generator_requestor TEXT')
+        if not column_exists(cursor, 'waste_acceptance_log', 'is_archived'):
+            cursor.execute('ALTER TABLE waste_acceptance_log ADD COLUMN is_archived INTEGER DEFAULT 0')
         
         # Add performance indexes
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_profiles_win_code ON profiles (win_code)")

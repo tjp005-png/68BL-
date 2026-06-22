@@ -528,6 +528,36 @@ class TestSTURedesignFlow(unittest.TestCase):
         self.assertEqual(logs_upd[0]['assigned_to'], 'TestUser')
         self.assertEqual(logs_upd[0]['notes'], 'Some notes')
 
+        # Archive log testing
+        res_arch = self.client.post('/api/waste_acceptance/log/archive',
+                                    data=json.dumps({'id': log_id, 'is_archived': 1}),
+                                    content_type='application/json')
+        self.assertEqual(res_arch.status_code, 200)
+        self.assertTrue(json.loads(res_arch.data)['success'])
+
+        # Verify it shows up in archived GET
+        res_get_arch = self.client.get('/api/waste_acceptance/log?archived=1')
+        logs_arch = json.loads(res_get_arch.data)
+        self.assertEqual(len(logs_arch), 1)
+        self.assertEqual(logs_arch[0]['profile_number'], 'P-TEST-LOG')
+
+        # Verify it does NOT show up in active GET
+        res_get_act = self.client.get('/api/waste_acceptance/log?archived=0')
+        logs_act = json.loads(res_get_act.data)
+        self.assertEqual(len(logs_act), 0)
+
+        # Restore log testing (unarchive)
+        res_rest = self.client.post('/api/waste_acceptance/log/archive',
+                                    data=json.dumps({'id': log_id, 'is_archived': 0}),
+                                    content_type='application/json')
+        self.assertEqual(res_rest.status_code, 200)
+        self.assertTrue(json.loads(res_rest.data)['success'])
+
+        # Verify it's back in active GET
+        res_get_act2 = self.client.get('/api/waste_acceptance/log?archived=0')
+        logs_act2 = json.loads(res_get_act2.data)
+        self.assertEqual(len(logs_act2), 1)
+
         # Delete log
         res_del = self.client.post('/api/waste_acceptance/log/delete', 
                                    data=json.dumps({'id': log_id}),
