@@ -14,6 +14,7 @@
         .btn-ch-red:hover { background-color: #5a0000; color: white; }
         body { background-color: #f4f6f9; }
         .status-badge { font-size: 0.8rem; font-weight: 700; padding: 4px 10px; border-radius: 9999px; }
+        .card-description { min-height: 45px; }
     </style>
 </head>
 <body>
@@ -39,7 +40,7 @@
                         Logistics & Receiving
                     </div>
                     <div class="card-body d-flex flex-column gap-3 p-4">
-                        <p class="text-muted small mb-1">Manage expected loads and check trucks into the yard.</p>
+                        <p class="text-muted small mb-1 card-description">Manage expected loads and check trucks into the yard.</p>
                         <a href="/schedule" class="btn btn-outline-dark fw-bold py-3 text-start border-2 shadow-sm">🗓️ Daily Schedule</a>
                         {#
                         <a href="/receiving" class="btn btn-outline-dark fw-bold py-2 text-start disabled" tabindex="-1" aria-disabled="true" style="opacity: 0.55; pointer-events: none;">🚚 Truck Receiving Log</a>
@@ -58,7 +59,7 @@
                         Drum Processing
                     </div>
                     <div class="card-body d-flex flex-column gap-3 p-4">
-                        <p class="text-muted small mb-1">Process inbound PDFs and manage drum inventory.</p>
+                        <p class="text-muted small mb-1 card-description">Process inbound PDFs and manage drum inventory.</p>
                         <a href="/stu/sampling" class="btn btn-outline-primary fw-bold py-3 text-start border-2">
                             🔬 Create Picklist for Drums Receiving
                         </a>
@@ -77,7 +78,7 @@
                         Laboratory
                     </div>
                     <div class="card-body d-flex flex-column gap-3 p-4">
-                        <p class="text-muted small mb-1">Process chemical fingerprints and log analytical results.</p>
+                        <p class="text-muted small mb-1 card-description">Process chemical fingerprints and log analytical results.</p>
                         <a href="/chemist" class="btn btn-outline-secondary fw-bold py-2 text-start">🚚 Bulk Truck Lab Queue</a>
                         <a href="/chemist/drums" class="btn btn-outline-secondary fw-bold py-2 text-start disabled" tabindex="-1" aria-disabled="true" style="opacity: 0.55; pointer-events: none;">🛢️ STU Drum Lab Queue</a>
                     </div>
@@ -92,7 +93,7 @@
                         Acceptance & Approvals
                     </div>
                     <div class="card-body d-flex flex-column gap-3 p-4">
-                        <p class="text-muted small mb-1">Review lab findings, finalize coding, and manage WIN profiles.</p>
+                        <p class="text-muted small mb-1 card-description">Review lab findings, finalize coding, and manage WIN profiles.</p>
                         {#
                         <a href="/waste_acceptance" class="btn btn-outline-success fw-bold py-3 text-start border-2 shadow-sm disabled" tabindex="-1" aria-disabled="true" style="opacity: 0.55; pointer-events: none;">
                             ✅ Waste Acceptance Staging
