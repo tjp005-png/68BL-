@@ -489,18 +489,35 @@ if __name__ == '__main__':
                     print(f"  Local version:   {time.ctime(local_mtime) if local_exists else 'None (New Install)'}")
                     print("="*70)
                     
-                    try:
-                        choice = input("  Would you like to sync the latest database from I: drive locally? (y/n) [default: n]: ").strip().lower()
-                    except (KeyboardInterrupt, EOFError):
-                        choice = "n"
+                    # Auto-sync on new install (local_exists is False) or when running non-interactively
+                    is_interactive = sys.stdin and sys.stdin.isatty()
+                    
+                    choice = "n"
+                    if not local_exists:
+                        choice = "y"
+                        print("  [DATABASE SYNC] New installation detected. Auto-syncing from network...")
+                    elif not is_interactive:
+                        choice = "y"
+                        print("  [DATABASE SYNC] Non-interactive environment. Auto-syncing newer network database...")
+                    else:
+                        try:
+                            choice = input("  Would you like to sync the latest database from I: drive locally? (y/n) [default: n]: ").strip().lower()
+                        except (KeyboardInterrupt, EOFError):
+                            choice = "n"
                         
                     if choice in ['y', 'yes']:
                         print("  Syncing database from I: drive... please wait...")
                         if local_exists:
-                            shutil.copy2(DB_PATH, DB_PATH + ".bak")
-                        shutil.copy2(i_db_path, DB_PATH)
-                        print("  Sync complete! Running database upgrades...")
-                        upgrade_db()
+                            try:
+                                shutil.copy2(DB_PATH, DB_PATH + ".bak")
+                            except Exception as backup_err:
+                                print(f"  Warning: Could not create local database backup: {backup_err}")
+                        try:
+                            shutil.copy2(i_db_path, DB_PATH)
+                            print("  Sync complete! Running database upgrades...")
+                            upgrade_db()
+                        except Exception as copy_err:
+                            print(f"  Error copying database from network: {copy_err}")
                     else:
                         print("  Sync skipped. Proceeding with local database.")
     except Exception as e:
