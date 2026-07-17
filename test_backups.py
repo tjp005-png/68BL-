@@ -155,6 +155,7 @@ class TestDatabaseBackups(unittest.TestCase):
         response = self.client.get(f'/backups/download/{base_filename}')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers.get('Content-Disposition'), f'attachment; filename={base_filename}')
+        response.close()
 
     def test_delete_backup(self):
         # Create backup

@@ -101,7 +101,7 @@ def stu_hub():
                    COALESCE(w.sulfides, p.sulfide) AS wvi_sulfides,
                    COALESCE(w.free_liquids, p.free_liquids) AS wvi_free_liquids,
                    w.ph_min, w.ph_max, w.voc_ppm AS wvi_voc_ppm, w.flashpoint AS wvi_flashpoint,
-                   w.generator_name, w.waste_name, w.handling_instruction, p.color AS p_color
+                   w.generator_name, w.waste_name, w.handling_instruction, w.color AS w_color, p.color AS p_color
             FROM truck_logs tl
             LEFT JOIN profiles p ON TRIM(UPPER(tl.profile_number)) = TRIM(UPPER(p.profile_number))
             LEFT JOIN profile_wvi w ON TRIM(UPPER(tl.profile_number)) = TRIM(UPPER(w.profile))
@@ -114,7 +114,7 @@ def stu_hub():
         for row in las_trucks_raw:
             t = dict(row)
             
-            # --- FALLBACKS FOR SPECTABLE DISPLAY ---
+            # --- FALLBACK FOR SPECTABLE DISPLAY ---
             if t.get('generator_name'):
                 t['generator'] = t['generator_name']
             if t.get('waste_name'):
@@ -125,7 +125,7 @@ def stu_hub():
                 t['special_handling'] = t['handling_instruction']
                 
             # Set color
-            t['color'] = t.get('p_color') or ''
+            t['color'] = t.get('w_color') or t.get('p_color') or ''
                 
             # If ph_min or ph_max is not set in WVI, try parsing from profile ph_range
             if t.get('ph_min') is None or t.get('ph_max') is None:

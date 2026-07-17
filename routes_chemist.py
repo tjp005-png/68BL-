@@ -226,7 +226,7 @@ def chemist_dashboard():
     with closing(get_db_connection()) as conn:
         pending_lab_trucks = conn.execute('''
             SELECT tl.*, 
-                   w.ph_min, w.ph_max, w.sulfides, w.cyanide, w.free_liquids, w.flashpoint, w.voc_ppm,
+                   w.ph_min, w.ph_max, w.sulfides, w.cyanide, w.free_liquids, w.flashpoint, w.voc_ppm, w.color AS w_color,
                    w.treatment_information, w.notes_revisions, w.physical_description, w.handling_instruction,
                    w.generator_name, w.waste_name, w.approved_date, w.expiration_date, w.is_synced,
                    p.win_code, p.generator AS p_generator, p.waste_description AS p_waste_description,
@@ -267,7 +267,7 @@ def chemist_dashboard():
                 truck['flashpoint'] = truck['p_flash_point']
             
             # Set color
-            truck['color'] = truck.get('p_color') or ''
+            truck['color'] = truck.get('w_color') or truck.get('p_color') or ''
             
             if truck.get('ph_min') is None and truck.get('ph_max') is None and truck.get('p_ph_range'):
                 import re

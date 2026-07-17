@@ -32,7 +32,7 @@ def waste_acceptance_checklist(job_id):
         # Fetch all labs for this job_id, joining with profile_wvi and profiles
         labs = conn.execute('''
             SELECT q.*, 
-                   w.ph_min, w.ph_max, w.sulfides, w.cyanide, w.free_liquids, w.flashpoint, w.voc_ppm,
+                   w.ph_min, w.ph_max, w.sulfides, w.cyanide, w.free_liquids, w.flashpoint, w.voc_ppm, w.color AS w_color,
                    w.treatment_information, w.notes_revisions, w.physical_description, w.handling_instruction,
                    w.generator_name, w.waste_name,
                    p.win_code, p.generator AS p_generator, p.waste_description AS p_waste_description,
@@ -65,7 +65,7 @@ def waste_acceptance_checklist(job_id):
             lab['flashpoint'] = lab['p_flash_point']
             
         # Set color
-        lab['color'] = lab.get('p_color') or ''
+        lab['color'] = lab.get('w_color') or lab.get('p_color') or ''
         
         if lab.get('ph_min') is None and lab.get('ph_max') is None and lab.get('p_ph_range'):
             import re
