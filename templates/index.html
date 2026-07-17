@@ -41,10 +41,10 @@
                     <div class="card-body d-flex flex-column gap-3 p-4">
                         <p class="text-muted small mb-1">Manage expected loads and check trucks into the yard.</p>
                         <a href="/schedule" class="btn btn-outline-dark fw-bold py-2 text-start">🗓️ Daily Schedule</a>
-                        <a href="/receiving" class="btn btn-outline-dark fw-bold py-2 text-start">🚚 Truck Receiving Log</a>
-                        <a href="/reports" class="btn btn-outline-dark fw-bold py-2 text-start">📊 Daily Tonnage Reports</a>
-                        <a href="{{ url_for('tonnage_dashboard') }}" class="btn btn-outline-dark fw-bold py-2 text-start">📈 Base Tonnage &amp; Forecasts</a>
-                        <a href="/compliance" class="btn btn-outline-dark fw-bold py-2 text-start">📋 Compliance Dashboard</a>
+                        <a href="/receiving" class="btn btn-outline-dark fw-bold py-2 text-start disabled" tabindex="-1" aria-disabled="true" style="opacity: 0.55; pointer-events: none;">🚚 Truck Receiving Log</a>
+                        <a href="/reports" class="btn btn-outline-dark fw-bold py-2 text-start disabled" tabindex="-1" aria-disabled="true" style="opacity: 0.55; pointer-events: none;">📊 Daily Tonnage Reports</a>
+                        <a href="{{ url_for('tonnage_dashboard') }}" class="btn btn-outline-dark fw-bold py-2 text-start disabled" tabindex="-1" aria-disabled="true" style="opacity: 0.55; pointer-events: none;">📈 Base Tonnage &amp; Forecasts</a>
+                        <a href="/compliance" class="btn btn-outline-dark fw-bold py-2 text-start disabled" tabindex="-1" aria-disabled="true" style="opacity: 0.55; pointer-events: none;">📋 Compliance Dashboard</a>
                         <a href="/backups" class="btn btn-outline-dark fw-bold py-2 text-start">💾 Database Backups</a>
                     </div>
                 </div>
