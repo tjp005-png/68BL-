@@ -48,7 +48,7 @@
         <!-- Navigation Tabs -->
         <ul class="nav nav-pills mb-4 shadow-sm bg-white p-2 rounded-3 border">
             <li class="nav-item">
-                <a class="nav-link {% if view == 'pipeline' %}active ch-red-bg fw-bold{% else %}text-secondary fw-semibold{% endif %}" href="/stu/hub?view=pipeline">
+                <a class="nav-link {% if view == 'pipeline' %}active ch-red-bg fw-bold{% else %}text-secondary fw-semibold{% endif %} disabled" href="/stu/hub?view=pipeline" tabindex="-1" aria-disabled="true" style="opacity: 0.55; pointer-events: none;">
                     📋 Active Sampling Pipeline
                 </a>
             </li>
@@ -378,7 +378,6 @@
                                 </select>
                             </div>
                             <div class="align-self-end ms-2">
-                                <button type="button" onclick="exportAndDraft()" class="btn btn-sm fw-bold shadow-sm px-3 rounded" style="background-color: #00126b; color: white;">✉️ DRAFT EMAIL</button>
                                 <button type="button" onclick="toggleBulkResample()" class="btn btn-sm fw-bold shadow-sm px-3 rounded text-dark" style="background-color: #ffc107;">🔄 BULK RESAMPLE</button>
                                 <button type="submit" form="exportForm" onclick="document.getElementById('exportForm').action='/export_stu'" class="btn btn-sm fw-bold shadow-sm px-3 rounded" style="background-color: #970000; color: white;">⬇️ EXPORT</button>
                             </div>
@@ -942,23 +941,7 @@
             });
         }
 
-        // Outlook integration and downloader
-        function exportAndDraft() {
-            const categoryInput = document.querySelector('input[name="category_name"]').value;
-            const cleanCategory = categoryInput.replace(/_/g, ' ');
-            const today = new Date();
-            const dateStr = `${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getDate().toString().padStart(2, '0')}/${today.getFullYear()}`;
-
-            const subject = encodeURIComponent(`STU Picklist: ${cleanCategory} (${dateStr})`);
-            const body = encodeURIComponent(`Attached is the STU Picklist for ${cleanCategory} generated on ${dateStr}.`);
-            
-            document.getElementById('email-helper-text').classList.remove('d-none');
-            window.location.href = `mailto:?subject=${subject}&body=${body}`;
-
-            const form = document.getElementById('exportForm');
-            form.action = '/export_stu';
-            form.submit();
-        }
+        // Outlook integration and downloader deleted (unused)
         {% endif %}
     </script>
 </body>

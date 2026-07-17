@@ -216,7 +216,6 @@
                             </div>
                             
                             <div class="d-flex gap-2">
-                                <button class="btn btn-outline-success fw-bold shadow-sm" onclick="draftEmail()">✉️ Email</button>
                                 <button class="btn btn-outline-secondary fw-bold shadow-sm" onclick="window.print()">🖨️ Print</button>
                             </div>
                         </div>
@@ -950,17 +949,7 @@
         document.getElementById('edit_date').addEventListener('change', checkEditLastWorkDayWarning);
         document.getElementById('edit_profile').addEventListener('input', checkEditLastWorkDayWarning);
 
-        // 10. Utility Functions
-        function draftEmail() {
-            let body = "Schedule for {{ selected_date }}:\n\n";
-            document.querySelectorAll('#sortable-schedule tr.clickable-row').forEach(row => {
-                if(row.style.display !== 'none') {
-                    let cells = row.querySelectorAll('td');
-                    body += `${cells[1].innerText} Loads: ${cells[2].innerText} - ${cells[3].innerText}\n`;
-                }
-            });
-            window.location.href = `mailto:?subject=Schedule {{ selected_date }}&body=${encodeURIComponent(body)}`;
-        }
+        // draftEmail() function deleted (unused)
 
         function togglePin(id, date, event) {
             event.stopPropagation(); 
