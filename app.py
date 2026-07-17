@@ -169,6 +169,10 @@ def upgrade_db():
             cursor.execute('ALTER TABLE profiles ADD COLUMN sulfide TEXT DEFAULT "No"')
         if not column_exists(cursor, 'profiles', 'free_liquids'):
             cursor.execute('ALTER TABLE profiles ADD COLUMN free_liquids TEXT DEFAULT "No"')
+        if not column_exists(cursor, 'profiles', 'color'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN color TEXT')
+        if not column_exists(cursor, 'profiles', 'treatment_recipe'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN treatment_recipe TEXT')
 
         # 3. DAILY SCHEDULE 
         cursor.execute('''
@@ -285,6 +289,8 @@ def upgrade_db():
         ''')
         if not column_exists(cursor, 'profile_wvi', 'is_synced'):
             cursor.execute('ALTER TABLE profile_wvi ADD COLUMN is_synced INTEGER DEFAULT 0')
+        if not column_exists(cursor, 'profile_wvi', 'color'):
+            cursor.execute('ALTER TABLE profile_wvi ADD COLUMN color TEXT')
             
         # 8. WASTE ACCEPTANCE ACTIVE REVIEWS LOG
         cursor.execute('''
@@ -294,6 +300,7 @@ def upgrade_db():
                 status TEXT DEFAULT 'Needs Review',
                 assigned_to TEXT,
                 notes TEXT,
+                date_added DATETIME DEFAULT CURRENT_TIMESTAMP,
                 last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -301,6 +308,13 @@ def upgrade_db():
             cursor.execute('ALTER TABLE waste_acceptance_log ADD COLUMN generator_requestor TEXT')
         if not column_exists(cursor, 'waste_acceptance_log', 'is_archived'):
             cursor.execute('ALTER TABLE waste_acceptance_log ADD COLUMN is_archived INTEGER DEFAULT 0')
+        if not column_exists(cursor, 'waste_acceptance_log', 'date_added'):
+            cursor.execute('ALTER TABLE waste_acceptance_log ADD COLUMN date_added DATETIME')
+            cursor.execute('UPDATE waste_acceptance_log SET date_added = last_updated WHERE date_added IS NULL')
+        if not column_exists(cursor, 'waste_acceptance_log', 'expiration_date'):
+            cursor.execute('ALTER TABLE waste_acceptance_log ADD COLUMN expiration_date TEXT')
+        if not column_exists(cursor, 'waste_acceptance_log', 'cp1_lab_number'):
+            cursor.execute('ALTER TABLE waste_acceptance_log ADD COLUMN cp1_lab_number TEXT')
         
         # Add performance indexes
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_profiles_win_code ON profiles (win_code)")

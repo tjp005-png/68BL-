@@ -13,7 +13,14 @@ approvals_bp = Blueprint('approvals_bp', __name__)
 
 @approvals_bp.route('/approvals')
 def approvals_portal():
-    return render_template('approvals.html')
+    selected = request.args.get('selected_profile')
+    if selected:
+        return redirect(url_for('approvals_bp.approvals_profiles', selected_profile=selected))
+    return render_template('approvals.html', show_view='log')
+
+@approvals_bp.route('/approvals/profiles')
+def approvals_profiles():
+    return render_template('approvals.html', show_view='profiles')
 
 @approvals_bp.route('/waste_acceptance')
 def waste_acceptance():
@@ -22,10 +29,21 @@ def waste_acceptance():
 @approvals_bp.route('/waste_acceptance/checklist/<job_id>')
 def waste_acceptance_checklist(job_id):
     with closing(get_db_connection()) as conn:
-        # Fetch all labs for this job_id
+        # Fetch all labs for this job_id, joining with profile_wvi and profiles
         labs = conn.execute('''
-            SELECT * FROM drum_lab_queue 
-            WHERE job_id = ?
+            SELECT q.*, 
+                   w.ph_min, w.ph_max, w.sulfides, w.cyanide, w.free_liquids, w.flashpoint, w.voc_ppm,
+                   w.treatment_information, w.notes_revisions, w.physical_description, w.handling_instruction,
+                   w.generator_name, w.waste_name,
+                   p.win_code, p.generator AS p_generator, p.waste_description AS p_waste_description,
+                   p.ph_range AS p_ph_range, p.flash_point AS p_flash_point, p.voc_percentage AS p_voc_percentage,
+                   p.special_handling AS p_special_handling, p.cyanide AS p_cyanide, p.sulfide AS p_sulfide,
+                   p.free_liquids AS p_free_liquids, p.physical_appearance AS p_physical_appearance,
+                   p.treatment_recipe AS p_treatment_recipe, p.color AS p_color
+            FROM drum_lab_queue q
+            LEFT JOIN profile_wvi w ON TRIM(UPPER(q.profile)) = TRIM(UPPER(w.profile))
+            LEFT JOIN profiles p ON TRIM(UPPER(q.profile)) = TRIM(UPPER(p.profile_number))
+            WHERE q.job_id = ?
         ''', (job_id,)).fetchall()
         
         # Fetch all related physical drums in drum_inventory for this job
@@ -34,7 +52,63 @@ def waste_acceptance_checklist(job_id):
             WHERE job_id = ? AND process_type = 'PENDING SAMPLING'
         ''', (job_id,)).fetchall()
         
-    labs_list = [dict(l) for l in labs]
+    labs_list = []
+    for row in labs:
+        lab = dict(row)
+        
+        # --- FALLBACK TO MASTER PROFILE REGISTRY (EXTRACTED PDF DATA) ---
+        if not lab.get('generator_name') and lab.get('p_generator'):
+            lab['generator_name'] = lab['p_generator']
+        if not lab.get('waste_name') and lab.get('p_waste_description'):
+            lab['waste_name'] = lab['p_waste_description']
+        if not lab.get('flashpoint') and lab.get('p_flash_point'):
+            lab['flashpoint'] = lab['p_flash_point']
+            
+        # Set color
+        lab['color'] = lab.get('p_color') or ''
+        
+        if lab.get('ph_min') is None and lab.get('ph_max') is None and lab.get('p_ph_range'):
+            import re
+            ph_str = str(lab['p_ph_range']).strip().upper()
+            if "7 (NEUTRAL)" in ph_str or ph_str == "7" or "7 NEUTRAL" in ph_str:
+                lab['ph_min'] = 4.0
+                lab['ph_max'] = 10.0
+            else:
+                m = re.findall(r'(\d+\.?\d*)', ph_str)
+                if len(m) >= 2:
+                    try:
+                        lab['ph_min'] = float(m[0])
+                        lab['ph_max'] = float(m[1])
+                    except:
+                        pass
+                elif len(m) == 1:
+                    try:
+                        lab['ph_min'] = float(m[0])
+                        lab['ph_max'] = float(m[0])
+                    except:
+                        pass
+        if lab.get('voc_ppm') is None and lab.get('p_voc_percentage') is not None:
+            try:
+                val = float(lab['p_voc_percentage'])
+                lab['voc_ppm'] = val * 10000 if val < 10 else val
+            except:
+                pass
+        if not lab.get('sulfides') and lab.get('p_sulfide'):
+            lab['sulfides'] = lab['p_sulfide']
+        lab['sulfide'] = lab.get('sulfides')
+        if not lab.get('cyanide') and lab.get('p_cyanide'):
+            lab['cyanide'] = lab['p_cyanide']
+        if not lab.get('free_liquids') and lab.get('p_free_liquids'):
+            lab['free_liquids'] = lab['p_free_liquids']
+        if not lab.get('physical_description') and lab.get('p_physical_appearance'):
+            lab['physical_description'] = lab['p_physical_appearance']
+        if not lab.get('treatment_information') and lab.get('p_treatment_recipe'):
+            lab['treatment_information'] = lab['p_treatment_recipe']
+        if not lab.get('handling_instruction') and lab.get('p_special_handling'):
+            lab['handling_instruction'] = lab['p_special_handling']
+            
+        labs_list.append(lab)
+        
     drums_list = [dict(d) for d in related_drums]
     
     # Associate physical drums with their representing lab queue sample
@@ -150,7 +224,8 @@ def parse_profile_pdf():
         'special_handling': '', 'physical_appearance': '',
         'epa_id': '', 'dot_description': '', 'state_waste_code': '', 
         'federal_waste_code': '', 'ph_range': '', 'flash_point': '',
-        'cyanide': 'No', 'sulfide': 'No', 'free_liquids': 'No', 'ldr_required': 'No'
+        'cyanide': 'No', 'sulfide': 'No', 'free_liquids': 'No', 'ldr_required': 'No',
+        'color': ''
     }
     try:
         import pdfplumber
@@ -203,22 +278,10 @@ def parse_profile_pdf():
             if dot_match:
                 extracted_data['dot_description'] = dot_match.group(1).strip()
                 
-            # State Waste Code
-            state_code = ""
-            m1 = re.search(r'([A-Z0-9]+)\s*\n\s*(?:Texas|State)\s+Waste\s+Code', full_text, re.IGNORECASE)
-            if m1:
-                state_code = m1.group(1).strip()
-            else:
-                m2 = re.search(r'(?:Texas|State)\s+Waste\s+Code\s*\n\s*([A-Z0-9]+)', full_text, re.IGNORECASE)
-                if m2:
-                    state_code = m2.group(1).strip()
-            extracted_data['state_waste_code'] = state_code
-
-            # Federal Waste Code - Only search page 2
-            p2_text = pdf.pages[1].extract_text() if len(pdf.pages) >= 2 else ""
-            rcra_codes = sorted(list(set(re.findall(r'\b([DFKPU][0-9]{3})\b', p2_text))))
-            extracted_data['federal_waste_code'] = ", ".join(rcra_codes)
-
+            # Color will be extracted using spatial logic later
+            
+            # State and Federal Waste Codes will be extracted from page 2 using spatial logic
+            
             # LDR Required
             ldr_cat_match = re.search(r'LDR\s+CATEGORY:\s*(.*?)(?:\n|$)', full_text, re.IGNORECASE)
             if ldr_cat_match:
@@ -248,8 +311,8 @@ def parse_profile_pdf():
             fp_val = ""
             
             for cm in p1_checkmarks:
-                # 1. Physical State Checkbox (y-coordinate/top is roughly between 250 and 320)
-                if 250 < cm['top'] < 320:
+                # 1. Physical State Checkbox (y-coordinate/top is roughly between 250 and 350)
+                if 200 < cm['top'] < 360:
                     line_words = [w['text'] for w in p1.extract_words() if abs(w['top'] - cm['top']) < 8 and w['x0'] >= cm['x0'] - 2]
                     line_text = " ".join(line_words).lower()
                     if "solid without free liquid" in line_text:
@@ -262,18 +325,20 @@ def parse_profile_pdf():
                     elif "powder" in line_text or "monolithic" in line_text:
                         physical_state = "Solid"
                 
-                # 2. pH Checkbox (top is roughly between 420 and 450, x is roughly between 80 and 130)
-                elif 420 < cm['top'] < 450 and 80 < cm['x0'] < 130:
-                    line_words = [w['text'] for w in p1.extract_words() if abs(w['top'] - cm['top']) < 8 and w['x0'] >= cm['x0'] - 2 and w['x0'] < 160]
-                    line_text = " ".join(line_words)
+                # 2. pH Checkbox (top is roughly between 380 and 550, x is strictly in the pH column)
+                elif 380 < cm['top'] < 550 and 80 < cm['x0'] < 140:
+                    line_words_raw = [w for w in p1.extract_words() if abs(w['top'] - cm['top']) < 5 and w['x0'] >= cm['x0'] - 2 and w['x0'] < cm['x0'] + 60]
+                    line_words_raw = sorted(line_words_raw, key=lambda x: x['x0'])
+                    line_text = " ".join([w['text'] for w in line_words_raw])
                     m = re.search(r'(<=?\s*\d+(?:\.\d+)?|\d+(?:\.\d+)?\s*-\s*\d+(?:\.\d+)?|\d+\s*\(Neutral\)|>=?\s*\d+(?:\.\d+)?)', line_text)
                     if m:
                         ph_val = m.group(1)
 
-                # 3. Flash Point Checkbox (top is roughly between 420 and 450, x is roughly less than 50)
-                elif 420 < cm['top'] < 450 and cm['x0'] < 50:
-                    line_words = [w['text'] for w in p1.extract_words() if abs(w['top'] - cm['top']) < 8 and w['x0'] >= cm['x0'] - 2 and w['x0'] < 90]
-                    line_text = " ".join(line_words)
+                # 3. Flash Point Checkbox (top is roughly between 380 and 550, x is strictly in the Flash Point column)
+                elif 380 < cm['top'] < 550 and cm['x0'] < 50:
+                    line_words_raw = [w for w in p1.extract_words() if abs(w['top'] - cm['top']) < 5 and w['x0'] >= cm['x0'] - 2 and w['x0'] < cm['x0'] + 60]
+                    line_words_raw = sorted(line_words_raw, key=lambda x: x['x0'])
+                    line_text = " ".join([w['text'] for w in line_words_raw])
                     m = re.search(r'(<=?\s*\d+|73\s*-\s*100|\d+\s*-\s*\d+|\d+\s*-\s*\d+|>\s*\d+)', line_text)
                     if m:
                         fp_val = m.group(1)
@@ -285,9 +350,9 @@ def parse_profile_pdf():
             if physical_state == "Solid" and not fp_val:
                 extracted_data['flash_point'] = "Not Required"
             elif fp_val:
-                extracted_data['flash_point'] = fp_val
+                extracted_data['flash_point'] = fp_val.replace(' ', '') if '>' in fp_val or '<' in fp_val else fp_val
             else:
-                extracted_data['flash_point'] = "> 140"
+                extracted_data['flash_point'] = ">140"
 
             # Cyanide and Sulfide (page 2 checkmarks)
             cyanide = "No"
@@ -304,8 +369,57 @@ def parse_profile_pdf():
                     elif "sulfide" in line_text:
                         if cm['x0'] < 500:
                             sulfide = "Yes"
+                            
+                # Extract EPA and State Waste Codes from Page 2
+                p2_words = p2.extract_words()
+                
+                # USEPA HAZARDOUS WASTE?
+                usepa_word = next((w for w in p2_words if "USEPA" in w['text'].upper()), None)
+                if usepa_word:
+                    # Find the word "WASTE?" or similar on the same line to know where the label ends
+                    waste_word = next((w for w in p2_words if "WASTE" in w['text'].upper() and w['x0'] > usepa_word['x0'] and abs(w['top'] - usepa_word['top']) < 10), usepa_word)
+                    # Extract text strictly to the right of the label
+                    line_words = sorted([w for w in p2_words if abs(w['top'] - usepa_word['top']) < 10 and w['x0'] > waste_word['x1'] + 5], key=lambda x: x['x0'])
+                    fed_codes = [w['text'].strip() for w in line_words if w['text'].strip().upper() not in ['YES', 'NO', '?', 'APPLY']]
+                    if fed_codes:
+                        extracted_data['federal_waste_code'] = " ".join(fed_codes)
+                        
+                # STATE WASTE CODES
+                # Explicitly ignore "Texas Waste Code" based on user request, only look for generic "State Waste Code"
+                state_code_word = next((w for w in p2_words if "WASTE" in w['text'].upper() and "CODE" in "".join([ww['text'].upper() for ww in p2_words if abs(ww['top'] - w['top']) < 10]) and "STATE" in "".join([ww['text'].upper() for ww in p2_words if abs(ww['top'] - w['top']) < 10]) and "TEXAS" not in "".join([ww['text'].upper() for ww in p2_words if abs(ww['top'] - w['top']) < 10])), None)
+                
+                if state_code_word:
+                    # Find the word "CODE" or "CODES" on the same line to know where the label ends
+                    code_word = next((w for w in p2_words if "CODE" in w['text'].upper() and w['x0'] >= state_code_word['x0'] and abs(w['top'] - state_code_word['top']) < 10), state_code_word)
+                    
+                    # Find words either to the right of the label on the same line, or on the line directly below (within 15px)
+                    line_words = []
+                    for w in p2_words:
+                        v_diff = w['top'] - state_code_word['top']
+                        if abs(v_diff) < 3: # Same line
+                            if w['x0'] > code_word['x1'] + 5:
+                                line_words.append(w)
+                        elif 3 <= v_diff < 15: # Line below
+                            if w['x0'] >= state_code_word['x0'] - 60:
+                                line_words.append(w)
+                                
+                    line_words = sorted(line_words, key=lambda x: x['x0'])
+                    st_codes = [w['text'].strip() for w in line_words if w['text'].strip().upper() not in ['YES', 'NO', 'CODE', 'CODES', 'TEXAS', 'STATE', 'APPLY', '?']]
+                    if st_codes:
+                        extracted_data['state_waste_code'] = " ".join(st_codes)
+
             extracted_data['cyanide'] = cyanide
             extracted_data['sulfide'] = sulfide
+            
+            # Extract Color from Page 1 using spatial logic
+            color_word = next((w for w in p1.extract_words() if w['text'].strip().upper() == 'COLOR'), None)
+            if color_word:
+                cx0, cx1, cbottom = color_word['x0'] - 20, color_word['x1'] + 60, color_word['bottom']
+                color_vals = [w for w in p1.extract_words() if cbottom < w['top'] < cbottom + 50 and cx0 <= w['x0'] <= cx1]
+                if color_vals:
+                    color_vals.sort(key=lambda x: (x['top'], x['x0']))
+                    extracted_data['color'] = " ".join([w['text'] for w in color_vals]).strip()
+
             
         return jsonify(extracted_data)
     except Exception as e:
@@ -317,23 +431,25 @@ def add_master_profile():
     if not profile_number:
         return "Profile Number is required", 400
 
-    generator = request.form.get('generator') or request.form.get('generator_name') or ''
-    epa_id = request.form.get('epa_id', '').strip()
-    waste_description = request.form.get('waste_description', '').strip()
-    win_code = request.form.get('win_code', '').strip()
-    special_handling = request.form.get('special_handling', '').strip()
-    ph_range = request.form.get('ph_range', '').strip()
+    generator = (request.form.get('generator') or request.form.get('generator_name') or '').strip().upper()
+    epa_id = request.form.get('epa_id', '').strip().upper()
+    waste_description = request.form.get('waste_description', '').strip().upper()
+    win_code = request.form.get('win_code', '').strip().upper()
+    special_handling = request.form.get('special_handling', '').strip().upper()
+    ph_range = request.form.get('ph_range', '').strip().upper()
     physical_appearance = request.form.get('physical_appearance', '').strip()
-    flash_point = request.form.get('flash_point', '').strip()
+    flash_point = request.form.get('flash_point', '').strip().upper()
     expiration_date = request.form.get('expiration_date', '').strip()
     
     ldr_required = request.form.get('ldr_required', 'No').strip()
-    state_waste_code = request.form.get('state_waste_code', '').strip()
-    federal_waste_code = request.form.get('federal_waste_code', '').strip()
-    dot_description = request.form.get('dot_description', '').strip()
+    state_waste_code = request.form.get('state_waste_code', '').strip().upper()
+    federal_waste_code = request.form.get('federal_waste_code', '').strip().upper()
+    dot_description = request.form.get('dot_description', '').strip().upper()
     cyanide = request.form.get('cyanide', 'No').strip()
     sulfide = request.form.get('sulfide', 'No').strip()
     free_liquids = request.form.get('free_liquids', 'No').strip()
+    lab_number = request.form.get('lab_number', '').strip().upper()
+    color = request.form.get('color', '').strip().upper()
 
     voc_pct = 0.0
     try:
@@ -342,6 +458,7 @@ def add_master_profile():
         pass
 
     status = request.form.get('status', 'S').strip().upper()
+    treatment_recipe = request.form.get('treatment_recipe', '').strip()
 
     with closing(get_db_connection()) as conn:
         existing = conn.execute('SELECT profile_number FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (profile_number,)).fetchone()
@@ -352,24 +469,24 @@ def add_master_profile():
                     special_handling = ?, ph_range = ?, physical_appearance = ?, flash_point = ?, 
                     expiration_date = ?, epa_id = ?, ldr_required = ?, state_waste_code = ?, 
                     federal_waste_code = ?, dot_description = ?, cyanide = ?, sulfide = ?, 
-                    free_liquids = ?, status = ?
+                    free_liquids = ?, status = ?, lab_number = ?, color = ?, treatment_recipe = ?
                 WHERE TRIM(UPPER(profile_number)) = ?
             ''', (generator, waste_description, win_code, voc_pct, 
                   special_handling, ph_range, physical_appearance, flash_point, 
                   expiration_date, epa_id, ldr_required, state_waste_code, 
                   federal_waste_code, dot_description, cyanide, sulfide, 
-                  free_liquids, status, profile_number))
+                  free_liquids, status, lab_number, color, treatment_recipe, profile_number))
         else:
             conn.execute('''
                 INSERT INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, 
                                       special_handling, ph_range, physical_appearance, flash_point, expiration_date, 
                                       epa_id, status, ldr_required, state_waste_code, federal_waste_code, 
-                                      dot_description, cyanide, sulfide, free_liquids)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                      dot_description, cyanide, sulfide, free_liquids, lab_number, color, treatment_recipe)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (profile_number, generator, waste_description, win_code, voc_pct, 
                   special_handling, ph_range, physical_appearance, flash_point, expiration_date, 
                   epa_id, status, ldr_required, state_waste_code, federal_waste_code, 
-                  dot_description, cyanide, sulfide, free_liquids))
+                  dot_description, cyanide, sulfide, free_liquids, lab_number, color, treatment_recipe))
         conn.commit()
         
     return redirect(url_for('approvals_bp.approvals_portal', selected_profile=profile_number))
@@ -439,6 +556,19 @@ def api_profile_search():
         
     return jsonify([dict(p) for p in profiles])
 
+@approvals_bp.route('/api/profile/delete', methods=['POST'])
+def api_profile_delete():
+    data = request.json
+    profile_number = data.get('profile_number')
+    if not profile_number:
+        return jsonify({'success': False, 'error': 'No profile number provided.'}), 400
+        
+    with closing(get_db_connection()) as conn:
+        conn.execute('DELETE FROM profiles WHERE profile_number = ?', (profile_number,))
+        conn.commit()
+    
+    return jsonify({'success': True})
+
 @approvals_bp.route('/api/profile/<profile_number>/history')
 def api_profile_history(profile_number):
     with closing(get_db_connection()) as conn:
@@ -463,16 +593,26 @@ def api_profile_upload(profile_number):
     with closing(get_db_connection()) as conn:
         for file in files:
             if file and file.filename != '':
+                import time
                 filename = secure_filename(file.filename)
-                # Prepend profile number to ensure uniqueness in the folder
-                save_name = f"{secure_filename(profile_number)}_{filename}"
-                file_path = os.path.join(UPLOAD_FOLDER, save_name)
+                
+                # Create a subfolder for the profile
+                profile_dir_name = secure_filename(profile_number)
+                profile_dir_path = os.path.join(UPLOAD_FOLDER, profile_dir_name)
+                if not os.path.exists(profile_dir_path):
+                    os.makedirs(profile_dir_path)
+                
+                # Append a timestamp to the original filename to prevent overwrites
+                save_name = f"{int(time.time())}_{filename}"
+                relative_path = f"{profile_dir_name}/{save_name}"
+                file_path = os.path.join(profile_dir_path, save_name)
+                
                 file.save(file_path)
                 
                 conn.execute('''
                     INSERT INTO profile_attachments (profile_number, filename, file_path)
                     VALUES (?, ?, ?)
-                ''', (profile_number, filename, save_name))
+                ''', (profile_number, filename, relative_path))
                 uploaded_files.append(filename)
         conn.commit()
         
@@ -580,7 +720,7 @@ def release_las_truck():
                 measured_flashpoint = ?,
                 voc_pass_fail = ?,
                 lab_results = ?,
-                test_status = 'LAB COMPLETED'
+                test_status = 'RELEASED'
             WHERE id = ?
         ''', (ph_val, voc_val, measured_sulfides, measured_cyanide, measured_free_liquids, measured_flashpoint, voc_pass_fail, release_note, log_id))
         
@@ -616,15 +756,38 @@ def add_waste_acceptance_log():
         return jsonify({'error': 'Profile number is required'}), 400
         
     with closing(get_db_connection()) as conn:
+        # Check if the profile already exists in the log (active or archived)
+        existing = conn.execute('''
+            SELECT id, is_archived FROM waste_acceptance_log 
+            WHERE TRIM(UPPER(profile_number)) = ?
+        ''', (profile_number,)).fetchone()
+        
+        if existing:
+            if existing['is_archived'] == 1:
+                # Reactivate the archived profile and reset status/notes
+                conn.execute('''
+                    UPDATE waste_acceptance_log
+                    SET is_archived = 0,
+                        status = 'Needs Review',
+                        assigned_to = '',
+                        notes = '',
+                        date_added = CURRENT_TIMESTAMP,
+                        last_updated = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (existing['id'],))
+                conn.commit()
+                return jsonify({'success': True})
+            else:
+                return jsonify({'error': f"Profile {profile_number} is already active in the review log."}), 400
+        
         try:
             conn.execute('''
-                INSERT INTO waste_acceptance_log (profile_number, status, assigned_to, notes)
-                VALUES (?, 'Needs Review', '', '')
+                INSERT INTO waste_acceptance_log (profile_number, status, assigned_to, notes, date_added)
+                VALUES (?, 'Needs Review', '', '', CURRENT_TIMESTAMP)
             ''', (profile_number,))
             conn.commit()
             return jsonify({'success': True})
         except Exception as e:
-            # Handle UNIQUE constraint failure if it already exists
             return jsonify({'error': str(e)}), 400
 
 @approvals_bp.route('/api/waste_acceptance/log/update', methods=['POST'])
@@ -712,10 +875,19 @@ def export_wvi_excel(profile_number):
     if not p_row and not w_row:
         return "Profile not found in database", 404
         
+    win_code = str(p_row['win_code'] if (p_row and p_row['win_code']) else '').strip().upper()
+    lab_num_clean = str(w_row['lab_num'] if (w_row and w_row['lab_num']) else (p_row['lab_number'] if (p_row and p_row['lab_number']) else '')).strip().upper()
+    is_monolith = "MONOLITH" in lab_num_clean or "MONO" in lab_num_clean
+        
     # Helper to parse pH range (like "7.0 to 12.4" or "7.0-12.0")
     def parse_ph_range(ph_range):
         if not ph_range:
             return None, None
+            
+        ph_str = str(ph_range).strip().upper()
+        if "7 (NEUTRAL)" in ph_str or ph_str == "7":
+            return 4.0, 10.0
+            
         m = re.findall(r'(\d+\.?\d*)', str(ph_range))
         if len(m) >= 2:
             try:
@@ -749,16 +921,23 @@ def export_wvi_excel(profile_number):
         'state_waste_codes': w_row['state_waste_codes'] if (w_row and w_row['state_waste_codes']) else (p_row['state_waste_code'] if p_row else ''),
         'federal_waste_codes': w_row['federal_waste_codes'] if (w_row and w_row['federal_waste_codes']) else (p_row['federal_waste_code'] if p_row else ''),
         'dot_description': w_row['dot_description'] if (w_row and w_row['dot_description']) else (p_row['dot_description'] if p_row else ''),
-        'handling_instruction': w_row['handling_instruction'] if (w_row and w_row['handling_instruction']) else (p_row['special_handling'] if p_row else ''),
+        'handling_instruction': w_row['handling_instruction'] if (w_row and w_row['handling_instruction']) else '',
         'sample_procedures': w_row['sample_procedures'] if (w_row and w_row['sample_procedures']) else '',
-        'verification_procedures': w_row['verification_procedures'] if (w_row and w_row['verification_procedures']) else 'VISUAL',
+        'verification_procedures': (
+            w_row['verification_procedures'] if (w_row and w_row['verification_procedures'])
+            else ("Visual" if (win_code == 'CNIA' or is_monolith) else "Refer to Finger Print Testing")
+        ),
         'ph_min': w_row['ph_min'] if (w_row and w_row['ph_min'] is not None) else None,
         'ph_max': w_row['ph_max'] if (w_row and w_row['ph_max'] is not None) else None,
         'sulfides': w_row['sulfides'] if (w_row and w_row['sulfides']) else (p_row['sulfide'] if p_row else ''),
         'cyanide': w_row['cyanide'] if (w_row and w_row['cyanide']) else (p_row['cyanide'] if p_row else ''),
         'free_liquids': w_row['free_liquids'] if (w_row and w_row['free_liquids']) else (p_row['free_liquids'] if p_row else ''),
         'flashpoint': w_row['flashpoint'] if (w_row and w_row['flashpoint']) else (p_row['flash_point'] if p_row else ''),
-        'unloading_instructions': w_row['unloading_instructions'] if (w_row and w_row['unloading_instructions']) else '',
+        'unloading_instructions': (
+            str(w_row['unloading_instructions']).strip() if (w_row and w_row['unloading_instructions'] is not None and str(w_row['unloading_instructions']).strip() != "")
+            else (str(p_row['special_handling']).strip() if (p_row and p_row['special_handling'] is not None and str(p_row['special_handling']).strip() != "")
+            else ("Follow Red Folder" if (win_code in ['CCS', 'CCSM'] or win_code.startswith('CCS')) else "NO SPECIAL HANDLING REQUIRED UNLOAD TO LANDFILL NORMALLY"))
+        ),
         'reactivity_codes': w_row['reactivity_codes'] if (w_row and w_row['reactivity_codes']) else 'NONE',
         'approved_date': w_row['approved_date'] if (w_row and w_row['approved_date']) else '',
         'expiration_date': w_row['expiration_date'] if (w_row and w_row['expiration_date']) else (p_row['expiration_date'] if p_row else ''),
@@ -767,6 +946,11 @@ def export_wvi_excel(profile_number):
         'treatment_information': w_row['treatment_information'] if (w_row and w_row['treatment_information']) else 'Not applicable',
         'notes_revisions': w_row['notes_revisions'] if (w_row and w_row['notes_revisions']) else ''
     }
+
+    # Convert all string values in combined dictionary to uppercase
+    for k, v in combined.items():
+        if isinstance(v, str):
+            combined[k] = v.upper()
 
     # Fill in fallback parsed range/voc
     if combined['ph_min'] is None or combined['ph_max'] is None:
@@ -813,180 +997,279 @@ def export_wvi_excel(profile_number):
 
     combined['approved_date'] = format_date_serial_or_string(combined['approved_date'])
     combined['expiration_date'] = format_date_serial_or_string(combined['expiration_date'])
-
-    # Locate the template Excel file dynamically
-    app_dir = os.path.dirname(os.path.abspath(__file__))
-    win_code = str(p_row['win_code'] if p_row else '').strip().upper()
     
-    template_path = None
-    if win_code:
-        # Try to find a template matching the win_code (e.g. CBP.xls or CBP.xlsx)
-        for ext in ['.xls', '.xlsx']:
-            p = os.path.join(app_dir, f"{win_code}{ext}")
-            if os.path.exists(p):
-                template_path = p
-                break
-                
-    if not template_path:
-        template_path = os.path.join(app_dir, 'CH2951500.xls')
-        
-    if not os.path.exists(template_path):
-        return f"Template file not found in app directory. Tried {win_code}.xls/xlsx and fallback CH2951500.xls.", 500
+    if combined['expiration_date']:
+        try:
+            import datetime
+            exp_str = combined['expiration_date']
+            exp_date = None
+            if '-' in exp_str:
+                # might be YYYY-MM-DD
+                parts = exp_str.split('-')
+                if len(parts[0]) == 4:
+                    exp_date = datetime.datetime.strptime(exp_str, '%Y-%m-%d')
+                else:
+                    exp_date = datetime.datetime.strptime(exp_str, '%m-%d-%Y')
+            elif '/' in exp_str:
+                parts = exp_str.split('/')
+                if len(parts[2]) == 2:
+                    exp_date = datetime.datetime.strptime(exp_str, '%m/%d/%y')
+                else:
+                    exp_date = datetime.datetime.strptime(exp_str, '%m/%d/%Y')
+            
+            if exp_date:
+                try:
+                    app_date = exp_date.replace(year=exp_date.year - 1)
+                except ValueError:
+                    app_date = exp_date.replace(year=exp_date.year - 1, day=28)
+                combined['approved_date'] = app_date.strftime('%m/%d/%Y')
+        except Exception:
+            pass
 
-    # Load template sheet
-    try:
-        workbook = xlrd.open_workbook(template_path, formatting_info=True)
-        sheet = workbook.sheet_by_index(0)
-    except Exception as e:
-        return f"Error loading template: {str(e)}", 500
+    # Ensure both dates are explicitly formatted as MM/DD/YYYY if they are valid
+    import datetime
+    for date_key in ['approved_date', 'expiration_date']:
+        d_val = combined.get(date_key, '')
+        if d_val:
+            try:
+                if '-' in d_val:
+                    # check if YYYY-MM-DD
+                    parts = d_val.split('-')
+                    if len(parts[0]) == 4:
+                        parsed = datetime.datetime.strptime(d_val.split(' ')[0], '%Y-%m-%d')
+                        combined[date_key] = parsed.strftime('%m/%d/%Y')
+            except Exception:
+                pass
 
-    # Build openpyxl workbook
+    # ------------------ OPTION C REDESIGN ------------------
     wb = openpyxl.Workbook()
     if "Sheet" in wb.sheetnames:
         wb.remove(wb["Sheet"])
     ws = wb.create_sheet(title=f"WVI {combined['profile']}")
-    ws.views.sheetView[0].showGridLines = True
+    ws.views.sheetView[0].showGridLines = False
+    
+    # Modern Styling Variables
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from openpyxl.drawing.image import Image
+    import os
+    
+    header_fill = PatternFill(start_color="8B0000", end_color="8B0000", fill_type="solid") # Crimson
+    section_fill = PatternFill(start_color="E2E8F0", end_color="E2E8F0", fill_type="solid") # Light Gray
+    alt_row_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+    
+    header_font = Font(color="FFFFFF", bold=True, size=14)
+    section_font = Font(color="1E293B", bold=True, size=12)
+    label_font = Font(bold=True, color="475569")
+    data_font = Font(color="000000")
+    
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), 
+                         top=Side(style='thin'), bottom=Side(style='thin'))
+                         
+    # Title
+    ws.merge_cells('A1:D2')
+    title_cell = ws['A1']
+    title_cell.value = f"Waste Verification Instructions (WVI)"
+    title_cell.font = Font(color="000000", bold=True, size=16)
+    title_cell.fill = PatternFill(fill_type=None)
+    title_cell.alignment = Alignment(horizontal='center', vertical='center')
+    
+    # Logo
+    try:
+        from flask import current_app
+        logo_path = os.path.join(current_app.root_path, 'static', 'CLH_BIG.png')
+        if os.path.exists(logo_path):
+            img = Image(logo_path)
+            img.height = 40
+            img.width = 135
+            ws.add_image(img, 'A1')
+    except Exception as e:
+        print(f"Could not load logo: {e}")
+        pass
+    
+    # Section 1: Profile Info
+    ws['A4'] = "Profile Number:"
+    ws['B4'] = combined['profile']
+    ws['C4'] = "Approved Date:"
+    ws['D4'] = combined['approved_date']
+    
+    ws['A5'] = "Generator Name:"
+    ws['B5'] = combined['generator_name']
+    ws['C5'] = "Expiration Date:"
+    ws['D5'] = combined['expiration_date']
 
-    # 1. Replicate column widths
-    for c in range(sheet.ncols):
-        col_letter = get_column_letter(c + 1)
-        width = 12
-        if c in sheet.colinfo_map:
-            width = max(sheet.colinfo_map[c].width / 256.0, 10)
-        ws.column_dimensions[col_letter].width = width
+    ws['A6'] = "Waste Name:"
+    ws['B6'] = combined['waste_name']
+    ws['C6'] = "Lab Number:"
+    ws['D6'] = combined['lab_num']
+    
+    for row in range(4, 7):
+        ws[f'A{row}'].font = label_font
+        ws[f'C{row}'].font = label_font
+        ws[f'B{row}'].font = data_font
+        ws[f'D{row}'].font = data_font
+    
+    # Section 2: Physical & Chemical Properties
+    row = 8
+    ws.merge_cells(f'A{row}:D{row}')
+    sec1 = ws[f'A{row}']
+    sec1.value = "Physical & Chemical Properties"
+    sec1.font = section_font
+    sec1.fill = section_fill
+    sec1.alignment = Alignment(horizontal='left', vertical='center')
+    
+    ph_str = f"{combined['ph_min']} - {combined['ph_max']}" if combined['ph_min'] and combined['ph_max'] else (combined['ph_min'] or combined['ph_max'] or "")
 
-    # 2. Build dynamic cell mapping by scanning labels in the template sheet
-    cell_mapping = {}
-    for r in range(sheet.nrows):
-        col0_val = str(sheet.cell_value(r, 0)).strip()
-        col1_val = str(sheet.cell_value(r, 1)).strip()
+    properties = [
+        ("Physical Description:", combined['physical_description'], "pH Range:", ph_str),
+        ("Flash Point:", combined['flashpoint'], "Cyanide:", combined['cyanide']),
+        ("Free Liquids:", combined['free_liquids'], "Sulfides:", combined['sulfides']),
+        ("VOC PPM:", combined['voc_ppm'], "", "")
+    ]
+    
+    row += 1
+    for i, prop in enumerate(properties):
+        ws[f'A{row}'].value = prop[0]
+        ws[f'B{row}'].value = prop[1]
+        ws[f'C{row}'].value = prop[2]
+        ws[f'D{row}'].value = prop[3]
         
-        # Check Column 0 labels
-        c0_upper = col0_val.upper()
-        if c0_upper == 'PROFILE':
-            cell_mapping[(r, 1)] = 'profile'
-        elif c0_upper == 'GENERATOR NAME':
-            cell_mapping[(r, 1)] = 'generator_name'
-        elif c0_upper == 'WASTE NAME':
-            cell_mapping[(r, 1)] = 'waste_name'
-        elif c0_upper == 'PHYSICAL DESCRIPTION':
-            cell_mapping[(r, 1)] = 'physical_description'
-        elif c0_upper == 'LDR':
-            cell_mapping[(r, 1)] = 'ldr'
-        elif c0_upper in ['STATE WASTE CODES', 'STATE WASTE CODE']:
-            cell_mapping[(r, 1)] = 'state_waste_codes'
-        elif c0_upper in ['FEDERAL WASTE CODES', 'FEDERAL WASTE CODE']:
-            cell_mapping[(r, 1)] = 'federal_waste_codes'
-        elif c0_upper == 'DOT DESCRIPTION':
-            cell_mapping[(r, 1)] = 'dot_description'
-        elif c0_upper == 'HANDLING INSTRUCTION':
-            cell_mapping[(r, 1)] = 'handling_instruction'
-        elif c0_upper == 'SAMPLE PROCEDURES':
-            cell_mapping[(r, 1)] = 'sample_procedures'
-        elif c0_upper == 'VERIFICATION PROCEDURES':
-            cell_mapping[(r, 1)] = 'verification_procedures'
-        elif c0_upper == 'UNLOADING INSTRUCTIONS':
-            cell_mapping[(r, 1)] = 'unloading_instructions'
-        elif c0_upper == 'REACTIVITY CODES':
-            cell_mapping[(r, 1)] = 'reactivity_codes'
-        elif c0_upper == 'APPROVED DATE':
-            cell_mapping[(r, 1)] = 'approved_date'
-        elif c0_upper == 'EXPIRATION DATE':
-            cell_mapping[(r, 1)] = 'expiration_date'
-        elif c0_upper == 'TREATMENT INFORMATION':
-            cell_mapping[(r, 1)] = 'treatment_information'
-        elif c0_upper == 'NOTES/REVISIONS':
-            cell_mapping[(r, 1)] = 'notes_revisions'
+        ws[f'A{row}'].font = label_font
+        ws[f'C{row}'].font = label_font
+        
+        if prop[0] == "VOC PPM:":
+            ws[f'B{row}'].alignment = Alignment(horizontal='left')
+        
+        if i % 2 == 0:
+            for col in ['A', 'B', 'C', 'D']:
+                ws[f'{col}{row}'].fill = alt_row_fill
+        row += 1
+        
+    # Section 3: Regulatory & Shipping
+    row += 1
+    ws.merge_cells(f'A{row}:D{row}')
+    sec2 = ws[f'A{row}']
+    sec2.value = "Regulatory & Shipping Information"
+    sec2.font = section_font
+    sec2.fill = section_fill
+    
+    reg_info = [
+        ("DOT Description:", combined['dot_description'], "", ""),
+        ("State Waste Codes:", combined['state_waste_codes'], "Federal Waste Codes:", combined['federal_waste_codes']),
+        ("LDR Required:", combined['ldr'], "Reactivity Codes:", combined['reactivity_codes'])
+    ]
+    
+    row += 1
+    for i, reg in enumerate(reg_info):
+        ws[f'A{row}'].value = reg[0]
+        ws[f'B{row}'].value = reg[1]
+        
+        if reg[0] == "DOT Description:":
+            ws.merge_cells(f'B{row}:D{row}')
+            ws[f'B{row}'].alignment = Alignment(wrap_text=True)
+            ws.row_dimensions[row].height = 20
+        else:
+            ws[f'C{row}'].value = reg[2]
+            ws[f'D{row}'].value = reg[3]
+            ws[f'C{row}'].font = label_font
             
-        # Check Column 1 labels
-        c1_upper = col1_val.upper()
-        if 'PH RANGE' in c1_upper:
-            cell_mapping[(r, 2)] = 'ph_min'
-            cell_mapping[(r, 4)] = 'ph_max'
-        elif 'SULFIDES' in c1_upper:
-            cell_mapping[(r, 2)] = 'sulfides'
-        elif 'CYANIDE' in c1_upper:
-            cell_mapping[(r, 2)] = 'cyanide'
-        elif 'FREE LIQUIDS' in c1_upper:
-            cell_mapping[(r, 2)] = 'free_liquids'
-        elif 'LAB.' in c1_upper or 'LAB #' in c1_upper:
-            cell_mapping[(r, 2)] = 'lab_num'
-        elif 'VOC' in c1_upper:
-            cell_mapping[(r, 2)] = 'voc_ppm'
+        ws[f'A{row}'].font = label_font
+        
+        if i % 2 == 0:
+            for col in ['A', 'B', 'C', 'D']:
+                ws[f'{col}{row}'].fill = alt_row_fill
+        row += 1
+        
+    # Section 4: Processing & Instructions
+    row += 1
+    ws.merge_cells(f'A{row}:D{row}')
+    sec3 = ws[f'A{row}']
+    sec3.value = "Processing & Instructions"
+    sec3.font = section_font
+    sec3.fill = section_fill
+    
+    win_code = str(p_row['win_code'] if p_row else '').strip().upper()
+    
+    if win_code in ['CBP', 'CNIA', 'CBPR']:
+        disposal_loc = "DIRECT TO LANDFILL / ACTIVE CELL"
+    elif win_code == 'CBPS':
+        disposal_loc = "UNIT 31"
+    elif win_code in ['CCS', 'CCSM'] or win_code.startswith('CCS'):
+        disposal_loc = "DIRECT TO BAYS / STU / TTB"
+    else:
+        disposal_loc = f"DISPOSAL LOCATION DETERMINED BY WIN ID: {win_code}" if win_code else "TBD"
+        
+    handling_inst = str(combined.get('handling_instruction') or '').strip().upper()
+    if not handling_inst:
+        if win_code == 'CNIA':
+            handling_inst = "CONTAINS ASBESTOS DO NOT SAMPLE"
+        else:
+            handling_inst = "A MINIMUM OF SAFETY GLASSES, GLOVES, BOOTS, TYVEK, & RESPIRATOR"
+            
+    treatment_info = str(combined.get('treatment_information') or '').strip().upper()
+    if not treatment_info or treatment_info in ['NONE', 'NOT APPLICABLE', 'SEE TREATMENT INFORMATION']:
+        if p_row and 'treatment_recipe' in p_row.keys() and p_row['treatment_recipe'] is not None and str(p_row['treatment_recipe']).strip():
+            treatment_info = str(p_row['treatment_recipe']).strip().upper()
+        else:
+            if win_code in ['CCS', 'CCSM']:
+                treatment_info = "SEE TREATMENT INFORMATION"
+            else:
+                treatment_info = "NONE"
+        
+    sample_proc = str(combined.get('sample_procedures') or '').strip().upper()
+    if not sample_proc:
+        if win_code == 'CBPS':
+            sample_proc = "COLLECT SAMPLE WITH COLIWASA"
+        elif win_code == 'CNIA':
+            sample_proc = "NO SAMPLE REQUIRED"
+        else:
+            sample_proc = "COLLECT SAMPLE WITH SCOOP"
 
-    align_map_h = {1: 'left', 2: 'center', 3: 'right', 5: 'justify'}
-    align_map_v = {0: 'top', 1: 'center', 2: 'bottom'}
-
-    def format_output_val(key, val):
-        if val is None:
-            return ''
-        if key in ['ph_min', 'ph_max', 'voc_ppm']:
-            try:
-                return float(val)
-            except:
-                return val
-        return str(val)
-
-    # 3. Copy cells and apply styles/values
-    for r in range(sheet.nrows):
-        if r in sheet.rowinfo_map:
-            height = sheet.rowinfo_map[r].height / 20.0
-            if height > 0:
-                ws.row_dimensions[r + 1].height = height
-                
-        for c in range(sheet.ncols):
-            cell = sheet.cell(r, c)
-            cell_val = cell.value
-            
-            if (r, c) in cell_mapping:
-                key = cell_mapping[(r, c)]
-                cell_val = format_output_val(key, combined.get(key, cell_val))
-            
-            new_cell = ws.cell(row=r + 1, column=c + 1, value=cell_val)
-            
-            # Formatting
-            xf = workbook.xf_list[cell.xf_index]
-            font = workbook.font_list[xf.font_index]
-            
-            # Alignments
-            h_align = align_map_h.get(xf.alignment.hor_align, 'left')
-            v_align = align_map_v.get(xf.alignment.vert_align, 'center')
-            new_cell.alignment = Alignment(
-                horizontal=h_align,
-                vertical=v_align,
-                wrap_text=True if (c == 1 and r in [5, 7, 9, 13, 15, 29, 37, 43]) else False
-            )
-            
-            # Font
-            new_cell.font = Font(
-                name=font.name,
-                size=font.height // 20,
-                bold=bool(font.bold),
-                italic=bool(font.italic),
-                color="000000" if font.colour_index == 32767 else None
-            )
-            
-            # Borders for parameter table (B22:E25)
-            if r in range(21, 25) and c in range(1, 5):
-                thin_side = Side(border_style="thin", color="000000")
-                new_cell.border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
-
-    # 4. Copy merged ranges
-    for crange in sheet.merged_cells:
-        rlo, rhi, clo, chi = crange
-        ws.merge_cells(
-            start_row=rlo + 1,
-            end_row=rhi,
-            start_column=clo + 1,
-            end_column=chi
-        )
-
+    proc_info = [
+        ("Disposal Location:", disposal_loc),
+        ("Sample Procedures:", sample_proc),
+        ("Handling Instructions:", handling_inst),
+        ("Unloading Instructions:", combined['unloading_instructions']),
+        ("Treatment Information:", treatment_info),
+        ("Verification Procedures:", combined['verification_procedures']),
+        ("Notes / Revisions:", combined['notes_revisions'])
+    ]
+    
+    row += 1
+    for i, proc in enumerate(proc_info):
+        ws[f'A{row}'].value = proc[0]
+        ws[f'B{row}'].value = proc[1]
+        ws.merge_cells(f'B{row}:D{row}')
+        
+        ws[f'A{row}'].font = label_font
+        ws[f'B{row}'].alignment = Alignment(wrap_text=True)
+        ws.row_dimensions[row].height = 20
+        
+        if i % 2 == 0:
+            for col in ['A', 'B', 'C', 'D']:
+                ws[f'{col}{row}'].fill = alt_row_fill
+        row += 1
+        
+    # Column Widths & Print Setup
+    ws.column_dimensions['A'].width = 25
+    ws.column_dimensions['B'].width = 51
+    ws.column_dimensions['C'].width = 25
+    ws.column_dimensions['D'].width = 32
+    
+    ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+    ws.page_setup.fitToWidth = False
+    ws.page_setup.fitToHeight = False
+    
+    ws.page_margins.left = 0.25
+    ws.page_margins.right = 0.25
+    ws.page_margins.top = 0.5
+    ws.page_margins.bottom = 0.5
+    
     # Save to a memory buffer
     output_io = io.BytesIO()
     wb.save(output_io)
     output_io.seek(0)
 
-    filename = f"WVI_{combined['profile']}.xlsx"
+    filename = f"{combined['profile']}.xlsx"
     return send_file(
         output_io,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

@@ -17,7 +17,8 @@ cursor.execute('''
         physical_appearance TEXT,
         flash_point TEXT,
         expiration_date TEXT,
-        status TEXT DEFAULT "A"
+        status TEXT DEFAULT "A",
+        treatment_recipe TEXT
     )
 ''')
 

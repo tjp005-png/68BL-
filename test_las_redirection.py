@@ -99,18 +99,23 @@ class TestLASRedirection(unittest.TestCase):
         finally:
             conn.close()
 
-    def test_chemist_dashboard_excludes_las_trucks(self):
-        """Verify that LAS bulk trucks are excluded from the chemist's pending list"""
+    def test_chemist_dashboard_includes_las_trucks(self):
+        """Verify that LAS bulk trucks are included in the chemist's pending list"""
         response = self.client.get('/chemist')
         self.assertEqual(response.status_code, 200)
-        # Should not show the LAS truck logs (TRK1 / M-LAS-1 and TRK3 / M-CCS-1)
-        self.assertNotIn(b'M-LAS-1', response.data)
-        self.assertNotIn(b'M-CCS-1', response.data)
+        # Should show the LAS truck logs (TRK1 / M-LAS-1 and TRK3 / M-CCS-1)
+        self.assertIn(b'M-LAS-1', response.data)
+        self.assertIn(b'M-CCS-1', response.data)
         # Should show the normal fingerprint load (TRK4 / M-NORM-1)
         self.assertIn(b'M-NORM-1', response.data)
 
     def test_waste_acceptance_dashboard_includes_las_trucks(self):
-        """Verify that LAS bulk trucks appear in the STU hub pipeline"""
+        """Verify that LAS bulk trucks appear in the STU hub pipeline when lab is completed"""
+        conn = original_connect(TEST_DB_PATH)
+        conn.execute("UPDATE truck_logs SET test_status = 'LAB COMPLETED' WHERE test_assigned LIKE 'LAS%'")
+        conn.commit()
+        conn.close()
+
         response = self.client.get('/stu/hub?view=pipeline')
         self.assertEqual(response.status_code, 200)
         # Should show pending LAS trucks
@@ -143,7 +148,7 @@ class TestLASRedirection(unittest.TestCase):
         updated_truck = conn.execute("SELECT * FROM truck_logs WHERE truck_id = 'TRK1'").fetchone()
         conn.close()
 
-        self.assertEqual(updated_truck['test_status'], 'LAB COMPLETED')
+        self.assertEqual(updated_truck['test_status'], 'RELEASED')
         self.assertEqual(updated_truck['measured_ph'], 6.8)
         self.assertEqual(updated_truck['measured_voc'], 15.5)
         self.assertEqual(updated_truck['measured_sulfides'], 'Negative')
@@ -177,7 +182,7 @@ class TestLASRedirection(unittest.TestCase):
         updated_truck = conn.execute("SELECT * FROM truck_logs WHERE truck_id = 'TRK3'").fetchone()
         conn.close()
 
-        self.assertEqual(updated_truck['test_status'], 'LAB COMPLETED')
+        self.assertEqual(updated_truck['test_status'], 'RELEASED')
         self.assertEqual(updated_truck['measured_voc'], 350.0)
         self.assertEqual(updated_truck['measured_flashpoint'], '>200F')
         self.assertEqual(updated_truck['voc_pass_fail'], 'PASS')  # CCS <= 500 should be PASS
@@ -207,7 +212,7 @@ class TestLASRedirection(unittest.TestCase):
         updated_truck = conn.execute("SELECT * FROM truck_logs WHERE truck_id = 'TRK3'").fetchone()
         conn.close()
 
-        self.assertEqual(updated_truck['test_status'], 'LAB COMPLETED')
+        self.assertEqual(updated_truck['test_status'], 'RELEASED')
         self.assertEqual(updated_truck['measured_voc'], 600.0)
         self.assertEqual(updated_truck['voc_pass_fail'], 'FAIL')  # CCS > 500 should be FAIL
 

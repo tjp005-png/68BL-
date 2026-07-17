@@ -229,12 +229,15 @@ def chemist_dashboard():
                    w.ph_min, w.ph_max, w.sulfides, w.cyanide, w.free_liquids, w.flashpoint, w.voc_ppm,
                    w.treatment_information, w.notes_revisions, w.physical_description, w.handling_instruction,
                    w.generator_name, w.waste_name, w.approved_date, w.expiration_date, w.is_synced,
-                   p.win_code
+                   p.win_code, p.generator AS p_generator, p.waste_description AS p_waste_description,
+                   p.ph_range AS p_ph_range, p.flash_point AS p_flash_point, p.voc_percentage AS p_voc_percentage,
+                   p.special_handling AS p_special_handling, p.cyanide AS p_cyanide, p.sulfide AS p_sulfide,
+                   p.free_liquids AS p_free_liquids, p.physical_appearance AS p_physical_appearance,
+                   p.treatment_recipe AS p_treatment_recipe, p.color AS p_color
             FROM truck_logs tl
             LEFT JOIN profile_wvi w ON TRIM(UPPER(tl.profile_number)) = TRIM(UPPER(w.profile))
             LEFT JOIN profiles p ON TRIM(UPPER(tl.profile_number)) = TRIM(UPPER(p.profile_number))
-            WHERE (tl.test_assigned LIKE '%FINGERPRINT%' OR tl.test_assigned LIKE '%VOC TEST%') 
-              AND tl.test_assigned NOT LIKE 'LAS%'
+            WHERE (tl.test_assigned LIKE '%FINGERPRINT%' OR tl.test_assigned LIKE '%VOC TEST%' OR tl.test_assigned LIKE 'LAS%') 
               AND tl.test_status = 'WEIGHED IN'
         ''').fetchall()
         
@@ -254,6 +257,57 @@ def chemist_dashboard():
                 else:
                     # Mark in memory so we don't query again during this page load
                     truck['is_synced'] = 1
+                    
+            # --- FALLBACK TO MASTER PROFILE REGISTRY (EXTRACTED PDF DATA) ---
+            if not truck.get('generator_name') and truck.get('p_generator'):
+                truck['generator_name'] = truck['p_generator']
+            if not truck.get('waste_name') and truck.get('p_waste_description'):
+                truck['waste_name'] = truck['p_waste_description']
+            if not truck.get('flashpoint') and truck.get('p_flash_point'):
+                truck['flashpoint'] = truck['p_flash_point']
+            
+            # Set color
+            truck['color'] = truck.get('p_color') or ''
+            
+            if truck.get('ph_min') is None and truck.get('ph_max') is None and truck.get('p_ph_range'):
+                import re
+                ph_str = str(truck['p_ph_range']).strip().upper()
+                if "7 (NEUTRAL)" in ph_str or ph_str == "7" or "7 NEUTRAL" in ph_str:
+                    truck['ph_min'] = 4.0
+                    truck['ph_max'] = 10.0
+                else:
+                    m = re.findall(r'(\d+\.?\d*)', ph_str)
+                    if len(m) >= 2:
+                        try:
+                            truck['ph_min'] = float(m[0])
+                            truck['ph_max'] = float(m[1])
+                        except:
+                            pass
+                    elif len(m) == 1:
+                        try:
+                            truck['ph_min'] = float(m[0])
+                            truck['ph_max'] = float(m[0])
+                        except:
+                            pass
+            if truck.get('voc_ppm') is None and truck.get('p_voc_percentage') is not None:
+                try:
+                    val = float(truck['p_voc_percentage'])
+                    truck['voc_ppm'] = val * 10000 if val < 10 else val
+                except:
+                    pass
+            if not truck.get('sulfides') and truck.get('p_sulfide'):
+                truck['sulfides'] = truck['p_sulfide']
+            if not truck.get('cyanide') and truck.get('p_cyanide'):
+                truck['cyanide'] = truck['p_cyanide']
+            if not truck.get('free_liquids') and truck.get('p_free_liquids'):
+                truck['free_liquids'] = truck['p_free_liquids']
+            if not truck.get('physical_description') and truck.get('p_physical_appearance'):
+                truck['physical_description'] = truck['p_physical_appearance']
+            if not truck.get('treatment_information') and truck.get('p_treatment_recipe'):
+                truck['treatment_information'] = truck['p_treatment_recipe']
+            if not truck.get('handling_instruction') and truck.get('p_special_handling'):
+                truck['handling_instruction'] = truck['p_special_handling']
+                
             pending_list.append(truck)
             
     return render_template('chemist.html', pending_trucks=pending_list)

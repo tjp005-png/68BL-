@@ -306,6 +306,16 @@ class TestSTURedesignFlow(unittest.TestCase):
             INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status, reject_notes, outgoing_manifest)
             VALUES ('DRUM-REJECTED-MISSING', 'P-STU-TEST', 'MAN-111', 'direct land haz', 320.0, 7.0, 5.0, 0.0, 0.0, '2026-06-01', 'JOB-111', 'REJECTED', 'Leaking container', 'OUT-456')
         ''')
+        # Insert a PLANT RECEIVED drum that WILL NOT be in the VPI file (should be deleted)
+        conn.execute('''
+            INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status)
+            VALUES ('DRUM-PLANT-MISSING', 'P-STU-TEST', 'MAN-111', 'direct land haz', 100.0, 7.0, 10.0, 10.0, 1000.0, '2026-06-01', 'JOB-111', 'PLANT RECEIVED')
+        ''')
+        # Insert a PLANT RECEIVED drum that WILL be in the VPI file (should change to FINAL CODED)
+        conn.execute('''
+            INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status)
+            VALUES ('DRUM-PLANT-FOUND', 'P-STU-TEST', 'MAN-111', 'direct land haz', 100.0, 7.0, 10.0, 10.0, 1000.0, '2026-06-01', 'JOB-111', 'PLANT RECEIVED')
+        ''')
         conn.commit()
         conn.close()
 
@@ -316,6 +326,7 @@ class TestSTURedesignFlow(unittest.TestCase):
             f"DRUM-HEAVY-BULK,direct land nh,42000.0,7.0,P-STU-TEST,5.0,Roll-Off,Area-53,{scan_date_4_days_ago}\n"
             f"DRUM-HEAVY-PUT,put pile,35000.0,7.0,P-STU-TEST,5.0,Roll-Off,Cell 34 Open,{scan_date_4_days_ago}\n"
             f"DRUM-REJECTED-IN-VPI,direct land haz,300.0,7.0,P-STU-TEST,5.0,DM,Area-51,{scan_date_4_days_ago}\n"
+            f"DRUM-PLANT-FOUND,direct land haz,100.0,7.0,P-STU-TEST,5.0,DM,Area-51,{scan_date_4_days_ago}\n"
         )
         
         data = {
@@ -365,6 +376,15 @@ class TestSTURedesignFlow(unittest.TestCase):
         self.assertEqual(row_rejected_missing['status'], 'REJECTED')
         self.assertEqual(row_rejected_missing['reject_notes'], 'Leaking container')
         self.assertEqual(row_rejected_missing['outgoing_manifest'], 'OUT-456')
+
+        # Verify that DRUM-PLANT-MISSING was deleted
+        row_plant_missing = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-PLANT-MISSING'").fetchone()
+        self.assertIsNone(row_plant_missing)
+
+        # Verify that DRUM-PLANT-FOUND was changed to FINAL CODED
+        row_plant_found = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-PLANT-FOUND'").fetchone()
+        self.assertIsNotNone(row_plant_found)
+        self.assertEqual(row_plant_found['status'], 'FINAL CODED')
 
         conn.close()
         

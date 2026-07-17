@@ -215,15 +215,33 @@
                                     </div>
                                     <div class="col-md-4">
                                         <span class="text-muted small fw-bold d-block">ACCEPTED pH RANGE</span>
-                                        <strong class="text-dark">{{ truck.ph_range or 'N/A' }}</strong>
+                                        <strong class="text-dark">
+                                            {% if truck.ph_min is not none or truck.ph_max is not none %}
+                                                {{ truck.ph_min | default('None') }} - {{ truck.ph_max | default('None') }}
+                                            {% else %}
+                                                {{ truck.ph_range or 'N/A' }}
+                                            {% endif %}
+                                        </strong>
                                     </div>
                                     <div class="col-md-4">
                                         <span class="text-muted small fw-bold d-block">ACCEPTED FLASH POINT</span>
                                         <strong class="text-dark">{{ truck.flash_point or 'N/A' }}</strong>
                                     </div>
                                     <div class="col-md-4">
-                                        <span class="text-muted small fw-bold d-block">VOC CONTENT (LIMIT 500 PPM FOR CCS)</span>
-                                        <strong class="text-dark">{{ truck.voc_percentage or 'N/A' }}%</strong>
+                                        <span class="text-muted small fw-bold d-block">VOC CONTENT LIMIT</span>
+                                        <strong class="text-dark">
+                                            {% if truck.voc_ppm is not none %}
+                                                {{ truck.voc_ppm }} ppm
+                                            {% elif truck.voc_percentage is not none %}
+                                                {{ truck.voc_percentage }}%
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
+                                        </strong>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <span class="text-muted small fw-bold d-block">CN / S / FREE LIQUIDS</span>
+                                        <strong class="text-dark">{{ truck.wvi_cyanide or 'N/A' }} / {{ truck.wvi_sulfides or 'N/A' }} / {{ truck.wvi_free_liquids or 'N/A' }}</strong>
                                     </div>
                                     <div class="col-md-4">
                                         <span class="text-muted small fw-bold d-block">SPECIAL HANDLING</span>
@@ -232,6 +250,10 @@
                                     <div class="col-md-4">
                                         <span class="text-muted small fw-bold d-block">EXPIRATION DATE</span>
                                         <strong class="text-dark">{{ truck.expiration_date or 'N/A' }}</strong>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <span class="text-muted small fw-bold d-block">COLOR</span>
+                                        <strong class="text-dark">{{ truck.color or 'N/A' }}</strong>
                                     </div>
                                 </div>
 
@@ -247,19 +269,13 @@
                                         <input type="text" class="form-control border-secondary" name="measured_voc" value="{{ truck.default_voc if truck.default_voc is not none else '' }}" placeholder="e.g. 15.0" required>
                                     </div>
                                     
-                                    {% set is_special = false %}
-                                    {% if truck.profile_number and ('CNOS' in truck.profile_number.upper() or 'CBPS' in truck.profile_number.upper()) %}
-                                        {% set is_special = true %}
-                                    {% elif truck.win_code and ('CNOS' in truck.win_code.upper() or 'CBPS' in truck.win_code.upper()) %}
-                                        {% set is_special = true %}
-                                    {% endif %}
-
-                                    {% if is_special %}
                                     <div class="col-md-6">
                                         <label class="form-label fw-bold text-danger">Measured Sulfides <span class="text-danger">*</span></label>
                                         <select class="form-select border-danger" name="measured_sulfides" required>
                                             <option value="Negative" {% if truck.default_sulfides == 'Negative' %}selected{% endif %}>Negative</option>
                                             <option value="Positive" {% if truck.default_sulfides == 'Positive' %}selected{% endif %}>Positive</option>
+                                            <option value="Quant Required" {% if truck.default_sulfides == 'Quant Required' %}selected{% endif %}>Quant Required</option>
+                                            <option value="No Quant Required" {% if truck.default_sulfides == 'No Quant Required' %}selected{% endif %}>No Quant Required</option>
                                         </select>
                                     </div>
                                     <div class="col-md-6">
@@ -269,7 +285,6 @@
                                             <option value="Positive" {% if truck.default_cyanide == 'Positive' %}selected{% endif %}>Positive</option>
                                         </select>
                                     </div>
-                                    {% endif %}
 
                                     <div class="col-md-6">
                                         <label class="form-label fw-bold text-dark">Measured Flashpoint</label>
@@ -359,6 +374,7 @@
                                     <option value="PASS">Pass (Put Pile)</option>
                                     <option value="FAIL">Fail (Put Pile)</option>
                                     <option value="MISSING">Missing</option>
+                                    <option value="DELETED">Deleted</option>
                                 </select>
                             </div>
                             <div class="align-self-end ms-2">
@@ -429,7 +445,7 @@
                                                         data-drum-id="{{ drum.id }}" 
                                                         data-old-status="{{ status }}"
                                                         style="width: 130px; border-radius: 4px; padding: 2px 8px; font-size: 0.75rem; 
-                                                               background-color: {% if status == 'PLANT RECEIVED' %}#0d6efd{% elif status == 'RESAMPLE' %}#ffc107; color: #212529 !important;{% elif status == 'REJECTED' %}#dc3545{% elif status == 'PASS' %}#0dcaf0; color: #212529 !important;{% elif status == 'FAIL' %}#212529{% elif status == 'FINAL CODED' %}#198754{% elif status == 'MISSING' %}#6c757d{% else %}#6c757d{% endif %};"
+                                                               background-color: {% if status == 'PLANT RECEIVED' %}#0d6efd{% elif status == 'RESAMPLE' %}#ffc107; color: #212529 !important;{% elif status == 'REJECTED' %}#dc3545{% elif status == 'PASS' %}#0dcaf0; color: #212529 !important;{% elif status == 'FAIL' %}#212529{% elif status == 'FINAL CODED' %}#198754{% elif status == 'MISSING' %}#6c757d{% elif status == 'DELETED' %}#343a40{% else %}#6c757d{% endif %};"
                                                         onchange="changeDrumStatus('{{ drum.id }}', this)">
                                                     <option value="FINAL CODED" class="bg-white text-dark" {% if status == 'FINAL CODED' %}selected{% endif %}>Final Coded</option>
                                                     <option value="PLANT RECEIVED" class="bg-white text-dark" {% if status == 'PLANT RECEIVED' %}selected{% endif %}>Plant Received</option>
@@ -438,6 +454,7 @@
                                                     <option value="PASS" class="bg-white text-dark" {% if status == 'PASS' %}selected{% endif %}>Passed</option>
                                                     <option value="FAIL" class="bg-white text-dark" {% if status == 'FAIL' %}selected{% endif %}>Failed</option>
                                                     <option value="MISSING" class="bg-white text-dark" {% if status == 'MISSING' %}selected{% endif %}>Missing</option>
+                                                    <option value="DELETED" class="bg-white text-dark" {% if status == 'DELETED' %}selected{% endif %}>Deleted</option>
                                                 </select>
                                                 {% if status == 'REJECTED' and drum.get('reject_notes') %}
                                                     <div class="small text-muted mt-1" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ drum.get('reject_notes') }}">{{ drum.get('reject_notes') }}</div>
@@ -614,7 +631,7 @@
                 let processMatch = matchAllProcesses || selectedProcesses.includes(process);
                 let statusMatch = false;
                 if (statusFilter === 'ALL') {
-                    statusMatch = true;
+                    statusMatch = (status !== 'DELETED');
                 } else if (statusFilter === 'ACTIVE') {
                     statusMatch = (status === 'FINAL CODED' || status === 'PLANT RECEIVED' || status === 'ACTIVE');
                 } else {
@@ -717,6 +734,8 @@
                 bgColor = '#198754';
             } else if (status === 'MISSING') {
                 bgColor = '#6c757d';
+            } else if (status === 'DELETED') {
+                bgColor = '#343a40';
             }
             selectElem.style.backgroundColor = bgColor;
             selectElem.style.setProperty('color', textColor, status === 'RESAMPLE' || status === 'PASS' ? 'important' : '');

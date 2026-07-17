@@ -15,14 +15,14 @@ def home():
     with closing(get_db_connection()) as conn:
         pending_trucks_raw = conn.execute("SELECT * FROM truck_logs WHERE exit_weight IS NULL AND test_status != 'REJECTED' ORDER BY id DESC").fetchall()
         
-        # Get active (weighed in) LAS profile numbers
+        # Get active (unreleased) LAS profile numbers
         active_las_profiles = {row['profile_number'].strip().upper() for row in conn.execute(
-            "SELECT DISTINCT profile_number FROM truck_logs WHERE test_assigned LIKE 'LAS%' AND test_status = 'WEIGHED IN'"
+            "SELECT DISTINCT profile_number FROM truck_logs WHERE test_assigned LIKE 'LAS%' AND test_status != 'RELEASED'"
         ).fetchall() if row['profile_number']}
         
-        # Get released (LAB COMPLETED) LAS profile numbers
+        # Get released (RELEASED status) LAS profile numbers
         released_las_profiles = {row['profile_number'].strip().upper() for row in conn.execute(
-            "SELECT DISTINCT profile_number FROM truck_logs WHERE test_assigned LIKE 'LAS%' AND test_status = 'LAB COMPLETED'"
+            "SELECT DISTINCT profile_number FROM truck_logs WHERE test_assigned LIKE 'LAS%' AND test_status = 'RELEASED'"
         ).fetchall() if row['profile_number']}
 
         pending_trucks = []
@@ -32,9 +32,12 @@ def home():
             is_las_truck = str(truck['test_assigned']).startswith('LAS')
 
             if is_las_truck:
-                if truck['test_status'] == 'LAB COMPLETED':
+                if truck['test_status'] == 'RELEASED':
                     truck['display_status'] = 'RELEASED'
                     truck['badge_class'] = 'bg-success text-white'
+                elif truck['test_status'] == 'LAB COMPLETED':
+                    truck['display_status'] = 'PENDING WA RELEASE'
+                    truck['badge_class'] = 'bg-warning text-dark'
                 else:
                     truck['display_status'] = truck['test_assigned']
                     truck['badge_class'] = 'bg-danger text-white'

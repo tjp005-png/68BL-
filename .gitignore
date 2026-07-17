@@ -1,5 +1,7 @@
 # Databases (SQLite)
 *.db
+*.db.bak
+*.db-*
 
 # Python compiled files and cache
 __pycache__/

@@ -151,6 +151,8 @@
                                         <select class="form-select form-select-sm input-sm sulf-input" name="sulfide_{{ drum.id }}">
                                             <option value="Negative" {% if drum.sulfide == 'Negative' %}selected{% endif %}>Negative</option>
                                             <option value="Positive" {% if drum.sulfide == 'Positive' %}selected{% endif %}>Positive</option>
+                                            <option value="Quant Required" {% if drum.sulfide == 'Quant Required' %}selected{% endif %}>Quant Required</option>
+                                            <option value="No Quant Required" {% if drum.sulfide == 'No Quant Required' %}selected{% endif %}>No Quant Required</option>
                                         </select>
                                     </td>
                                     <td>

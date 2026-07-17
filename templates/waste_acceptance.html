@@ -174,7 +174,14 @@
                                                     <span class="badge bg-light text-dark border px-2 py-1">FP: {{ lab.flashpoint or 'N/A' }}</span>
                                                     <span class="badge bg-light text-dark border px-2 py-1">CN: {{ lab.cyanide or '-' }}</span>
                                                     <span class="badge bg-light text-dark border px-2 py-1">S: {{ lab.sulfide or '-' }}</span>
-                                                    <span class="badge bg-light text-dark border px-2 py-1">Ox: {{ lab.oxidation or '-' }}</span>
+                                                </div>
+                                                <div class="mt-2 text-muted small border-top pt-1 animate-fade-in" style="font-size: 0.8rem; background-color: rgba(0, 0, 0, 0.02); padding: 4px 8px; border-radius: 4px;">
+                                                    <span class="fw-bold text-secondary">📋 WVI Reference:</span>
+                                                    pH Range: <span class="fw-semibold text-dark">{{ lab.ph_min | default('None') }} - {{ lab.ph_max | default('None') }}</span> |
+                                                    VOC Limit: <span class="fw-semibold text-dark">{{ lab.voc_ppm if lab.voc_ppm is not none else 'N/A' }} ppm</span> |
+                                                    FP: <span class="fw-semibold text-dark">{{ lab.flashpoint or 'N/A' }}</span> |
+                                                    CN/S/Liq: <span class="fw-semibold text-dark">{{ lab.cyanide or 'N/A' }} / {{ lab.sulfide or 'N/A' }} / {{ lab.free_liquids or 'N/A' }}</span> |
+                                                    Color: <span class="fw-semibold text-dark">{{ lab.color or 'N/A' }}</span>
                                                 </div>
                                                 <!-- Chemist Notes -->
                                                 {% if lab.notes %}

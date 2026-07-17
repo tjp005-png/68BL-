@@ -128,6 +128,11 @@ def export_excel():
             for idx, col in enumerate(df.columns):
                 max_len = max(df[col].astype(str).map(len).max(), len(str(col))) + 2
                 worksheet.column_dimensions[chr(65 + idx)].width = min(max_len, 30)
+                
+            worksheet.page_setup.fitToPage = True
+            worksheet.page_setup.fitToWidth = 1
+            worksheet.page_setup.fitToHeight = 0
+            worksheet.page_setup.orientation = 'landscape'
         
         # 1. Write WMU 35 Sheet
         write_formatted_sheet(wmu35_data, 'WMU 35 VOC TRACKING', 

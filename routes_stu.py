@@ -100,11 +100,12 @@ def stu_hub():
                    COALESCE(w.cyanide, p.cyanide) AS wvi_cyanide,
                    COALESCE(w.sulfides, p.sulfide) AS wvi_sulfides,
                    COALESCE(w.free_liquids, p.free_liquids) AS wvi_free_liquids,
-                   w.ph_min, w.ph_max, w.voc_ppm AS wvi_voc_ppm, w.flashpoint AS wvi_flashpoint
+                   w.ph_min, w.ph_max, w.voc_ppm AS wvi_voc_ppm, w.flashpoint AS wvi_flashpoint,
+                   w.generator_name, w.waste_name, w.handling_instruction, p.color AS p_color
             FROM truck_logs tl
             LEFT JOIN profiles p ON TRIM(UPPER(tl.profile_number)) = TRIM(UPPER(p.profile_number))
             LEFT JOIN profile_wvi w ON TRIM(UPPER(tl.profile_number)) = TRIM(UPPER(w.profile))
-            WHERE tl.test_assigned LIKE 'LAS%' AND tl.test_status = 'WEIGHED IN'
+            WHERE tl.test_assigned LIKE 'LAS%' AND tl.test_status = 'LAB COMPLETED'
             ORDER BY tl.id DESC
         ''').fetchall()
         
@@ -113,7 +114,54 @@ def stu_hub():
         for row in las_trucks_raw:
             t = dict(row)
             
-            # Compute default pH
+            # --- FALLBACKS FOR SPECTABLE DISPLAY ---
+            if t.get('generator_name'):
+                t['generator'] = t['generator_name']
+            if t.get('waste_name'):
+                t['waste_description'] = t['waste_name']
+            if t.get('wvi_flashpoint'):
+                t['flash_point'] = t['wvi_flashpoint']
+            if t.get('handling_instruction'):
+                t['special_handling'] = t['handling_instruction']
+                
+            # Set color
+            t['color'] = t.get('p_color') or ''
+                
+            # If ph_min or ph_max is not set in WVI, try parsing from profile ph_range
+            if t.get('ph_min') is None or t.get('ph_max') is None:
+                if t.get('ph_range'):
+                    ph_str = str(t['ph_range']).strip().upper()
+                    if "7 (NEUTRAL)" in ph_str or ph_str == "7" or "7 NEUTRAL" in ph_str:
+                        t['ph_min'] = 4.0
+                        t['ph_max'] = 10.0
+                    else:
+                        m = re.findall(r'(\d+\.?\d*)', ph_str)
+                        if len(m) >= 2:
+                            try:
+                                if t.get('ph_min') is None: t['ph_min'] = float(m[0])
+                                if t.get('ph_max') is None: t['ph_max'] = float(m[1])
+                            except:
+                                pass
+                        elif len(m) == 1:
+                            try:
+                                if t.get('ph_min') is None: t['ph_min'] = float(m[0])
+                                if t.get('ph_max') is None: t['ph_max'] = float(m[0])
+                            except:
+                                pass
+                            
+            # Convert voc_percentage fallback to voc_ppm
+            if t.get('wvi_voc_ppm') is not None:
+                t['voc_ppm'] = t['wvi_voc_ppm']
+            elif t.get('voc_percentage') is not None:
+                try:
+                    val = float(t['voc_percentage'])
+                    t['voc_ppm'] = val * 10000 if val < 10 else val
+                except:
+                    t['voc_ppm'] = None
+            else:
+                t['voc_ppm'] = None
+                
+            # Compute default pH for form field auto-fill
             ph_val = 7.0
             if t.get('ph_min') is not None and t.get('ph_max') is not None:
                 ph_val = round((t['ph_min'] + t['ph_max']) / 2.0, 1)
@@ -131,14 +179,10 @@ def stu_hub():
                         pass
             t['default_ph'] = ph_val
             
-            # Compute default VOC
+            # Compute default VOC for form field auto-fill
             voc_val = 0.0
-            if t.get('wvi_voc_ppm') is not None:
-                voc_val = t['wvi_voc_ppm']
-            elif t.get('voc_percentage') is not None:
-                val = t['voc_percentage']
-                # If voc_percentage is a small percentage fraction, multiply to get ppm
-                voc_val = val * 10000 if val < 10 else val
+            if t.get('voc_ppm') is not None:
+                voc_val = t['voc_ppm']
             t['default_voc'] = round(voc_val, 1)
             
             # Compute default sulfides
@@ -254,6 +298,11 @@ def generate_sampling_packet():
             cols = ["sample_num", "drum_id", "manifest", "manifest_line", "profile", "display_profile", "waste_code", "is_sampled"]
             exist_cols = [c for c in cols if c in df.columns]
             df[exist_cols].to_excel(writer, index=False, sheet_name='Data')
+            ws = writer.sheets['Data']
+            ws.page_setup.fitToPage = True
+            ws.page_setup.fitToWidth = 1
+            ws.page_setup.fitToHeight = 0
+            ws.page_setup.orientation = 'landscape'
         zf.writestr(f"Data_{job_name}.xlsx", excel_io.getvalue())
 
         annotated_buffer = BytesIO()
@@ -305,7 +354,7 @@ def upload_vpi():
             try:
                 preserved_drums_raw = conn.execute("""
                     SELECT * FROM drum_inventory 
-                    WHERE status NOT IN ('FINAL CODED', 'ACTIVE') 
+                    WHERE status NOT IN ('FINAL CODED', 'ACTIVE', 'PLANT RECEIVED') 
                        OR reject_notes IS NOT NULL 
                        OR outgoing_manifest IS NOT NULL
                        OR process_type = 'PENDING SAMPLING'
@@ -382,7 +431,7 @@ def export_stu():
         
     placeholders = ','.join('?' for _ in selected_ids)
     with closing(get_db_connection()) as conn:
-        df = pd.read_sql_query(f"SELECT track_no, inb_prof, process_type, location, weight, ph, age, voc_ppm, voc_weight FROM drum_inventory WHERE id IN ({placeholders})", conn, params=selected_ids)
+        df = pd.read_sql_query(f"SELECT track_no, inb_prof, process_type, location, weight, ph, age, voc_ppm, voc_weight FROM drum_inventory WHERE id IN ({placeholders}) ORDER BY age DESC", conn, params=selected_ids)
         
     if df.empty: return "No data found", 400
     df.rename(columns={'track_no': 'Track No', 'inb_prof': 'Inb Prof', 'process_type': 'Process Type', 'location': 'Location', 'weight': 'Weight', 'ph': 'pH', 'age': 'Age', 'voc_ppm': 'VOC', 'voc_weight': 'VOC Weight'}, inplace=True)
@@ -395,6 +444,10 @@ def export_stu():
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, startrow=1, sheet_name=f"{category[:31]}")
         worksheet = writer.sheets[f"{category[:31]}"]
+        worksheet.page_setup.fitToPage = True
+        worksheet.page_setup.fitToWidth = 1
+        worksheet.page_setup.fitToHeight = 0
+        worksheet.page_setup.orientation = 'landscape'
         last_row = len(df) + 2  
         
         title_cell = worksheet.cell(row=1, column=1, value=f"{clean_category} - Generated On - {date.today().strftime('%m/%d/%Y')}")

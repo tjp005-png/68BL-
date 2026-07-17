@@ -315,15 +315,17 @@
                             <table class="table table-hover table-striped align-middle mb-0 text-nowrap">
                                 <thead class="small bg-dark text-white user-select-none">
                                     <tr>
+                                        <th onclick="toggleLogSort('date_added')" style="cursor: pointer;">Date Added <span id="sortIndicator-date_added" class="ms-1" style="font-size: 0.7rem;"></span></th>
                                         <th onclick="toggleLogSort('profile_number')" style="cursor: pointer;">Profile <span id="sortIndicator-profile_number" class="ms-1" style="font-size: 0.7rem;"></span></th>
                                         <th onclick="toggleLogSort('generator')" style="cursor: pointer;">Generator / Requestor <span id="sortIndicator-generator" class="ms-1" style="font-size: 0.7rem;"></span></th>
                                         <th onclick="toggleLogSort('status')" style="cursor: pointer;">Status <span id="sortIndicator-status" class="ms-1" style="font-size: 0.7rem;"></span></th>
                                         <th onclick="toggleLogSort('assigned_to')" style="cursor: pointer;">Reviewer <span id="sortIndicator-assigned_to" class="ms-1" style="font-size: 0.7rem;"></span></th>
+                                        <th onclick="toggleLogSort('last_updated')" style="cursor: pointer;">Last Accessed <span id="sortIndicator-last_updated" class="ms-1" style="font-size: 0.7rem;"></span></th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="reviewLogBody" class="small fw-semibold">
-                                    <tr><td colspan="5" class="text-center text-muted py-4">Loading...</td></tr>
+                                    <tr><td colspan="7" class="text-center text-muted py-4">Loading...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -346,7 +348,10 @@
                             <h5 class="mb-0 fw-bold d-flex align-items-center">
                                 <span class="me-2">📝</span> Master Profile Management
                             </h5>
-                            <button id="clearFormBtn" class="btn btn-sm btn-light py-1 fw-bold border-secondary small d-none" onclick="resetEntryForm()">New Profile</button>
+                            <div class="d-flex gap-2">
+                                <button id="deleteProfileBtn" class="btn btn-sm btn-light text-danger py-1 fw-bold border-secondary small d-none" onclick="deleteCurrentProfile()">🗑️ Delete</button>
+                                <button id="clearFormBtn" class="btn btn-sm btn-light py-1 fw-bold border-secondary small d-none" onclick="resetEntryForm()">New Profile</button>
+                            </div>
                         </div>
                         
                         <div class="card-body bg-white p-4">
@@ -364,15 +369,25 @@
 
                             <form action="/add_master_profile" method="POST" id="profileEntryForm">
                                 
-                                <div class="mb-3">
-                                    <label class="form-label text-muted small fw-bold mb-1">Profile # (Primary ID)</label>
-                                    <input type="text" class="form-control border-danger fw-bold fs-5 text-primary text-uppercase" id="form-profile" name="profile_number" required placeholder="e.g. CH123456">
+                                <div class="row mb-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label text-muted small fw-bold mb-1">Profile # (Primary ID)</label>
+                                        <input type="text" class="form-control border-danger fw-bold fs-5 text-primary text-uppercase" id="form-profile" name="profile_number" required placeholder="e.g. CH123456" style="text-overflow: ellipsis;">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label text-muted small fw-bold mb-1">CP1 Lab Number</label>
+                                        <input type="text" class="form-control border-secondary text-uppercase" id="form-lab" name="lab_number" placeholder="e.g. LAB123">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label text-muted small fw-bold mb-1">Expiration Date</label>
+                                        <input type="date" class="form-control border-secondary" id="form-expiration" name="expiration_date">
+                                    </div>
                                 </div>
 
                                 <div class="row mb-3">
                                     <div class="col-md-7">
                                         <label class="form-label text-muted small fw-bold mb-1">Generator Name</label>
-                                        <input type="text" class="form-control border-secondary" id="form-generator" name="generator_name" required placeholder="e.g. Clean Harbors Inc.">
+                                        <input type="text" class="form-control border-secondary" id="form-generator" name="generator_name" required placeholder="e.g. Clean Harbors Inc." style="text-overflow: ellipsis;">
                                     </div>
                                     <div class="col-md-5">
                                         <label class="form-label text-muted small fw-bold mb-1">Generator EPA ID</label>
@@ -386,7 +401,7 @@
                                 </div>
 
                                 <div class="row mb-3">
-                                    <div class="col-4">
+                                    <div class="col-6 col-md-3">
                                         <label class="form-label text-muted small fw-bold mb-1">Physical State</label>
                                         <select class="form-select border-secondary px-2" id="form-state" name="physical_appearance" required>
                                             <option value="" selected disabled>Select...</option>
@@ -394,13 +409,17 @@
                                             <option value="Liquid">Liquid</option>
                                         </select>
                                     </div>
-                                    <div class="col-4">
+                                    <div class="col-6 col-md-3">
                                         <label class="form-label text-muted small fw-bold mb-1">pH Range</label>
                                         <input type="text" class="form-control border-secondary px-2" id="form-ph" name="ph_range" placeholder="e.g. 2.1-6.9">
                                     </div>
-                                    <div class="col-4">
+                                    <div class="col-6 col-md-3">
                                         <label class="form-label text-muted small fw-bold mb-1">Flash Point</label>
                                         <input type="text" class="form-control border-secondary px-2" id="form-fp" name="flash_point" placeholder="e.g. >200F">
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label text-muted small fw-bold mb-1">Color</label>
+                                        <input type="text" class="form-control border-secondary px-2" id="form-color" name="color" placeholder="e.g. Varies">
                                     </div>
                                 </div>
 
@@ -417,6 +436,8 @@
                                         <select class="form-select border-secondary px-2" id="form-sulfide" name="sulfide" required>
                                             <option value="No" selected>No</option>
                                             <option value="Yes">Yes</option>
+                                            <option value="Quant Required">Quant Required</option>
+                                            <option value="No Quant Required">No Quant Required</option>
                                         </select>
                                     </div>
                                     <div class="col-4">
@@ -465,6 +486,34 @@
                                     </div>
                                 </div>
 
+                                <div class="mb-3 d-none" id="treatmentRecipeContainer">
+                                    <label class="form-label text-muted small fw-bold mb-1 text-primary">⚡ Treatment Recipe (for CCS/CCSM)</label>
+                                    <input type="text" class="form-control border-primary" id="form-treatment-recipe" name="treatment_recipe" list="standard-recipes" placeholder="Select standard recipe or type custom...">
+                                    <datalist id="standard-recipes">
+                                        <!-- Bulk -->
+                                        <option value="LM98: 150 LKD / CLAY AS NEEDED (STORAGE)">
+                                        <option value="SOIL: 225 LKD (STORAGE)">
+                                        <option value="STANDARD STAB: 390 LKD (STORAGE)">
+                                        <option value="EXTERNAL ENCAP (CCSM): 725 CLAY/ 80 LKD (LANDFILL)">
+                                        <option value="SULFATREAT / CATALYST: 250 LKD (LANDFILL)">
+                                        <option value="STU &quot;DIRTY WATER&quot;: 715-740 CLAY (LANDFILL)">
+                                        <!-- Drums -->
+                                        <option value="S DRUMS: 500-850 CLAY AS NEEDED (LANDFILL)">
+                                        <option value="S TOTES: 880 CLAY OR AS NEEDED (LANDFILL)">
+                                        <option value="T DRUMS (STAB 1): 390 LKD (STORAGE)">
+                                        <option value="TL DRUMS (STAB 3): 180 LKD / CLAY AS NEEDED (STORAGE)">
+                                        <option value="TLA DRUMS (STAB 5): 180 LKD / CLAY AS NEEDED---RUN DRUMS SEPARATE HOIST (STORAGE)">
+                                        <option value="CA TREATMENT (STAB 6): 425 LKD (STORAGE)">
+                                        <option value="STAB 8: SEE S DRUM- RUN DRUMS SEPARATE HOIST (LANDFILL)">
+                                        <option value="STAB 9: SEE INDIVIDUAL COMMENTS FOR RECIPE (STORAGE)">
+                                        <option value="STAB 11: 250 LKD RUN THROUGH HOIST (LANDFILL)">
+                                        <option value="STAB 12 (EXTERNAL): 725 CLAY/ 80 LKD (LANDFILL)">
+                                        <!-- Specific -->
+                                        <option value="PHIBROTECH: 275 LKD W/ WATER AS NEEDED (STORAGE)">
+                                        <option value="EMERALD SANDBLAST: 3% EMgO W/ WATER AS NEEDED (STORAGE)">
+                                    </datalist>
+                                </div>
+
                                 <div class="mb-3">
                                     <label class="form-label text-muted small fw-bold mb-1">DOT Description</label>
                                     <input type="text" class="form-control border-secondary" id="form-dot" name="dot_description" placeholder="e.g. UN3082, Environmentally hazardous substance...">
@@ -503,7 +552,7 @@
                             <div>
                                 <h3 id="dashProfileNum" class="fw-bold text-primary mb-1">---</h3>
                                 <h6 class="text-muted fw-bold mb-0 d-flex align-items-center flex-wrap gap-2">
-                                    <span id="dashGenerator">---</span> 
+                                    <span id="dashGenerator" class="text-truncate" style="max-width: 480px; display: inline-block; vertical-align: bottom;" title="">---</span> 
                                     <span id="dashEpaIdBadge" class="badge bg-light text-dark border small fw-bold px-2 py-1">EPA: ---</span>
                                 </h6>
                             </div>
@@ -535,6 +584,10 @@
                                 <div class="col-6 col-md-3">
                                     <div class="small text-muted fw-bold">PH RANGE</div>
                                     <div id="dashPh" class="fw-semibold text-dark">---</div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="small text-muted fw-bold">COLOR</div>
+                                    <div id="dashColor" class="fw-semibold text-dark">---</div>
                                 </div>
                                 <div class="col-6 col-md-3">
                                     <div class="small text-muted fw-bold">FLASH POINT</div>
@@ -657,6 +710,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        const initialView = "{{ show_view }}";
         document.getElementById('extractBtn').addEventListener('click', function() {
             const fileInput = document.getElementById('pdfUpload');
             if (fileInput.files.length === 0) {
@@ -691,6 +745,7 @@
                         if (!el) return;
                         if (value !== undefined && value !== null && value !== '') {
                             el.value = value;
+                            el.title = value;
                             el.classList.remove('flash-highlight');
                             void el.offsetWidth; // trigger reflow
                             el.classList.add('flash-highlight');
@@ -708,6 +763,7 @@
                     setAndHighlight('form-ph', data.ph_range);
                     setAndHighlight('form-fp', data.flash_point);
                     setAndHighlight('form-ldr', data.ldr_required);
+                    setAndHighlight('form-color', data.color);
                     
                     // Handle physical state select & dispatch its change listener
                     if (data.physical_appearance) {
@@ -721,6 +777,21 @@
                     setAndHighlight('form-cyanide', data.cyanide);
                     setAndHighlight('form-sulfide', data.sulfide);
                     setAndHighlight('form-free-liquids', data.free_liquids);
+
+                    // Check for profile number mismatch between PDF and active selection
+                    const extractedProf = (data.profile_number || '').trim().toUpperCase();
+                    if (currentProfile && extractedProf && extractedProf !== currentProfile.toUpperCase()) {
+                        setTimeout(() => {
+                            if (confirm(`The PDF contains profile number "${extractedProf}", but the active log entry is "${currentProfile}".\n\nWould you like to rename the Active Log entry to "${extractedProf}" to match?`)) {
+                                const activeLogEntry = (window.activeLogData || []).find(x => x.profile_number.toUpperCase().trim() === currentProfile.toUpperCase().trim());
+                                if (activeLogEntry) {
+                                    updateReviewLog(activeLogEntry.id, 'profile_number', data.profile_number).then(() => {
+                                        currentProfile = data.profile_number;
+                                    });
+                                }
+                            }
+                        }, 300);
+                    }
 
                     // Clear the file input so they know it processed
                     fileInput.value = '';
@@ -768,7 +839,7 @@
                                         <h6 class="mb-0 fw-bold text-primary">${p.profile_number}</h6>
                                         <small class="${p.status === 'ACTIVE' ? 'text-success' : (p.status === 'S' ? 'text-warning' : (p.status === 'NOT APPROVED' ? 'text-danger' : 'text-muted'))} fw-bold me-3">${p.status === 'S' ? 'PENDING LAS (S)' : (p.status || 'UNKNOWN')}</small>
                                     </div>
-                                    <p class="mb-1 mt-1 small text-truncate w-100" style="color: var(--text-main); font-weight: 500;">${p.generator || 'No Generator'}</p>
+                                    <p class="mb-1 mt-1 small text-truncate w-100" style="color: var(--text-main); font-weight: 500;" title="${p.generator || 'No Generator'}">${p.generator || 'No Generator'}</p>
                                     <small class="text-muted d-block text-truncate w-100">Desc: ${p.waste_description || '---'} | Lab: ${p.lab_number || '---'} | WIN: ${p.win_code || '---'}</small>
                                 `;
                                 btn.onclick = () => selectProfile(p);
@@ -787,17 +858,26 @@
             }
         });
 
-        function showApprovalsHome() {
+        function showApprovalsHome(skipPushState = false) {
             document.getElementById('approvalsHome').classList.remove('d-none');
             document.getElementById('mainWorkspace').classList.add('d-none');
             document.getElementById('btnBackLog').classList.add('d-none');
             loadReviewLog();
+            if (!skipPushState && window.location.pathname !== '/approvals') {
+                history.pushState(null, '', '/approvals');
+            }
         }
 
-        function showWorkspace() {
+        function showWorkspace(skipPushState = false) {
             document.getElementById('approvalsHome').classList.add('d-none');
             document.getElementById('mainWorkspace').classList.remove('d-none');
             document.getElementById('btnBackLog').classList.remove('d-none');
+            if (!skipPushState) {
+                const url = currentProfile ? `/approvals/profiles?selected_profile=${currentProfile}` : '/approvals/profiles';
+                if (window.location.pathname + window.location.search !== url) {
+                    history.pushState(null, '', url);
+                }
+            }
         }
 
         // Select Profile and load dashboard + populate form for editing
@@ -818,7 +898,9 @@
 
             // Populate Meta Data
             document.getElementById('dashProfileNum').innerText = p.profile_number;
-            document.getElementById('dashGenerator').innerText = p.generator || '---';
+            const dashGen = document.getElementById('dashGenerator');
+            dashGen.innerText = p.generator || '---';
+            dashGen.title = p.generator || '';
             
             let statusText = p.status || 'UNKNOWN';
             if (p.status === 'S') statusText = 'PENDING LAS (S)';
@@ -838,6 +920,7 @@
             
             // Populate specs card
             document.getElementById('dashState').innerText = p.physical_appearance || '---';
+            document.getElementById('dashColor').innerText = p.color || '---';
             document.getElementById('dashPh').innerText = p.ph_range || '---';
             document.getElementById('dashFp').innerText = p.flash_point || '---';
             document.getElementById('dashVoc').innerText = p.voc_percentage !== undefined ? p.voc_percentage : '---';
@@ -860,8 +943,12 @@
             }
 
             // --- AUTO-FILL MANAGEMENT FORM FOR DIRECT EDITING ---
-            document.getElementById('form-profile').value = p.profile_number || '';
-            document.getElementById('form-generator').value = p.generator || '';
+            const formProf = document.getElementById('form-profile');
+            formProf.value = p.profile_number || '';
+            formProf.title = p.profile_number || '';
+            const formGen = document.getElementById('form-generator');
+            formGen.value = p.generator || '';
+            formGen.title = p.generator || '';
             document.getElementById('form-epa-id').value = p.epa_id || '';
             document.getElementById('form-description').value = p.waste_description || '';
             document.getElementById('form-win').value = p.win_code || '';
@@ -870,6 +957,9 @@
             document.getElementById('form-fp').value = p.flash_point || '';
             document.getElementById('form-voc').value = p.voc_percentage || 0;
             document.getElementById('form-handling').value = p.special_handling || '';
+            if (document.getElementById('form-color')) { document.getElementById('form-color').value = p.color || ''; }
+            if (document.getElementById('form-expiration')) { document.getElementById('form-expiration').value = p.expiration_date || ''; }
+            if (document.getElementById('form-lab')) { document.getElementById('form-lab').value = p.lab_number || ''; }
             
             document.getElementById('form-cyanide').value = p.cyanide || 'No';
             document.getElementById('form-sulfide').value = p.sulfide || 'No';
@@ -879,12 +969,17 @@
             document.getElementById('form-federal-code').value = p.federal_waste_code || '';
             document.getElementById('form-dot').value = p.dot_description || '';
             document.getElementById('form-status').value = p.status || 'S';
+            
+            if (document.getElementById('form-treatment-recipe')) { 
+                document.getElementById('form-treatment-recipe').value = p.treatment_recipe || ''; 
+            }
+            toggleTreatmentRecipe();
 
-            // Show 'New Profile' option to allow reverting to creation mode
+            document.getElementById('form-profile').readOnly = true;
             document.getElementById('clearFormBtn').classList.remove('d-none');
-            document.getElementById('formSubmitBtn').innerHTML = '<span>💾 Save Changes / Update Profile</span>';
+            document.getElementById('deleteProfileBtn').classList.remove('d-none');
+            document.getElementById('formSubmitBtn').innerHTML = '<span>🔄 Save Changes / Update Profile</span>';
 
-            // Fetch History and Attachments
             loadHistory();
             loadAttachments();
         }
@@ -895,25 +990,62 @@
             window.scrollTo(0, 0);
         }
 
-        // Reset editing form back to creation mode
         function resetEntryForm() {
             document.getElementById('profileEntryForm').reset();
+            
+            if (document.getElementById('form-expiration')) {
+                document.getElementById('form-expiration').value = '';
+            }
+            if (document.getElementById('form-treatment-recipe')) {
+                document.getElementById('form-treatment-recipe').value = '';
+            }
+            toggleTreatmentRecipe();
+            
             document.getElementById('form-profile').readOnly = false;
             document.getElementById('clearFormBtn').classList.add('d-none');
+            document.getElementById('deleteProfileBtn').classList.add('d-none');
             document.getElementById('formSubmitBtn').innerHTML = '<span>💾 Save to Master Registry</span>';
             
-            // Hide dashboard, show placeholder
             dashboard.classList.add('d-none');
             noSelectionCard.classList.remove('d-none');
             currentProfile = null;
         }
 
         function downloadWvi() {
-            if (!currentProfile) {
-                alert('No profile selected.');
+            const prof = document.getElementById('form-profile').value.trim();
+            if(!prof) {
+                alert("Please select or save a profile first.");
                 return;
             }
-            window.location.href = `/api/profile/${encodeURIComponent(currentProfile)}/wvi`;
+            window.location.href = '/api/profile/' + encodeURIComponent(prof) + '/wvi';
+        }
+
+        function deleteCurrentProfile() {
+            const prof = document.getElementById('form-profile').value.trim();
+            if(!prof) return;
+            
+            if(!confirm(`Are you sure you want to permanently delete profile ${prof}? This cannot be undone.`)) {
+                return;
+            }
+            
+            fetch('/api/profile/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({profile_number: prof})
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.success) {
+                    alert('Profile deleted successfully.');
+                    window.location.href = '/approvals';
+                } else {
+                    alert('Error deleting profile: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('An error occurred while deleting the profile.');
+            });
         }
 
         function loadHistory() {
@@ -1136,9 +1268,8 @@
                 }
             });
 
-            // 2. Render HTML
             if (sortedList.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No matching profiles in review log.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No matching profiles in review log.</td></tr>';
                 return;
             }
 
@@ -1170,9 +1301,9 @@
                 const profileCell = `
                     <div class="d-flex align-items-center">
                         <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold ${isPlaceholder ? 'text-muted' : 'text-primary'}" 
-                               value="${log.profile_number}" placeholder="Profile..." style="width: 140px;"
+                               value="${log.profile_number}" title="${log.profile_number}" placeholder="Profile..." style="width: 170px; text-overflow: ellipsis;"
                                onfocus="this.dataset.oldVal = this.value"
-                               onblur="if(this.value.toUpperCase().trim() !== (this.dataset.oldVal || '').toUpperCase().trim()) { updateReviewLog(${log.id}, 'profile_number', this.value.toUpperCase().trim()); }"
+                               onblur="if(this.value.toUpperCase().trim() !== (this.dataset.oldVal || '').toUpperCase().trim()) { this.title = this.value; updateReviewLog(${log.id}, 'profile_number', this.value.toUpperCase().trim()); }"
                                ${disabledAttr}>
                         ${linkBtn}
                     </div>
@@ -1184,17 +1315,23 @@
 
                 tbody.innerHTML += `
                     <tr>
+                        <td class="text-muted small">${log.date_added ? new Date(log.date_added + 'Z').toLocaleDateString() : '---'}</td>
                         <td>${profileCell}</td>
                         <td>
-                            <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" value="${log.generator || ''}" placeholder="Generator..." 
+                            <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" 
+                                   value="${log.generator || ''}" 
+                                   title="${log.generator || ''}"
+                                   placeholder="Generator..." 
+                                   style="min-width: 280px; text-overflow: ellipsis;"
                                    onfocus="this.dataset.oldVal = this.value"
-                                   onblur="if(this.value.trim() !== (this.dataset.oldVal || '').trim()) { updateReviewLog(${log.id}, 'generator_requestor', this.value.trim()); }"
+                                   onblur="if(this.value.trim() !== (this.dataset.oldVal || '').trim()) { this.title = this.value; updateReviewLog(${log.id}, 'generator_requestor', this.value.trim()); }"
                                    ${disabledAttr}>
                         </td>
                         <td>
                             <select class="form-select form-select-sm border-0 fw-bold ${statusColor} bg-transparent" onchange="updateReviewLog(${log.id}, 'status', this.value)" ${disabledAttr}>
                                 <option value="Needs Review" ${log.status==='Needs Review'?'selected':''}>Needs Review</option>
                                 <option value="Under Review" ${log.status==='Under Review'?'selected':''}>Under Review</option>
+                                <option value="Needs Revision" ${log.status==='Needs Revision'?'selected':''}>Needs Revision</option>
                                 <option value="Pending Lab" ${log.status==='Pending Lab'?'selected':''}>Pending Lab</option>
                                 <option value="Need Info" ${log.status==='Need Info'?'selected':''}>Need Info</option>
                                 <option value="Approved" ${log.status==='Approved'?'selected':''}>Approved</option>
@@ -1207,6 +1344,7 @@
                                    onblur="if(this.value.trim() !== (this.dataset.oldVal || '').trim()) { updateReviewLog(${log.id}, 'assigned_to', this.value.trim()); }"
                                    ${disabledAttr}>
                         </td>
+                        <td class="text-muted small">${log.last_updated ? new Date(log.last_updated + 'Z').toLocaleDateString() : '---'}</td>
                         <td>
                             ${notesBtn}
                             ${archiveBtn}
@@ -1380,8 +1518,71 @@
 
         // Initialize log on page load
         document.addEventListener('DOMContentLoaded', () => {
+            if (initialView === 'profiles') {
+                showWorkspace(true);
+            } else {
+                showApprovalsHome(true);
+            }
             loadReviewLog(true);
             setupLogRefresh();
+        });
+
+        // Handle dynamic tooltip updates on manual text editing
+        document.getElementById('form-generator').addEventListener('input', function() {
+            this.title = this.value;
+        });
+        document.getElementById('form-profile').addEventListener('input', function() {
+            this.title = this.value;
+        });
+
+        // Auto-default/clear expiration date based on Approval Status selection
+        document.getElementById('form-status').addEventListener('change', function() {
+            const expField = document.getElementById('form-expiration');
+            if (!expField) return;
+            if (this.value === 'ACTIVE') {
+                if (!expField.value) {
+                    const nextYear = new Date();
+                    nextYear.setFullYear(nextYear.getFullYear() + 1);
+                    expField.value = nextYear.toISOString().split('T')[0];
+                }
+            } else {
+                expField.value = '';
+            }
+        });
+
+        // Toggle Treatment Recipe container visibility for CCS win codes
+        function toggleTreatmentRecipe() {
+            const winInput = document.getElementById('form-win');
+            const container = document.getElementById('treatmentRecipeContainer');
+            if (!winInput || !container) return;
+            const winVal = winInput.value.trim().toUpperCase();
+            if (winVal.startsWith('CCS')) {
+                container.classList.remove('d-none');
+            } else {
+                container.classList.add('d-none');
+                const recipeInput = document.getElementById('form-treatment-recipe');
+                if (recipeInput) recipeInput.value = '';
+            }
+        }
+        document.getElementById('form-win').addEventListener('input', toggleTreatmentRecipe);
+
+        // Handle browser back/forward buttons
+        window.addEventListener('popstate', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const preselect = urlParams.get('selected_profile');
+            if (window.location.pathname.endsWith('/profiles') || preselect) {
+                showWorkspace(true);
+                if (preselect && (!currentProfile || currentProfile !== preselect)) {
+                    fetch(`/api/profile/search?q=${encodeURIComponent(preselect)}&_t=${Date.now()}`)
+                        .then(r => r.json())
+                        .then(data => {
+                            const match = data.find(p => p.profile_number.toUpperCase() === preselect.toUpperCase());
+                            if (match) selectProfile(match);
+                        });
+                }
+            } else {
+                showApprovalsHome(true);
+            }
         });
 
         // Physical State Change Listener for Defaults
@@ -1429,11 +1630,27 @@
                     return;
                 }
                 const num = parseFloat(numMatch[0]);
-                if (num <= 140) {
-                    alert('For Liquid physical state, Flash Point must be greater than 140.');
+                if (num < 140) {
+                    alert('For Liquid physical state, Flash Point must be 140 or greater (e.g. >140, 150).');
                     fpInput.focus();
                     e.preventDefault();
                     return;
+                }
+            }
+
+            // Sync log if profile number was manually changed in form before saving
+            const inputProfile = document.getElementById('form-profile').value.trim().toUpperCase();
+            if (currentProfile && inputProfile && inputProfile !== currentProfile.toUpperCase()) {
+                const activeLogEntry = (window.activeLogData || []).find(x => x.profile_number.toUpperCase().trim() === currentProfile.toUpperCase().trim());
+                if (activeLogEntry) {
+                    e.preventDefault();
+                    if (confirm(`You modified the profile number to "${inputProfile}".\n\nWould you like to also update the Active Log entry from "${currentProfile}" to "${inputProfile}" so they stay linked?`)) {
+                        updateReviewLog(activeLogEntry.id, 'profile_number', inputProfile).then(() => {
+                            document.getElementById('profileEntryForm').submit();
+                        });
+                    } else {
+                        document.getElementById('profileEntryForm').submit();
+                    }
                 }
             }
         });

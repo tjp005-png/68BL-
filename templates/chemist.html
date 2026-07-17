@@ -118,11 +118,15 @@
                                                                             <label class="text-muted small fw-bold d-block mb-0">Free Liquids</label>
                                                                             <span class="badge bg-light text-dark border px-2 py-1">{{ truck.free_liquids or 'N/A' }}</span>
                                                                         </div>
-                                                                        <div class="col-6 mb-2">
-                                                                            <label class="text-muted small fw-bold d-block mb-0">Physical Desc.</label>
-                                                                            <span class="small text-dark fw-semibold">{{ truck.physical_description or 'N/A' }}</span>
-                                                                        </div>
-                                                                    </div>
+                                                                         <div class="col-6 mb-2">
+                                                                             <label class="text-muted small fw-bold d-block mb-0">Physical Desc.</label>
+                                                                             <span class="small text-dark fw-semibold">{{ truck.physical_description or 'N/A' }}</span>
+                                                                         </div>
+                                                                         <div class="col-6 mb-2">
+                                                                             <label class="text-muted small fw-bold d-block mb-0">Color</label>
+                                                                             <span class="small text-dark fw-semibold">{{ truck.color or 'N/A' }}</span>
+                                                                         </div>
+                                                                     </div>
 
                                                                     {% if truck.treatment_information %}
                                                                     <div class="mt-2 p-2 bg-warning bg-opacity-10 rounded border border-warning text-warning-emphasis">
@@ -221,24 +225,26 @@
                                                                         <label class="form-label text-muted small fw-bold mb-1">Sulfides</label>
                                                                         <select class="form-select border-secondary-subtle" name="measured_sulfides">
                                                                             <option value="">--</option>
-                                                                            <option value="Negative" {% if truck.sulfides == 'No' %}selected{% endif %}>Negative</option>
-                                                                            <option value="Positive" {% if truck.sulfides == 'Yes' %}selected{% endif %}>Positive</option>
+                                                                            <option value="Negative" {% if truck.sulfides == 'No' or truck.sulfides == 'Negative' %}selected{% endif %}>Negative</option>
+                                                                            <option value="Positive" {% if truck.sulfides == 'Yes' or truck.sulfides == 'Positive' %}selected{% endif %}>Positive</option>
+                                                                            <option value="Quant Required" {% if truck.sulfides == 'Quant Required' %}selected{% endif %}>Quant Required</option>
+                                                                            <option value="No Quant Required" {% if truck.sulfides == 'No Quant Required' %}selected{% endif %}>No Quant Required</option>
                                                                         </select>
                                                                     </div>
                                                                     <div class="col-4">
                                                                         <label class="form-label text-muted small fw-bold mb-1">Cyanide</label>
                                                                         <select class="form-select border-secondary-subtle" name="measured_cyanide">
                                                                             <option value="">--</option>
-                                                                            <option value="Negative" {% if truck.cyanide == 'No' %}selected{% endif %}>Negative</option>
-                                                                            <option value="Positive" {% if truck.cyanide == 'Yes' %}selected{% endif %}>Positive</option>
+                                                                            <option value="Negative" {% if truck.cyanide == 'No' or truck.cyanide == 'Negative' %}selected{% endif %}>Negative</option>
+                                                                            <option value="Positive" {% if truck.cyanide == 'Yes' or truck.cyanide == 'Positive' %}selected{% endif %}>Positive</option>
                                                                         </select>
                                                                     </div>
                                                                     <div class="col-4">
                                                                         <label class="form-label text-muted small fw-bold mb-1">Free Liquids</label>
                                                                         <select class="form-select border-secondary-subtle" name="measured_free_liquids">
                                                                             <option value="">--</option>
-                                                                            <option value="No" {% if truck.free_liquids == 'No' %}selected{% endif %}>No</option>
-                                                                            <option value="Yes" {% if truck.free_liquids == 'Yes' %}selected{% endif %}>Yes</option>
+                                                                            <option value="No" {% if truck.free_liquids == 'No' or truck.free_liquids == 'Negative' or truck.free_liquids == 'No Free' %}selected{% endif %}>No</option>
+                                                                            <option value="Yes" {% if truck.free_liquids == 'Yes' or truck.free_liquids == 'Positive' or truck.free_liquids == 'Free' %}selected{% endif %}>Yes</option>
                                                                         </select>
                                                                     </div>
                                                                 </div>
