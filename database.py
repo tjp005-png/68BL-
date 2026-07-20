@@ -35,11 +35,35 @@ def get_db_connection():
 def _load_excel_dataframe(excel_path):
     global _excel_cache, _excel_cache_mtime
     import pandas as pd
-    mtime = os.path.getmtime(excel_path)
+    import shutil
+    
+    try:
+        mtime = os.path.getmtime(excel_path)
+    except Exception:
+        if _excel_cache is not None:
+            return _excel_cache
+        raise
+        
     if _excel_cache is not None and _excel_cache_mtime == mtime:
         return _excel_cache
     
-    df = pd.read_excel(excel_path, sheet_name='Data')
+    try:
+        df = pd.read_excel(excel_path, sheet_name='Data')
+    except PermissionError:
+        # File is locked (usually open in Excel). Try copying to a temp file and reading it.
+        temp_path = excel_path + ".tmp"
+        try:
+            shutil.copy2(excel_path, temp_path)
+            df = pd.read_excel(temp_path, sheet_name='Data')
+            try:
+                os.remove(temp_path)
+            except:
+                pass
+        except Exception as copy_err:
+            if _excel_cache is not None:
+                print(f"Warning: Excel file locked. Using cached master profiles. Error: {copy_err}")
+                return _excel_cache
+            raise PermissionError(f"Excel file locked or inaccessible and no cache available. Original error: {copy_err}")
     
     if 'Profile #' in df.columns:
         df['Profile #'] = df['Profile #'].astype(str).str.strip().str.upper()
