@@ -309,13 +309,14 @@ def create_lab_sheet_pdf(output_buffer, job_name, picklist_data):
             remaining_drums.append(row)
 
     col_widths = [0.6*inch, 1.0*inch, 1.3*inch, 0.5*inch, 1.4*inch, 0.8*inch, 0.8*inch, 1.2*inch, 0.8*inch, 1.6*inch]
-    header = ["Sample #", "Drum ID", "Profile", "Code", "Tests Required", "FP Result", "pH Result", "VOC (Pass/Fail)", "Treatment", "Notes"]
+    cp1_header = ["Sample #", "Drum ID", "Profile", "Code", "Tests Required", "FP Result", "pH Result", "VOC (ppm)", "Treatment", "Notes / CP1 Lab #"]
+    standard_header = ["Sample #", "Drum ID", "Profile", "Code", "Tests Required", "FP Result", "pH Result", "VOC (Pass/Fail)", "Treatment", "Notes"]
 
-    def build_group_table(drums_list, title_text):
+    def build_group_table(drums_list, title_text, header_cols):
         story.append(Paragraph(f"<b>{title_text}</b>", styles['h4']))
         story.append(Spacer(1, 0.05*inch))
         
-        table_data = [header]
+        table_data = [header_cols]
         for row in drums_list:
             voc_trigger = safe_xml(row.get('voc_testing_trigger', ''))
             disp_profile = safe_xml(row.get('display_profile', row['profile']))
@@ -353,11 +354,11 @@ def create_lab_sheet_pdf(output_buffer, job_name, picklist_data):
         story.append(Spacer(1, 0.25*inch))
 
     if cp1_drums:
-        build_group_table(cp1_drums, "1. NEW PROFILE & RECERTIFICATION (CP1 / RECERT VOC TESTS REQUIRED)")
+        build_group_table(cp1_drums, "1. NEW PROFILE & RECERTIFICATION (CP1 / RECERT VOC TESTS REQUIRED)", cp1_header)
     if voc_fp_drums:
-        build_group_table(voc_fp_drums, "2. COMPLIANCE FINGERPRINT with VOC TEST (1-in-10 Rule)")
+        build_group_table(voc_fp_drums, "2. COMPLIANCE FINGERPRINT with VOC TEST (1-in-10 Rule)", standard_header)
     if remaining_drums:
-        build_group_table(remaining_drums, "3. STANDARD FINGERPRINT ONLY (No VOC Required)")
+        build_group_table(remaining_drums, "3. STANDARD FINGERPRINT ONLY (No VOC Required)", standard_header)
 
     def on_page(canvas, doc):
         canvas.saveState()
