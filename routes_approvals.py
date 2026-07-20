@@ -569,7 +569,7 @@ def api_profile_delete():
     
     return jsonify({'success': True})
 
-@approvals_bp.route('/api/profile/<profile_number>/history')
+@approvals_bp.route('/api/profile/<path:profile_number>/history')
 def api_profile_history(profile_number):
     with closing(get_db_connection()) as conn:
         loads = conn.execute('''
@@ -580,7 +580,7 @@ def api_profile_history(profile_number):
         ''', (profile_number,)).fetchall()
     return jsonify([dict(l) for l in loads])
 
-@approvals_bp.route('/api/profile/<profile_number>/drum_history')
+@approvals_bp.route('/api/profile/<path:profile_number>/drum_history')
 def api_profile_drum_history(profile_number):
     profile_clean = str(profile_number).strip().upper()
     with closing(get_db_connection()) as conn:
@@ -594,7 +594,7 @@ def api_profile_drum_history(profile_number):
         ''', (profile_clean,)).fetchall()
     return jsonify([dict(d) for d in drums])
 
-@approvals_bp.route('/api/profile/<profile_number>/upload', methods=['POST'])
+@approvals_bp.route('/api/profile/<path:profile_number>/upload', methods=['POST'])
 def api_profile_upload(profile_number):
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
@@ -655,7 +655,7 @@ def api_delete_attachment(attachment_id):
                 
     return jsonify({'success': True})
 
-@approvals_bp.route('/api/profile/<profile_number>/attachments')
+@approvals_bp.route('/api/profile/<path:profile_number>/attachments')
 def api_profile_attachments(profile_number):
     with closing(get_db_connection()) as conn:
         attachments = conn.execute('''
@@ -869,7 +869,7 @@ def archive_waste_acceptance_log():
         conn.commit()
     return jsonify({'success': True})
 
-@approvals_bp.route('/api/profile/<profile_number>/wvi')
+@approvals_bp.route('/api/profile/<path:profile_number>/wvi')
 def export_wvi_excel(profile_number):
     import io
     import xlrd
