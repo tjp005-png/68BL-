@@ -681,6 +681,33 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Drum Lab & VOC Audit Trail Panel -->
+                    <div class="card premium-card mt-3 border-secondary">
+                        <div class="card-header card-header-dark py-2">
+                            🧪 VOC & Lab Testing Drum Audit Trail
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
+                                <table class="table table-hover table-sm table-striped align-middle mb-0 text-nowrap">
+                                    <thead class="sticky-top small">
+                                        <tr class="table-dark">
+                                            <th>Date Received</th>
+                                            <th>Drum ID</th>
+                                            <th>Manifest</th>
+                                            <th>Load (Job ID)</th>
+                                            <th>Testing Requirement</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="drumHistoryTableBody" class="small">
+                                        <tr><td colspan="6" class="text-center text-muted py-4">No drum testing logs found for this profile.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
                 </div> <!-- End Profile Dashboard -->
                 
             </div>
@@ -982,6 +1009,7 @@
 
             loadHistory();
             loadAttachments();
+            loadDrumHistory();
         }
 
         function showNewProfileWorkspace() {
@@ -1066,6 +1094,49 @@
                             <td class="fw-semibold text-dark">${load.manifest || '---'}</td>
                             <td>${load.job_id || '---'}</td>
                             <td class="text-end fw-bold">${load.weight ? parseFloat(load.weight).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0}) : '0'}</td>
+                        </tr>`;
+                        tbody.innerHTML += row;
+                    });
+                });
+        }
+
+        function loadDrumHistory() {
+            const tbody = document.getElementById('drumHistoryTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">Loading drum testing logs...</td></tr>';
+            
+            fetch(`/api/profile/${currentProfile}/drum_history?_t=${Date.now()}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No drum testing logs found for this profile.</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = '';
+                    data.forEach(drum => {
+                        const trig = drum.tests_required || '';
+                        const isVoc = trig.toUpperCase().includes('VOC') ||
+                                      trig.toUpperCase().includes('CP1') ||
+                                      trig.toUpperCase().includes('RECERT') ||
+                                      trig.toUpperCase().includes('NEW');
+                                      
+                        const testDisplay = isVoc 
+                            ? `<span class="text-danger fw-bold">⚠️ ${trig}</span>` 
+                            : `<span class="text-muted">${trig}</span>`;
+                            
+                        let statusBadge = 'bg-secondary';
+                        if (drum.status === 'COMPLETED') statusBadge = 'bg-success';
+                        else if (drum.status === 'RECEIVED') statusBadge = 'bg-primary';
+                        else if (drum.status === 'PENDING') statusBadge = 'bg-warning text-dark';
+                        else if (drum.status === 'FINAL CODED') statusBadge = 'bg-info text-dark';
+
+                        const row = `<tr>
+                            <td class="text-muted fw-bold">${drum.import_date || '---'}</td>
+                            <td class="fw-semibold text-dark" style="font-family: monospace;">${drum.drum_id || '---'}</td>
+                            <td>${drum.manifest || '---'}</td>
+                            <td><span class="badge bg-light text-dark border fw-bold">${drum.job_id || '---'}</span></td>
+                            <td>${testDisplay}</td>
+                            <td><span class="badge ${statusBadge}">${drum.status || 'PENDING'}</span></td>
                         </tr>`;
                         tbody.innerHTML += row;
                     });

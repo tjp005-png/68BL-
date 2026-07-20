@@ -580,6 +580,20 @@ def api_profile_history(profile_number):
         ''', (profile_number,)).fetchall()
     return jsonify([dict(l) for l in loads])
 
+@approvals_bp.route('/api/profile/<profile_number>/drum_history')
+def api_profile_drum_history(profile_number):
+    profile_clean = str(profile_number).strip().upper()
+    with closing(get_db_connection()) as conn:
+        drums = conn.execute('''
+            SELECT q.drum_id, q.job_id, q.manifest, q.tests_required, q.status, MAX(i.import_date) AS import_date
+            FROM drum_lab_queue q
+            LEFT JOIN drum_inventory i ON TRIM(UPPER(q.drum_id)) = TRIM(UPPER(i.track_no))
+            WHERE TRIM(UPPER(q.profile)) = ?
+            GROUP BY q.id
+            ORDER BY import_date DESC, q.id DESC
+        ''', (profile_clean,)).fetchall()
+    return jsonify([dict(d) for d in drums])
+
 @approvals_bp.route('/api/profile/<profile_number>/upload', methods=['POST'])
 def api_profile_upload(profile_number):
     if 'file' not in request.files:
