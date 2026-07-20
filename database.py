@@ -125,11 +125,24 @@ def ensure_profile_exists(conn, profile_number):
             conn.commit()
             return None
             
-        row_data = matched.iloc[0]
+        # Handle potential duplicates in the master Excel sheet by preferring the Active entry or the latest one
+        if len(matched) > 1:
+            if 'STATUS' in df.columns:
+                active_matches = matched[matched['STATUS'].astype(str).str.strip().str.upper().isin(['A', 'ACTIVE'])]
+                if not active_matches.empty:
+                    row_data = active_matches.iloc[-1]
+                else:
+                    row_data = matched.iloc[-1]
+            else:
+                row_data = matched.iloc[-1]
+        else:
+            row_data = matched.iloc[0]
         
         generator = str(row_data.get('GENERATOR', '')).strip()
         status_val = str(row_data.get('STATUS', 'ACTIVE')).strip()
         if not status_val or status_val.lower() in ['nan', 'none']:
+            status_val = 'ACTIVE'
+        elif status_val.upper() in ['A', 'ACTIVE']:
             status_val = 'ACTIVE'
             
         exp_date = 'No Date'
