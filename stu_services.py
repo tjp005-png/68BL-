@@ -58,7 +58,7 @@ def evaluate_and_update_voc_requirement(conn, profile, drum_id, manifest, status
         conn.execute("UPDATE compliance_tracker SET last_voc_test_date = ? WHERE profile = ?", (today_str, profile))
         
     elif baseline_voc >= 50.0 and drums_count >= 10:
-        trigger_alert = f"Fingerprint / VOC (CP: {cp_number}) [1-in-10]"
+        trigger_alert = "Fingerprint / VOC Test"
         drums_count = 1
         conn.execute("UPDATE compliance_tracker SET last_voc_test_date = ? WHERE profile = ?", (today_str, profile))
         
