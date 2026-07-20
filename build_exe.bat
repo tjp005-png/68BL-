@@ -17,6 +17,7 @@ if exist MASTERPROFILE.xlsx (
 )
 
 echo Packaging into ZIP archive in project root...
+if exist "%~dp0Truck_Log_App.zip" del /f /q "%~dp0Truck_Log_App.zip"
 powershell -Command "Compress-Archive -Path '%TEMP_BUILD_DIR%\dist\Truck_Log_App' -DestinationPath '%~dp0Truck_Log_App.zip' -Force"
 
 echo Cleaning up temporary build files...
