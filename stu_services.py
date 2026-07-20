@@ -294,33 +294,70 @@ def create_lab_sheet_pdf(output_buffer, job_name, picklist_data):
     story.append(sig_table)
     story.append(Spacer(1, 0.3*inch))
 
-    header = ["Sample #", "Drum ID", "Profile", "Code", "Tests Required", "FP/pH Result", "VOC (Pass/Fail)", "Treatment", "Notes"]
-    data = [header]
-
+    # Split drums into groups
+    cp1_drums = []
+    voc_fp_drums = []
+    remaining_drums = []
+    
     for row in sampled_drums:
-        voc_trigger = safe_xml(row.get('voc_testing_trigger', ''))
-        disp_profile = safe_xml(row.get('display_profile', row['profile']))
-        coding_notes = safe_xml(row.get('coding_notes', ''))
-        waste_code = safe_xml(row.get('waste_code', ''))
-        
-        if "VOC" in voc_trigger or "RECERT" in voc_trigger or "NEW" in voc_trigger:
-            test_para = Paragraph(f"<font color='red'><b>{voc_trigger}</b></font>", styles['Normal'])
+        trig = str(row.get('voc_testing_trigger', '')).upper()
+        if "CP1" in trig or "RECERT" in trig or "NEW" in trig:
+            cp1_drums.append(row)
+        elif "VOC" in trig:
+            voc_fp_drums.append(row)
         else:
-            test_para = Paragraph(f"{voc_trigger}", styles['Normal'])
-            
-        notes_para = Paragraph(f"<i>{coding_notes}</i>", styles['Normal'])
-        data.append([row.get('sample_num', '-'), row['drum_id'], disp_profile, waste_code, test_para, "", "", "", notes_para])
+            remaining_drums.append(row)
 
-    col_widths = [0.6*inch, 1.1*inch, 1.5*inch, 0.5*inch, 1.5*inch, 0.9*inch, 1.2*inch, 0.8*inch, 1.9*inch]
-    t = Table(data, colWidths=col_widths, repeatRows=1)
-    t.setStyle(TableStyle([
-        ('TEXTCOLOR', (0,0), (-1,0), colors.black), ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,0), 9), ('GRID', (0,0), (-1,-1), 1, colors.black),
-        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey), ('BOTTOMPADDING', (0,0), (-1,-1), 10),
-        ('TOPPADDING', (0,0), (-1,-1), 10),
-    ]))
-    story.append(t)
+    col_widths = [0.6*inch, 1.0*inch, 1.3*inch, 0.5*inch, 1.4*inch, 0.8*inch, 0.8*inch, 1.2*inch, 0.8*inch, 1.6*inch]
+    header = ["Sample #", "Drum ID", "Profile", "Code", "Tests Required", "FP Result", "pH Result", "VOC (Pass/Fail)", "Treatment", "Notes"]
+
+    def build_group_table(drums_list, title_text):
+        story.append(Paragraph(f"<b>{title_text}</b>", styles['h4']))
+        story.append(Spacer(1, 0.05*inch))
+        
+        table_data = [header]
+        for row in drums_list:
+            voc_trigger = safe_xml(row.get('voc_testing_trigger', ''))
+            disp_profile = safe_xml(row.get('display_profile', row['profile']))
+            coding_notes = safe_xml(row.get('coding_notes', ''))
+            waste_code = safe_xml(row.get('waste_code', ''))
+            
+            if "VOC" in voc_trigger or "RECERT" in voc_trigger or "NEW" in voc_trigger:
+                test_para = Paragraph(f"<font color='red'><b>{voc_trigger}</b></font>", styles['Normal'])
+            else:
+                test_para = Paragraph(f"{voc_trigger}", styles['Normal'])
+                
+            notes_para = Paragraph(f"<i>{coding_notes}</i>", styles['Normal'])
+            table_data.append([
+                row.get('sample_num', '-'), 
+                row['drum_id'], 
+                disp_profile, 
+                waste_code, 
+                test_para, 
+                "", 
+                "", 
+                "", 
+                "", 
+                notes_para
+            ])
+            
+        t = Table(table_data, colWidths=col_widths, repeatRows=1)
+        t.setStyle(TableStyle([
+            ('TEXTCOLOR', (0,0), (-1,0), colors.black), ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,0), 9), ('GRID', (0,0), (-1,-1), 1, colors.black),
+            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey), ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+            ('TOPPADDING', (0,0), (-1,-1), 8),
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 0.25*inch))
+
+    if cp1_drums:
+        build_group_table(cp1_drums, "1. NEW PROFILE & RECERTIFICATION (CP1 / RECERT VOC TESTS REQUIRED)")
+    if voc_fp_drums:
+        build_group_table(voc_fp_drums, "2. COMPLIANCE FINGERPRINT with VOC TEST (1-in-10 Rule)")
+    if remaining_drums:
+        build_group_table(remaining_drums, "3. STANDARD FINGERPRINT ONLY (No VOC Required)")
 
     def on_page(canvas, doc):
         canvas.saveState()
