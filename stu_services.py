@@ -57,7 +57,7 @@ def evaluate_and_update_voc_requirement(conn, profile, drum_id, manifest, status
         drums_count = 1
         conn.execute("UPDATE compliance_tracker SET last_voc_test_date = ? WHERE profile = ?", (today_str, profile))
         
-    elif baseline_voc > 50.0 and drums_count >= 10:
+    elif baseline_voc >= 50.0 and drums_count >= 10:
         trigger_alert = f"Fingerprint / VOC (CP: {cp_number}) [1-in-10]"
         drums_count = 1
         conn.execute("UPDATE compliance_tracker SET last_voc_test_date = ? WHERE profile = ?", (today_str, profile))
@@ -294,7 +294,7 @@ def create_lab_sheet_pdf(output_buffer, job_name, picklist_data):
     story.append(sig_table)
     story.append(Spacer(1, 0.3*inch))
 
-    header = ["Sample #", "Drum ID", "Profile", "Code", "Tests Required", "FP/pH Result", "VOC (ppm)", "Treatment", "Notes"]
+    header = ["Sample #", "Drum ID", "Profile", "Code", "Tests Required", "FP/pH Result", "VOC (Pass/Fail)", "Treatment", "Notes"]
     data = [header]
 
     for row in sampled_drums:
@@ -311,7 +311,7 @@ def create_lab_sheet_pdf(output_buffer, job_name, picklist_data):
         notes_para = Paragraph(f"<i>{coding_notes}</i>", styles['Normal'])
         data.append([row.get('sample_num', '-'), row['drum_id'], disp_profile, waste_code, test_para, "", "", "", notes_para])
 
-    col_widths = [0.6*inch, 1.1*inch, 1.5*inch, 0.5*inch, 1.7*inch, 0.9*inch, 0.7*inch, 0.8*inch, 2.2*inch]
+    col_widths = [0.6*inch, 1.1*inch, 1.5*inch, 0.5*inch, 1.5*inch, 0.9*inch, 1.2*inch, 0.8*inch, 1.9*inch]
     t = Table(data, colWidths=col_widths, repeatRows=1)
     t.setStyle(TableStyle([
         ('TEXTCOLOR', (0,0), (-1,0), colors.black), ('ALIGN', (0,0), (-1,-1), 'CENTER'),
