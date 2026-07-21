@@ -639,6 +639,18 @@ def api_profile_upload(profile_number):
                 
                 file.save(file_path)
                 
+                # Real-time backup to network I: drive if mounted
+                try:
+                    import shutil
+                    i_uploads_dir = os.environ.get("I_DRIVE_UPLOADS_DIR", r"I:\Buttonwillow\LAB\Operations App\uploads_backup")
+                    drive_letter = os.path.splitdrive(i_uploads_dir)[0] + "\\"
+                    if os.path.exists(drive_letter):
+                        net_dest = os.path.join(i_uploads_dir, relative_path)
+                        os.makedirs(os.path.dirname(net_dest), exist_ok=True)
+                        shutil.copy2(file_path, net_dest)
+                except Exception as net_e:
+                    print(f"Real-time network upload backup warning: {net_e}")
+
                 conn.execute('''
                     INSERT INTO profile_attachments (profile_number, filename, file_path)
                     VALUES (?, ?, ?)
@@ -662,12 +674,21 @@ def api_delete_attachment(attachment_id):
         conn.execute('DELETE FROM profile_attachments WHERE id = ?', (attachment_id,))
         conn.commit()
         
-        # Delete physical file
+        # Delete physical local file
         if os.path.exists(full_path):
             try:
                 os.remove(full_path)
             except Exception as e:
                 print(f"Error deleting file {full_path}: {e}")
+                
+        # Also remove from network backup if mounted
+        try:
+            i_uploads_dir = os.environ.get("I_DRIVE_UPLOADS_DIR", r"I:\Buttonwillow\LAB\Operations App\uploads_backup")
+            net_full = os.path.join(i_uploads_dir, file_path)
+            if os.path.exists(net_full):
+                os.remove(net_full)
+        except Exception:
+            pass
                 
     return jsonify({'success': True})
 
