@@ -349,6 +349,7 @@
                                 <span class="me-2">📝</span> Master Profile Management
                             </h5>
                             <div class="d-flex gap-2">
+                                <button id="formSyncExcelBtn" class="btn btn-sm btn-light text-primary py-1 fw-bold border-secondary small d-none" onclick="syncActiveProfile()">🔄 Sync Excel</button>
                                 <button id="deleteProfileBtn" class="btn btn-sm btn-light text-danger py-1 fw-bold border-secondary small d-none" onclick="deleteCurrentProfile()">🗑️ Delete</button>
                                 <button id="clearFormBtn" class="btn btn-sm btn-light py-1 fw-bold border-secondary small d-none" onclick="resetEntryForm()">New Profile</button>
                             </div>
@@ -1012,6 +1013,9 @@
             document.getElementById('form-profile').readOnly = true;
             document.getElementById('clearFormBtn').classList.remove('d-none');
             document.getElementById('deleteProfileBtn').classList.remove('d-none');
+            if (document.getElementById('formSyncExcelBtn')) {
+                document.getElementById('formSyncExcelBtn').classList.remove('d-none');
+            }
             document.getElementById('formSubmitBtn').innerHTML = '<span>🔄 Save Changes / Update Profile</span>';
 
             loadHistory();
@@ -1039,6 +1043,9 @@
             document.getElementById('form-profile').readOnly = false;
             document.getElementById('clearFormBtn').classList.add('d-none');
             document.getElementById('deleteProfileBtn').classList.add('d-none');
+            if (document.getElementById('formSyncExcelBtn')) {
+                document.getElementById('formSyncExcelBtn').classList.add('d-none');
+            }
             document.getElementById('formSubmitBtn').innerHTML = '<span>💾 Save to Master Registry</span>';
             
             dashboard.classList.add('d-none');
