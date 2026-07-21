@@ -25,6 +25,57 @@ def require_auth(f):
 
 SECONDARY_BACKUP_DIR = os.environ.get("SECONDARY_BACKUP_DIR", r"F:\Truck_Log_Backups")
 I_DRIVE_DIR = os.environ.get("I_DRIVE_DIR", r"I:\Buttonwillow\LAB\Operations App")
+I_DRIVE_UPLOADS_DIR = os.environ.get("I_DRIVE_UPLOADS_DIR", os.path.join(I_DRIVE_DIR, "uploads_backup"))
+
+def sync_uploads_with_network():
+    import shutil
+    from shared_state import UPLOADS_DIR
+    
+    if not os.path.exists(UPLOADS_DIR):
+        try:
+            os.makedirs(UPLOADS_DIR, exist_ok=True)
+        except Exception:
+            pass
+
+    synced_to_net = 0
+    restored_from_net = 0
+    
+    drive_letter = os.path.splitdrive(I_DRIVE_UPLOADS_DIR)[0] + "\\"
+    if not os.path.exists(drive_letter):
+        return synced_to_net, restored_from_net
+        
+    try:
+        os.makedirs(I_DRIVE_UPLOADS_DIR, exist_ok=True)
+        
+        # 1. Sync local uploads to network I: drive
+        if os.path.exists(UPLOADS_DIR):
+            for root, dirs, files in os.walk(UPLOADS_DIR):
+                for f in files:
+                    local_path = os.path.join(root, f)
+                    rel_path = os.path.relpath(local_path, UPLOADS_DIR)
+                    net_path = os.path.join(I_DRIVE_UPLOADS_DIR, rel_path)
+                    
+                    if not os.path.exists(net_path) or os.path.getmtime(local_path) > os.path.getmtime(net_path):
+                        os.makedirs(os.path.dirname(net_path), exist_ok=True)
+                        shutil.copy2(local_path, net_path)
+                        synced_to_net += 1
+                        
+        # 2. Restore network uploads to local machine (if local is missing them)
+        if os.path.exists(I_DRIVE_UPLOADS_DIR):
+            for root, dirs, files in os.walk(I_DRIVE_UPLOADS_DIR):
+                for f in files:
+                    net_path = os.path.join(root, f)
+                    rel_path = os.path.relpath(net_path, I_DRIVE_UPLOADS_DIR)
+                    local_path = os.path.join(UPLOADS_DIR, rel_path)
+                    
+                    if not os.path.exists(local_path):
+                        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                        shutil.copy2(net_path, local_path)
+                        restored_from_net += 1
+    except Exception as e:
+        print(f"Warning syncing uploads with I: drive: {e}")
+        
+    return synced_to_net, restored_from_net
 
 def run_backup_logic():
     if not os.path.exists(DB_PATH):
@@ -100,6 +151,14 @@ def run_backup_logic():
                             pass
             except Exception as e:
                 secondary_msg += f" (I: drive sync failed: {e})"
+                
+        # Also sync profile attachment uploads to I: drive
+        try:
+            s_count, r_count = sync_uploads_with_network()
+            if s_count > 0 or r_count > 0:
+                secondary_msg += f" (Synced {s_count} uploads to network, restored {r_count})"
+        except Exception as upload_sync_err:
+            print(f"Uploads sync error: {upload_sync_err}")
             
         src.close()
         
