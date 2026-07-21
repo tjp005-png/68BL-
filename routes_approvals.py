@@ -1242,7 +1242,7 @@ def export_wvi_excel(profile_number):
     
     if win_code in ['CBP', 'CNIA', 'CBPR']:
         disposal_loc = "DIRECT TO LANDFILL / ACTIVE CELL"
-    elif win_code == 'CBPS':
+    elif win_code in ['CBPS', 'CNOS']:
         disposal_loc = "UNIT 31"
     elif win_code in ['CCS', 'CCSM'] or win_code.startswith('CCS'):
         disposal_loc = "DIRECT TO BAYS / STU / TTB"
@@ -1268,7 +1268,7 @@ def export_wvi_excel(profile_number):
         
     sample_proc = str(combined.get('sample_procedures') or '').strip().upper()
     if not sample_proc:
-        if win_code == 'CBPS':
+        if win_code in ['CBPS', 'CNOS']:
             sample_proc = "COLLECT SAMPLE WITH COLIWASA"
         elif win_code == 'CNIA':
             sample_proc = "NO SAMPLE REQUIRED"
