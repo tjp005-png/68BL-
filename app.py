@@ -524,16 +524,21 @@ if __name__ == '__main__':
         print(f"  [DATABASE SYNC] Sync check failed: {e}")
 
     print("[DEBUG] 5. Starting backup scheduler...")
-    try:
-        from routes_backups import sync_uploads_with_network
-        s_count, r_count = sync_uploads_with_network()
-        if s_count > 0 or r_count > 0:
-            print(f"  [UPLOADS SYNC] Network uploads sync complete: {s_count} uploaded to network, {r_count} restored to local machine.")
-    except Exception as uploads_sync_err:
-        print(f"  [UPLOADS SYNC] Startup uploads sync check warning: {uploads_sync_err}")
-
     start_backup_scheduler(app)
     print("[DEBUG] 6. Backup scheduler initialized.")
+    
+    # Launch network compliance uploads sync asynchronously in background to keep server startup instant
+    def _async_startup_upload_sync():
+        try:
+            from routes_backups import sync_uploads_with_network
+            s_count, r_count = sync_uploads_with_network()
+            if s_count > 0 or r_count > 0:
+                print(f"  [UPLOADS SYNC] Background network upload sync complete: {s_count} backed up to I: drive, {r_count} restored locally.")
+        except Exception as uploads_sync_err:
+            print(f"  [UPLOADS SYNC] Background upload sync warning: {uploads_sync_err}")
+
+    import threading
+    threading.Thread(target=_async_startup_upload_sync, daemon=True).start()
     
     # Dev runs on 5002, Live/Production runs on 5000
     port = 5002 if 'Truck_Log_App_Dev' in os.getcwd() else 5000
