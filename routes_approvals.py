@@ -594,6 +594,22 @@ def api_profile_drum_history(profile_number):
         ''', (profile_clean,)).fetchall()
     return jsonify([dict(d) for d in drums])
 
+@approvals_bp.route('/api/profile/<path:profile_number>/sync', methods=['POST'])
+def api_profile_sync(profile_number):
+    profile_clean = str(profile_number).strip().upper()
+    with closing(get_db_connection()) as conn:
+        # Clear last_synced_mtime to force a fresh sync
+        conn.execute('UPDATE profiles SET last_synced_mtime = NULL WHERE TRIM(UPPER(profile_number)) = ?', (profile_clean,))
+        conn.commit()
+        
+        # Trigger ensure_profile_exists
+        from database import ensure_profile_exists
+        row = ensure_profile_exists(conn, profile_clean)
+        if not row:
+            return jsonify({'error': 'Profile not found in Excel.'}), 404
+            
+    return jsonify(dict(row))
+
 @approvals_bp.route('/api/profile/<path:profile_number>/upload', methods=['POST'])
 def api_profile_upload(profile_number):
     if 'file' not in request.files:

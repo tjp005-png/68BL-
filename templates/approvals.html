@@ -561,9 +561,15 @@
                                 <small class="text-muted fw-bold">Expiration: <span id="dashExp" class="text-dark">---</span></small>
                             </div>
                         </div>
-                        <div class="card-footer bg-light py-2 px-3 d-flex gap-4 border-0 rounded-bottom-4">
+                        <div class="card-footer bg-light py-2 px-3 d-flex gap-4 border-0 rounded-bottom-4 align-items-center">
                             <span class="fw-bold text-muted small">BL Waste Code: <span id="dashWin" class="text-dark font-heading">---</span></span>
                             <span class="fw-bold text-muted small">Lab Number: <span id="dashLab" class="text-dark font-heading">---</span></span>
+                            <span class="fw-bold text-muted small ms-auto d-flex align-items-center gap-2">
+                                <span>Excel Date: <span id="dashSyncTime" class="text-dark">---</span></span>
+                                <button id="btnSyncProfile" class="btn btn-xs btn-outline-primary fw-bold py-0" style="font-size: 0.75rem;" onclick="syncActiveProfile()">
+                                    🔄 Sync Excel
+                                </button>
+                            </span>
                         </div>
                     </div>
 
@@ -944,6 +950,7 @@
             document.getElementById('dashExp').innerText = p.expiration_date || 'No Date';
             document.getElementById('dashWin').innerText = p.win_code || '---';
             document.getElementById('dashLab').innerText = p.lab_number || '---';
+            document.getElementById('dashSyncTime').innerText = p.last_synced_mtime ? new Date(p.last_synced_mtime * 1000).toLocaleString() : 'Never Synced / Manual';
             
             // Populate specs card
             document.getElementById('dashState').innerText = p.physical_appearance || '---';
@@ -1141,6 +1148,39 @@
                         tbody.innerHTML += row;
                     });
                 });
+        }
+
+        function syncActiveProfile() {
+            if (!currentProfile) return;
+            const btn = document.getElementById('btnSyncProfile');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Syncing...';
+            
+            fetch(`/api/profile/${encodeURIComponent(currentProfile)}/sync`, {
+                method: 'POST'
+            })
+            .then(r => {
+                if (!r.ok) {
+                    throw new Error('Sync failed. Excel sheet might be inaccessible.');
+                }
+                return r.json();
+            })
+            .then(updatedProfile => {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                
+                // Re-select and populate details with the new data
+                selectProfile(updatedProfile);
+                
+                // Show a brief success alert or highlight
+                alert(`Successfully synced profile ${currentProfile} from MASTERPROFILE.xlsx!`);
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                alert('Error syncing profile: ' + err.message);
+            });
         }
 
         function loadAttachments() {
