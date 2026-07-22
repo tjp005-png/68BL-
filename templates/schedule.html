@@ -101,9 +101,12 @@
                     <img src="{{ url_for('static', filename='CLH_BIG.png') }}" alt="Logo" style="height: 45px; margin-right: 15px; background-color: white; padding: 4px; border-radius: 5px;">
                     <h2 class="mb-0 fw-bold">🗓️ DAILY SCHEDULING PORTAL</h2>
                 </div>
-                <div>
-                    <a href="/" class="btn btn-light fw-bold shadow-sm text-dark">⬅️ Hub</a>
-                    {# <a href="/receiving" class="btn btn-dark fw-bold shadow-sm">🚚 Truck Receiving</a> #}
+                <div class="d-flex align-items-center gap-2">
+                    <button id="btnSyncScheduleProfiles" class="btn btn-warning fw-bold shadow-sm" onclick="syncScheduleProfiles()">
+                        🔄 Sync Master Profiles
+                    </button>
+                    <a href="/" class="btn btn-light fw-bold shadow-sm text-dark me-2">⬅️ Hub</a>
+                    <a href="/receiving" class="btn btn-dark fw-bold shadow-sm">🚚 Truck Receiving</a>
                 </div>
             </div>
         </div>
@@ -1033,6 +1036,37 @@
                 }
             }
         });
+
+        function syncScheduleProfiles() {
+            const btn = document.getElementById('btnSyncScheduleProfiles');
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Syncing Master Profiles...';
+            
+            const formData = new FormData();
+            formData.append('schedule_date', '{{ selected_date }}');
+            
+            fetch('/api/auto_sync_profiles', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+                if (data.updated) {
+                    alert('Successfully updated scheduled loads for {{ selected_date }} with the latest Master Profile records!');
+                    window.location.reload();
+                } else {
+                    alert('All scheduled loads for {{ selected_date }} are already up to date with Master Profile records!');
+                }
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+                alert('Error syncing Master Profiles: ' + err.message);
+            });
+        }
     </script>
 </body>
 </html>
