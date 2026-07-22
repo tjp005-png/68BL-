@@ -204,5 +204,27 @@ def ensure_profile_exists(conn, profile_number):
         return conn.execute('SELECT * FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (clean_profile,)).fetchone()
 
     except Exception as e:
-        print(f"Error syncing profile {clean_profile} from master Excel file: {e}")
+        print(f"Profile {clean_profile} not found in master Excel or error occurred: {e}")
+        try:
+            wvi = conn.execute("SELECT * FROM profile_wvi WHERE TRIM(UPPER(profile)) = ?", (clean_profile,)).fetchone()
+            if wvi:
+                ph_str = f"{wvi['ph_min']} - {wvi['ph_max']}".strip(" -") if (wvi['ph_min'] is not None or wvi['ph_max'] is not None) else None
+                import time
+                conn.execute('''
+                    INSERT OR REPLACE INTO profiles (
+                        profile_number, generator, status, expiration_date, waste_description,
+                        voc_percentage, ph_range, physical_appearance, flash_point, special_handling,
+                        state_waste_code, federal_waste_code, dot_description, color, treatment_recipe,
+                        lab_number, ldr_required, last_synced_mtime
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    clean_profile, wvi['generator_name'], 'HISTORICAL WVI', wvi['expiration_date'], wvi['waste_name'],
+                    wvi['voc_ppm'], ph_str, wvi['physical_description'], wvi['flashpoint'], wvi['handling_instruction'],
+                    wvi['state_waste_codes'], wvi['federal_waste_codes'], wvi['dot_description'], wvi['color'], wvi['treatment_information'],
+                    wvi['lab_num'], wvi['ldr'], time.time()
+                ))
+                conn.commit()
+                return conn.execute('SELECT * FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (clean_profile,)).fetchone()
+        except Exception as wvi_e:
+            print(f"Error querying profile_wvi for {clean_profile}: {wvi_e}")
         return row if (row and row['status'] != 'NOT FOUND') else None
