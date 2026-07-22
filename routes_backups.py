@@ -11,7 +11,14 @@ from shared_state import DB_PATH, APP_DIR
 backups_bp = Blueprint('backups_bp', __name__)
 
 DEFAULT_PASSWORD = "CleanHarbors2026!"
-BACKUP_DIR = os.environ.get("BACKUP_DIR", os.path.join(APP_DIR, "backups"))
+I_DRIVE_DIR = os.environ.get("I_DRIVE_DIR", r"I:\Buttonwillow\LAB\Operations App")
+i_drive_backup_dir = os.path.join(I_DRIVE_DIR, "backups")
+drive_letter = os.path.splitdrive(I_DRIVE_DIR)[0] + "\\"
+
+if os.path.exists(drive_letter):
+    BACKUP_DIR = os.environ.get("BACKUP_DIR", i_drive_backup_dir)
+else:
+    BACKUP_DIR = os.environ.get("BACKUP_DIR", os.path.join(APP_DIR, "backups"))
 
 def get_admin_password():
     return os.environ.get("BACKUP_ADMIN_PASSWORD", DEFAULT_PASSWORD)

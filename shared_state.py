@@ -12,11 +12,18 @@ def get_app_dir():
 APP_DIR = get_app_dir()
 DB_PATH = os.path.join(APP_DIR, 'database.db')
 
-UPLOADS_DIR = os.path.join(APP_DIR, 'uploads', 'profiles')
+i_drive_uploads = os.environ.get("I_DRIVE_UPLOADS_DIR", r"I:\Buttonwillow\LAB\Operations App\uploads")
+drive_letter = os.path.splitdrive(i_drive_uploads)[0] + "\\"
+
+if os.path.exists(drive_letter):
+    UPLOADS_DIR = i_drive_uploads
+else:
+    UPLOADS_DIR = os.path.join(APP_DIR, 'uploads', 'profiles')
+
 if not os.path.exists(UPLOADS_DIR):
     try:
-        os.makedirs(UPLOADS_DIR)
-    except:
+        os.makedirs(UPLOADS_DIR, exist_ok=True)
+    except Exception:
         pass
 
 local_excel = os.path.join(APP_DIR, 'MASTERPROFILE.xlsx')
