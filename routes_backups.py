@@ -6,11 +6,12 @@ from datetime import datetime
 from functools import wraps
 from flask import Blueprint, render_template, request, redirect, url_for, session, send_file, flash, current_app
 
+from shared_state import DB_PATH, APP_DIR
+
 backups_bp = Blueprint('backups_bp', __name__)
 
 DEFAULT_PASSWORD = "CleanHarbors2026!"
-BACKUP_DIR = os.environ.get("BACKUP_DIR", "backups")
-DB_PATH = 'database.db'
+BACKUP_DIR = os.environ.get("BACKUP_DIR", os.path.join(APP_DIR, "backups"))
 
 def get_admin_password():
     return os.environ.get("BACKUP_ADMIN_PASSWORD", DEFAULT_PASSWORD)
@@ -208,8 +209,8 @@ def start_backup_scheduler(app):
                             app.logger.error(f"Automatic backup failed: {result}")
                     except Exception as e:
                         app.logger.error(f"Error running automatic backup: {e}")
-                # Sleep for 24 hours
-                time.sleep(24 * 60 * 60)
+                # Sleep for 1 hour between automated periodic backups
+                time.sleep(60 * 60)
                   
         t = threading.Thread(target=scheduler_loop, daemon=True)
         t.start()
