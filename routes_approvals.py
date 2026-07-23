@@ -1011,8 +1011,17 @@ def export_wvi_excel(profile_number):
 
     # Fill in fallback parsed range/voc
     if combined['ph_min'] is None or combined['ph_max'] is None:
-        if p_row and p_row['ph_range']:
-            ph_min_parsed, ph_max_parsed = parse_ph_range(p_row['ph_range'])
+        ph_source = (p_row['ph_range'] if (p_row and p_row['ph_range']) else None)
+        if not ph_source and w_row:
+            from database import parse_ph_from_any_text
+            ph_source = parse_ph_from_any_text(
+                w_row['notes_revisions'],
+                w_row['verification_procedures'],
+                w_row['physical_description'],
+                w_row['handling_instruction']
+            )
+        if ph_source:
+            ph_min_parsed, ph_max_parsed = parse_ph_range(ph_source)
             if combined['ph_min'] is None:
                 combined['ph_min'] = ph_min_parsed
             if combined['ph_max'] is None:
