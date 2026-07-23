@@ -426,50 +426,6 @@ def check_schedule_duplicate():
     return jsonify({'duplicate': False})
 
 
-@schedule_bp.route('/refresh_schedule_data', methods=['POST'])
-def refresh_schedule_data():
-    date_str = request.form.get('schedule_date')
-    
-    if date_str:
-        with closing(get_db_connection()) as conn:
-            # 1. Grab all scheduled loads for the current view
-            schedules = conn.execute('SELECT id, profile_number FROM daily_schedule WHERE schedule_date = ?', (date_str,)).fetchall()
-            
-            for s in schedules:
-                prof_num = str(s['profile_number']).strip().upper()
-                
-                # 2. Look up the latest data in the Master Profiles table
-                prof = conn.execute('''
-                    SELECT voc_percentage, generator, win_code 
-                    FROM profiles 
-                    WHERE TRIM(UPPER(profile_number)) = ?
-                ''', (prof_num,)).fetchone()
-                
-                if prof:
-                    # 3. Safely parse the updated VOC using our new logic
-                    try:
-                        val = float(prof['voc_percentage'])
-                        new_voc = str(int(val)) if val > 0 else '0'
-                    except (ValueError, TypeError):
-                        new_voc = 'TBD'
-                        
-                    # 4. Update the existing schedule entry
-                    conn.execute('''
-                        UPDATE daily_schedule 
-                        SET voc_level = ?, generator = ?, routing_code = ?
-                        WHERE id = ?
-                    ''', (new_voc, prof['generator'], prof['win_code'], s['id']))
-                    
-            conn.commit()
-            
-        # 5. Push the visual update to all connected users
-        SCHEDULE_UPDATES[date_str] = time.time()
-        SCHEDULE_UPDATES['GLOBAL'] = time.time()
-        socketio.emit('schedule_update', {'date': date_str})
-        
-    return redirect(url_for('schedule_bp.schedule_portal', date=date_str))
-
-
 @schedule_bp.route('/api/check_schedule_updates')
 def check_schedule_updates():
     check_date = request.args.get('date')

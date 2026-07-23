@@ -57,30 +57,7 @@ TARGET_ROUTING_CODE = "BL"
 PERMITTED_CODES = {'CBP', 'CNO', 'CBPS', 'CNOS', 'CNIA', 'CCS', 'CCSS', 'D23', 'D80L', 'LLF'}
 
 from shared_state import socketio, DB_PATH
-
-def get_db_connection():
-    conn = sqlite3.connect(DB_PATH, timeout=15)
-    conn.row_factory = sqlite3.Row 
-    
-    # Check if database is on a network drive to avoid WAL mode locks/hangs
-    is_network = False
-    if DB_PATH.startswith(r'\\'):
-        is_network = True
-    elif os.name == 'nt':
-        try:
-            import ctypes
-            drive = os.path.splitdrive(os.path.abspath(DB_PATH))[0]
-            if drive:
-                is_network = (ctypes.windll.kernel32.GetDriveTypeW(drive + "\\") == 4)
-        except:
-            pass
-            
-    if is_network:
-        conn.execute('PRAGMA journal_mode=DELETE;')
-    else:
-        conn.execute('PRAGMA journal_mode=WAL;')
-        
-    return conn
+from database import get_db_connection
 
 def column_exists(cursor, table_name, column_name):
     cursor.execute(f"PRAGMA table_info({table_name})")
@@ -316,10 +293,25 @@ def upgrade_db():
         if not column_exists(cursor, 'waste_acceptance_log', 'cp1_lab_number'):
             cursor.execute('ALTER TABLE waste_acceptance_log ADD COLUMN cp1_lab_number TEXT')
         
+        # 9. PROFILE ATTACHMENTS TABLE
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS profile_attachments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_number TEXT,
+                filename TEXT,
+                file_path TEXT,
+                upload_date DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
         # Add performance indexes
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_profiles_win_code ON profiles (win_code)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_truck_logs_profile_number ON truck_logs (profile_number)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_truck_logs_date_received ON truck_logs (date_received)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_daily_schedule_schedule_date ON daily_schedule (schedule_date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_daily_schedule_profile_number ON daily_schedule (profile_number)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_profile_wvi_profile ON profile_wvi (profile)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_profile_attachments_profile ON profile_attachments (profile_number)")
         
         conn.commit()
 

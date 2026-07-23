@@ -62,7 +62,7 @@ class TestLASRedirection(unittest.TestCase):
             # 2. PCCS: CCS profile that triggers LAS
             # 3. PNORMAL: active profile, standard fingerprint
             conn.execute('''
-                INSERT INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, status, expiration_date)
+                INSERT OR REPLACE INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, status, expiration_date)
                 VALUES 
                 ('PLAS', 'LAS Generator', 'LAS Waste description', 'WINLAS', 10.0, 'INACTIVE', '2020-01-01'),
                 ('PCCS', 'CCS Generator', 'CCS Waste description', 'CCS-WIN', 20.0, 'INACTIVE', '2020-01-01'),
@@ -272,7 +272,7 @@ class TestLASRedirection(unittest.TestCase):
         # Create a new profile that triggers LAS
         conn = original_connect(TEST_DB_PATH)
         conn.execute('''
-            INSERT INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, status, expiration_date)
+            INSERT OR REPLACE INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, status, expiration_date)
             VALUES ('PLAS-LB', 'Gen', 'Desc', 'WIN-LB', 0.0, 'INACTIVE', '2020-01-01')
         ''')
         # Insert a schedule entry with 10 loads to force Large Bulk
