@@ -635,6 +635,25 @@
                                     <div id="dashDot" class="fw-semibold text-dark text-truncate" title="">---</div>
                                 </div>
                             </div>
+                            <hr class="my-2">
+                            <div class="row g-2">
+                                <div class="col-12 col-md-6">
+                                    <div class="small text-muted fw-bold text-primary">🧪 VERIFICATION PROCEDURES</div>
+                                    <div id="dashVerProc" class="fw-semibold text-dark small">---</div>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <div class="small text-muted fw-bold text-primary">🧫 SAMPLING PROCEDURES</div>
+                                    <div id="dashSampleProc" class="fw-semibold text-dark small">---</div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="small text-muted fw-bold text-dark">🚚 UNLOADING & HANDLING INSTRUCTIONS</div>
+                                    <div id="dashUnloading" class="fw-semibold text-dark small">---</div>
+                                </div>
+                                <div class="col-12 d-none" id="dashNotesContainer">
+                                    <div class="small text-muted fw-bold text-secondary">📝 WVI REVISIONS & LAB NOTES</div>
+                                    <div id="dashWviNotes" class="fw-semibold text-dark small fst-italic">---</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -967,6 +986,18 @@
             document.getElementById('dashFederalCode').innerText = p.federal_waste_code || '---';
             document.getElementById('dashDot').innerText = p.dot_description || '---';
             document.getElementById('dashDot').title = p.dot_description || '';
+
+            // Populate WVI Qualitative Procedures
+            document.getElementById('dashVerProc').innerText = p.verification_procedures || 'Refer to Standard Fingerprint Testing';
+            document.getElementById('dashSampleProc').innerText = p.sample_procedures || 'Collect Sample With Scoop';
+            document.getElementById('dashUnloading').innerText = p.unloading_instructions || p.special_handling || 'Direct Waste to Landfill';
+
+            if (p.notes_revisions && p.notes_revisions.trim() !== '') {
+                document.getElementById('dashWviNotes').innerText = p.notes_revisions;
+                document.getElementById('dashNotesContainer').classList.remove('d-none');
+            } else {
+                document.getElementById('dashNotesContainer').classList.add('d-none');
+            }
             
             // Populate and update EPA badge
             const badge = document.getElementById('dashEpaIdBadge');

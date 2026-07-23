@@ -546,15 +546,21 @@ def api_profile_search():
         
     with closing(get_db_connection()) as conn:
         like_query = f"%{query}%"
-        profiles = conn.execute('''
-            SELECT *
-            FROM profiles
-            WHERE (profile_number LIKE ? OR generator LIKE ? OR lab_number LIKE ? OR win_code LIKE ? OR epa_id LIKE ?) AND status != 'NOT FOUND'
-            ORDER BY profile_number ASC
+        rows = conn.execute('''
+            SELECT p.*, 
+                   w.verification_procedures, 
+                   w.sample_procedures, 
+                   w.unloading_instructions, 
+                   w.notes_revisions, 
+                   w.treatment_information
+            FROM profiles p
+            LEFT JOIN profile_wvi w ON TRIM(UPPER(p.profile_number)) = TRIM(UPPER(w.profile))
+            WHERE (p.profile_number LIKE ? OR p.generator LIKE ? OR p.lab_number LIKE ? OR p.win_code LIKE ? OR p.epa_id LIKE ?) AND p.status != 'NOT FOUND'
+            ORDER BY p.profile_number ASC
             LIMIT 50
         ''', (like_query, like_query, like_query, like_query, like_query)).fetchall()
         
-    return jsonify([dict(p) for p in profiles])
+    return jsonify([dict(r) for r in rows])
 
 @approvals_bp.route('/api/profile/delete', methods=['POST'])
 def api_profile_delete():
