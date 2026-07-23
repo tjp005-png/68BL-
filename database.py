@@ -218,7 +218,7 @@ def ensure_profile_exists(conn, profile_number):
                         lab_number, ldr_required, last_synced_mtime
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
-                    clean_profile, wvi['generator_name'], 'HISTORICAL WVI', wvi['expiration_date'], wvi['waste_name'],
+                    clean_profile, wvi['generator_name'], 'ACTIVE', wvi['expiration_date'], wvi['waste_name'],
                     wvi['voc_ppm'], ph_str, wvi['physical_description'], wvi['flashpoint'], wvi['handling_instruction'],
                     wvi['state_waste_codes'], wvi['federal_waste_codes'], wvi['dot_description'], wvi['color'], wvi['treatment_information'],
                     wvi['lab_num'], wvi['ldr'], time.time()
