@@ -181,6 +181,112 @@ def ensure_profile_exists(conn, profile_number):
         elif 'EPA_ID' in df.columns:
             epa_id = str(row_data.get('EPA_ID', '')).strip()
         
+def parse_ph_from_any_text(*text_sources):
+    for src in text_sources:
+        if not src:
+            continue
+        s = str(src).strip().upper()
+        if 'PH' not in s:
+            continue
+
+        range_match = re.search(r'PH[^\d]*(\d+\.?\d*)\s*(?:TO|-|UNTIL)\s*(\d+\.?\d*)', s)
+        if range_match:
+            try:
+                min_v = float(range_match.group(1))
+                max_v = float(range_match.group(2))
+                if min_v <= max_v and max_v <= 14.0:
+                    return f"{min_v} - {max_v}"
+            except:
+                pass
+
+        if 'NEUTRAL' in s or 'PH 7' in s or 'PH: 7' in s:
+            return "4.0 - 10.0"
+
+        gt_match = re.search(r'PH\s*[>=]+\s*(\d+\.?\d*)', s)
+        if gt_match:
+            try:
+                val = float(gt_match.group(1))
+                if val <= 14.0:
+                    return f"{val} - 14.0"
+            except:
+                pass
+
+        lt_match = re.search(r'PH\s*[<=]+\s*(\d+\.?\d*)', s)
+        if lt_match:
+            try:
+                val = float(lt_match.group(1))
+                if val <= 14.0:
+                    return f"0.0 - {val}"
+            except:
+                pass
+
+    return None
+
+def extract_color_from_text(text):
+    if not text:
+        return None
+    t = str(text).upper()
+    colors = ['BROWN', 'BLACK', 'GRAY', 'GREY', 'YELLOW', 'RED', 'WHITE', 'TAN', 'GREEN', 'BLUE', 'CREAM', 'CLEAR', 'VARIOUS']
+    matched = [c for c in colors if c in t]
+    return "/".join(matched) if matched else None
+
+def enrich_profile_from_wvi(conn, clean_profile):
+    """Enriches a profile in the 'profiles' table with WVI pH, color, and physical details if missing."""
+    try:
+        p_row = conn.execute("SELECT * FROM profiles WHERE TRIM(UPPER(profile_number)) = ?", (clean_profile,)).fetchone()
+        w_row = conn.execute("SELECT * FROM profile_wvi WHERE TRIM(UPPER(profile)) = ?", (clean_profile,)).fetchone()
+        
+        if p_row and w_row:
+            updates = []
+            params = []
+            
+            # 1. pH Range
+            if not p_row['ph_range'] or p_row['ph_range'] == '---':
+                ph_str = f"{w_row['ph_min']} - {w_row['ph_max']}".strip(" -") if (w_row['ph_min'] is not None or w_row['ph_max'] is not None) else None
+                if not ph_str:
+                    ph_str = parse_ph_from_any_text(
+                        w_row['notes_revisions'],
+                        w_row['verification_procedures'],
+                        w_row['physical_description'],
+                        w_row['handling_instruction']
+                    )
+                if ph_str:
+                    updates.append("ph_range = ?")
+                    params.append(ph_str)
+
+            # 2. Color
+            if not p_row['color'] or p_row['color'] == '---':
+                color_str = w_row['color'] if (w_row['color'] and str(w_row['color']).strip() != 'None') else None
+                if not color_str:
+                    color_str = extract_color_from_text(w_row['physical_description']) or extract_color_from_text(w_row['notes_revisions'])
+                if color_str:
+                    updates.append("color = ?")
+                    params.append(color_str)
+
+            # 3. Physical appearance
+            if not p_row['physical_appearance'] and w_row['physical_description']:
+                updates.append("physical_appearance = ?")
+                params.append(w_row['physical_description'])
+
+            # 4. DOT Description
+            if not p_row['dot_description'] and w_row['dot_description']:
+                updates.append("dot_description = ?")
+                params.append(w_row['dot_description'])
+
+            # 5. Handling
+            if not p_row['special_handling'] and w_row['handling_instruction']:
+                updates.append("special_handling = ?")
+                params.append(w_row['handling_instruction'])
+
+            if updates:
+                sql = f"UPDATE profiles SET {', '.join(updates)} WHERE TRIM(UPPER(profile_number)) = ?"
+                params.append(clean_profile)
+                conn.execute(sql, params)
+                conn.commit()
+    except Exception as e:
+        print(f"Error enriching profile {clean_profile} from WVI: {e}")
+
+# Modify ensure_profile_exists to call enrich_profile_from_wvi
         if row:
             conn.execute('''
                 UPDATE profiles 
@@ -200,6 +306,7 @@ def ensure_profile_exists(conn, profile_number):
             ''', (clean_profile, generator, status_val, exp_date, waste_name, voc_percentage, win_code, excel_mtime, epa_id, lab_number, haz, rcra, comments))
             
         conn.commit()
+        enrich_profile_from_wvi(conn, clean_profile)
         
         return conn.execute('SELECT * FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (clean_profile,)).fetchone()
 
@@ -209,6 +316,14 @@ def ensure_profile_exists(conn, profile_number):
             wvi = conn.execute("SELECT * FROM profile_wvi WHERE TRIM(UPPER(profile)) = ?", (clean_profile,)).fetchone()
             if wvi:
                 ph_str = f"{wvi['ph_min']} - {wvi['ph_max']}".strip(" -") if (wvi['ph_min'] is not None or wvi['ph_max'] is not None) else None
+                if not ph_str:
+                    ph_str = parse_ph_from_any_text(
+                        wvi['notes_revisions'],
+                        wvi['verification_procedures'],
+                        wvi['physical_description'],
+                        wvi['handling_instruction']
+                    )
+                color_str = wvi['color'] if (wvi['color'] and str(wvi['color']).strip() != 'None') else extract_color_from_text(wvi['physical_description'])
                 import time
                 conn.execute('''
                     INSERT OR REPLACE INTO profiles (
@@ -220,7 +335,7 @@ def ensure_profile_exists(conn, profile_number):
                 ''', (
                     clean_profile, wvi['generator_name'], 'ACTIVE', wvi['expiration_date'], wvi['waste_name'],
                     wvi['voc_ppm'], ph_str, wvi['physical_description'], wvi['flashpoint'], wvi['handling_instruction'],
-                    wvi['state_waste_codes'], wvi['federal_waste_codes'], wvi['dot_description'], wvi['color'], wvi['treatment_information'],
+                    wvi['state_waste_codes'], wvi['federal_waste_codes'], wvi['dot_description'], color_str, wvi['treatment_information'],
                     wvi['lab_num'], wvi['ldr'], time.time()
                 ))
                 conn.commit()
