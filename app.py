@@ -344,6 +344,10 @@ def upgrade_db():
         ''')
         if not column_exists(cursor, 'sulfide_testing_logs', 'sample_metadata'):
             cursor.execute('ALTER TABLE sulfide_testing_logs ADD COLUMN sample_metadata TEXT')
+        if not column_exists(cursor, 'sulfide_testing_logs', 'total_sulfide'):
+            cursor.execute('ALTER TABLE sulfide_testing_logs ADD COLUMN total_sulfide REAL')
+        if not column_exists(cursor, 'sulfide_testing_logs', 'reactive_sulfide'):
+            cursor.execute('ALTER TABLE sulfide_testing_logs ADD COLUMN reactive_sulfide REAL')
 
         # Add performance indexes
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_profiles_win_code ON profiles (win_code)")

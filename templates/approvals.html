@@ -816,7 +816,7 @@
                     <div class="card premium-card mt-3 border-danger">
                         <div class="card-header bg-dark text-white fw-bold py-2 d-flex justify-content-between align-items-center">
                             <div class="d-flex align-items-center gap-2">
-                                <span>🧪 Sulfide TOTAL & Reactive Statistical 90% Confidence Level Suite</span>
+                                <span>🧪 Sulfide Total & Reactive Daily Testing Suite</span>
                                 <span class="badge bg-danger text-white px-2 py-1">Limit: ≤ 500 mg/kg Reactive</span>
                             </div>
                             <button class="btn btn-sm btn-outline-light py-0 px-2 fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#sulfideSuiteCollapse" aria-expanded="true">
@@ -825,142 +825,119 @@
                         </div>
                         <div class="collapse show" id="sulfideSuiteCollapse">
                             <div class="card-body p-3 bg-light">
-                                <label class="form-label small fw-bold text-dark mb-1">Enter Per-Sample Data & Measurements (Up to 5 Samples):</label>
-                                <div class="table-responsive mb-3 rounded border">
-                                    <table class="table table-sm table-bordered bg-white text-center align-middle mb-0 sulfide-grid-table">
-                                        <thead class="table-secondary small">
-                                            <tr>
-                                                <th style="width: 25%;">Field / Parameter</th>
-                                                <th style="width: 15%;">Sample 1</th>
-                                                <th style="width: 15%;">Sample 2</th>
-                                                <th style="width: 15%;">Sample 3</th>
-                                                <th style="width: 15%;">Sample 4</th>
-                                                <th style="width: 15%;">Sample 5</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody class="small">
-                                            <tr>
-                                                <td class="fw-bold text-start ps-2 bg-light">Lab / CP1 Number</td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-lab" placeholder="Lab / CP1 #"></td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-lab" placeholder="Lab / CP1 #"></td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-lab" placeholder="Lab / CP1 #"></td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-lab" placeholder="Lab / CP1 #"></td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-lab" placeholder="Lab / CP1 #"></td>
-                                            </tr>
-                                            <tr>
-                                                <td class="fw-bold text-start ps-2 bg-light">Test Date</td>
-                                                <td><input type="date" class="form-control form-control-sm text-center sulfide-grid-input sulfide-date"></td>
-                                                <td><input type="date" class="form-control form-control-sm text-center sulfide-grid-input sulfide-date"></td>
-                                                <td><input type="date" class="form-control form-control-sm text-center sulfide-grid-input sulfide-date"></td>
-                                                <td><input type="date" class="form-control form-control-sm text-center sulfide-grid-input sulfide-date"></td>
-                                                <td><input type="date" class="form-control form-control-sm text-center sulfide-grid-input sulfide-date"></td>
-                                            </tr>
-                                            <tr>
-                                                <td class="fw-bold text-start ps-2 bg-light">Weight Ticket #</td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-wt" placeholder="WT #"></td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-wt" placeholder="WT #"></td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-wt" placeholder="WT #"></td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-wt" placeholder="WT #"></td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-wt" placeholder="WT #"></td>
-                                            </tr>
-                                            <tr class="table-primary border-top border-primary">
-                                                <td class="fw-bold text-start ps-2">Total Sulfide (mg/kg)</td>
-                                                <td><input type="number" step="0.01" class="form-control form-control-sm text-center sulfide-grid-input sulfide-tot" oninput="recalcSulfideStats()"></td>
-                                                <td><input type="number" step="0.01" class="form-control form-control-sm text-center sulfide-grid-input sulfide-tot" oninput="recalcSulfideStats()"></td>
-                                                <td><input type="number" step="0.01" class="form-control form-control-sm text-center sulfide-grid-input sulfide-tot" oninput="recalcSulfideStats()"></td>
-                                                <td><input type="number" step="0.01" class="form-control form-control-sm text-center sulfide-grid-input sulfide-tot" oninput="recalcSulfideStats()"></td>
-                                                <td><input type="number" step="0.01" class="form-control form-control-sm text-center sulfide-grid-input sulfide-tot" oninput="recalcSulfideStats()"></td>
-                                            </tr>
-                                            <tr class="table-danger border-top border-danger">
-                                                <td class="fw-bold text-start ps-2">Reactive Sulfide (mg/kg)</td>
-                                                <td><input type="number" step="0.01" class="form-control form-control-sm text-center sulfide-grid-input sulfide-react" oninput="recalcSulfideStats()"></td>
-                                                <td><input type="number" step="0.01" class="form-control form-control-sm text-center sulfide-grid-input sulfide-react" oninput="recalcSulfideStats()"></td>
-                                                <td><input type="number" step="0.01" class="form-control form-control-sm text-center sulfide-grid-input sulfide-react" oninput="recalcSulfideStats()"></td>
-                                                <td><input type="number" step="0.01" class="form-control form-control-sm text-center sulfide-grid-input sulfide-react" oninput="recalcSulfideStats()"></td>
-                                                <td><input type="number" step="0.01" class="form-control form-control-sm text-center sulfide-grid-input sulfide-react" oninput="recalcSulfideStats()"></td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                                
+                                <!-- Cumulative Statistical Evaluation Header -->
+                                <div class="border rounded p-3 bg-white mb-3 shadow-sm">
+                                    <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                                        <h6 class="fw-bold text-dark mb-0">📊 Cumulative Statistical Evaluation (90% Confidence Level)</h6>
+                                        <span id="sulfideProgressBadge" class="badge bg-secondary fs-6">0 / 5 Samples Logged</span>
+                                    </div>
+                                    <div class="table-responsive mb-2">
+                                        <table class="table table-sm table-bordered align-middle text-nowrap mb-0">
+                                            <tbody class="small font-monospace">
+                                                <tr>
+                                                    <td class="fw-bold text-muted" style="width: 35%;">MEAN x</td>
+                                                    <td id="calcTotMean" class="fw-bold text-end text-primary" style="width: 32%;">0.00</td>
+                                                    <td id="calcReactMean" class="fw-bold text-end text-danger" style="width: 33%;">0.00</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-bold text-muted">STDDEV</td>
+                                                    <td id="calcTotStddev" class="fw-bold text-end">0.00</td>
+                                                    <td id="calcReactStddev" class="fw-bold text-end">0.00</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-bold text-muted">Degrees of Freedom (df = n-1)</td>
+                                                    <td id="calcTotDf" class="fw-bold text-end">0</td>
+                                                    <td id="calcReactDf" class="fw-bold text-end">0</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-bold text-muted">"t" Values (90% Confidence)</td>
+                                                    <td id="calcTotTval" class="fw-bold text-end">1.638</td>
+                                                    <td id="calcReactTval" class="fw-bold text-end">1.638</td>
+                                                </tr>
+                                                <tr class="table-light">
+                                                    <td class="fw-bold text-dark">Total Sulfide 90% CI = Mean + (Stddev * t)</td>
+                                                    <td colspan="2" id="calcTot90CI" class="fw-bold text-end fs-6 text-primary">0.00 mg/kg</td>
+                                                </tr>
+                                                <tr class="table-light">
+                                                    <td class="fw-bold text-dark">Reactive Sulfide 90% CI = Mean + (Stddev * t)</td>
+                                                    <td colspan="2" id="calcReact90CI" class="fw-bold text-end fs-6 text-danger">0.00 mg/kg</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-bold text-dark">Approval Status:</td>
+                                                    <td colspan="2" id="calcConclusion" class="fw-bold text-center">
+                                                        <span class="badge bg-secondary fs-6">Awaiting Sample Data</span>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
 
-                            <!-- Live Statistical Evaluation Card (Matching User Screenshot) -->
-                            <div class="border rounded p-3 bg-white mb-3">
-                                <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">📊 Statistical Evaluation Summary (90% Confidence Level)</h6>
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-bordered align-middle text-nowrap mb-0">
-                                        <tbody class="small font-monospace">
-                                            <tr>
-                                                <td class="fw-bold text-muted" style="width: 250px;">MEAN x</td>
-                                                <td id="calcTotMean" class="fw-bold text-end">0.00</td>
-                                                <td id="calcReactMean" class="fw-bold text-end">0.00</td>
-                                            </tr>
-                                            <tr>
-                                                <td class="fw-bold text-muted">STDDEV</td>
-                                                <td id="calcTotStddev" class="fw-bold text-end">0.00</td>
-                                                <td id="calcReactStddev" class="fw-bold text-end">0.00</td>
-                                            </tr>
-                                            <tr>
-                                                <td class="fw-bold text-muted">Degrees.Freedom = n-1</td>
-                                                <td id="calcTotDf" class="fw-bold text-end">0</td>
-                                                <td id="calcReactDf" class="fw-bold text-end">0</td>
-                                            </tr>
-                                            <tr>
-                                                <td class="fw-bold text-muted">"t" Values (90% Confidence)</td>
-                                                <td id="calcTotTval" class="fw-bold text-end">1.638</td>
-                                                <td id="calcReactTval" class="fw-bold text-end">1.638</td>
-                                            </tr>
-                                            <tr class="table-light">
-                                                <td class="fw-bold text-dark">Total Sulfide (mg/kg) @ 90% Confidence Level = Mean + (Stddev * t Value)</td>
-                                                <td colspan="2" id="calcTot90CI" class="fw-bold text-end fs-6 text-primary">0.00 mg/kg</td>
-                                            </tr>
-                                            <tr class="table-light">
-                                                <td class="fw-bold text-dark">Reactive Sulfide (mg/kg) @ 90% Confidence Level = Mean + (Stddev * t Value)</td>
-                                                <td colspan="2" id="calcReact90CI" class="fw-bold text-end fs-6 text-danger">0.00 mg/kg</td>
-                                            </tr>
-                                            <tr>
-                                                <td class="fw-bold text-dark">Conclusion:</td>
-                                                <td colspan="2" id="calcConclusion" class="fw-bold text-center">
-                                                    <span class="badge bg-secondary fs-6">Awaiting Sample Data</span>
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                                <!-- Single Daily Sample Input Form -->
+                                <div class="border rounded p-3 bg-white mb-3 shadow-sm">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="fw-bold text-danger mb-0" id="sulfideFormTitle">➕ Enter Daily Sample Test Result</h6>
+                                        <button class="btn btn-xs btn-outline-secondary d-none" id="btnCancelSulfideEdit" onclick="resetSulfideSampleForm()">❌ Cancel Edit</button>
+                                    </div>
+                                    <input type="hidden" id="sulfideEditingLogId" value="">
+                                    
+                                    <div class="row g-2">
+                                        <div class="col-md-2">
+                                            <label class="form-label small fw-bold mb-1">Test Date</label>
+                                            <input type="date" id="sulfideSampleDate" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label small fw-bold mb-1">Lab / CP1 #</label>
+                                            <input type="text" id="sulfideSampleLab" class="form-control form-control-sm text-uppercase" placeholder="e.g. 133823">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label small fw-bold mb-1">Weight Ticket #</label>
+                                            <input type="text" id="sulfideSampleWt" class="form-control form-control-sm text-uppercase" placeholder="e.g. WT-101">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small fw-bold mb-1 text-primary">Total Sulfide (mg/kg) *</label>
+                                            <input type="number" step="0.01" id="sulfideSampleTot" class="form-control form-control-sm fw-bold border-primary" placeholder="Total mg/kg" oninput="onSingleTotInputChange()">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small fw-bold mb-1 text-danger">Reactive Sulfide (mg/kg)</label>
+                                            <input type="number" step="0.01" id="sulfideSampleReact" class="form-control form-control-sm fw-bold border-danger bg-secondary bg-opacity-10 text-muted" disabled placeholder="N/A (≤1000)">
+                                        </div>
+                                        <div class="col-md-9 mt-2">
+                                            <input type="text" id="sulfideSampleNotes" class="form-control form-control-sm" placeholder="Testing notes / observations...">
+                                        </div>
+                                        <div class="col-md-3 mt-2">
+                                            <button class="btn btn-sm btn-crimson fw-bold w-100 shadow-sm" id="btnSaveSulfideSample" onclick="submitSingleSulfideSample()">
+                                                ➕ Save Sample Log
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div class="row g-2">
-                                <div class="col-md-9">
-                                    <input type="text" id="sulfideNotes" class="form-control form-control-sm border-secondary" placeholder="Testing notes / observations...">
+                                <!-- Historical Sample Logs Table with Edit & Delete -->
+                                <div class="mt-3">
+                                    <h6 class="fw-bold text-dark small mb-2 border-bottom pb-1">📋 Logged Daily Test Samples (<span id="sulfideLoggedCountText">0</span> Entries Recorded):</h6>
+                                    <div class="table-responsive" style="max-height: 280px;">
+                                        <table class="table table-sm table-bordered table-hover bg-white mb-0 text-nowrap align-middle">
+                                            <thead class="table-dark small text-center">
+                                                <tr>
+                                                    <th>#</th>
+                                                    <th>Test Date</th>
+                                                    <th>Lab / CP1 #</th>
+                                                    <th>Weight Ticket</th>
+                                                    <th>Total Sulfide</th>
+                                                    <th>Reactive Sulfide</th>
+                                                    <th>Tested By</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="sulfideHistoryBody" class="small text-center">
+                                                <tr><td colspan="8" class="text-center text-muted py-3">No sample logs recorded</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
-                                <div class="col-md-3">
-                                    <button class="btn btn-sm btn-crimson fw-bold w-100 shadow-sm" onclick="saveSulfideLog()">
-                                        💾 Save Sulfide Testing Log
-                                    </button>
-                                </div>
-                            </div>
 
-                            <!-- Historical Sulfide Logs -->
-                            <div class="mt-3">
-                                <h6 class="fw-bold text-dark small mb-2 border-bottom pb-1">Saved Historical Sulfide Testing Logs:</h6>
-                                <div class="table-responsive" style="max-height: 220px;">
-                                    <table class="table table-sm table-bordered table-hover bg-white mb-0 text-nowrap align-middle">
-                                        <thead class="table-dark small">
-                                            <tr>
-                                                <th>Date</th>
-                                                <th>Lab / CP1 #</th>
-                                                <th>Weight Ticket</th>
-                                                <th>Samples (n)</th>
-                                                <th>Total 90% CI</th>
-                                                <th>Reactive 90% CI</th>
-                                                <th>Result</th>
-                                                <th>Tested By</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="sulfideHistoryBody" class="small">
-                                            <tr><td colspan="8" class="text-center text-muted py-3">No sulfide test logs recorded</td></tr>
-                                        </tbody>
-                                    </table>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -2071,75 +2048,280 @@
             let totSamples = [];
             let reactSamples = [];
             
-            for (let i = 0; i < totInputs.length; i++) {
-                const totVal = parseFloat(totInputs[i].value);
-                
-                if (!isNaN(totVal) && totVal > 1000) {
-                    reactInputs[i].disabled = false;
-                    reactInputs[i].classList.remove('bg-secondary', 'bg-opacity-10', 'text-muted');
-                    reactInputs[i].placeholder = 'React #';
-                    
-                    const rVal = parseFloat(reactInputs[i].value);
-                    if (!isNaN(rVal)) reactSamples.push(rVal);
+        let currentSulfideLogs = [];
+
+        function onSingleTotInputChange() {
+            const totInp = document.getElementById('sulfideSampleTot');
+            const reactInp = document.getElementById('sulfideSampleReact');
+            if (!totInp || !reactInp) return;
+            
+            const val = parseFloat(totInp.value);
+            if (!isNaN(val) && val > 1000) {
+                reactInp.disabled = false;
+                reactInp.classList.remove('bg-secondary', 'bg-opacity-10', 'text-muted');
+                reactInp.placeholder = 'Reactive mg/kg';
+            } else {
+                reactInp.disabled = true;
+                reactInp.value = '';
+                reactInp.classList.add('bg-secondary', 'bg-opacity-10', 'text-muted');
+                reactInp.placeholder = 'N/A (≤1000)';
+            }
+        }
+
+        function resetSulfideSampleForm() {
+            const idInp = document.getElementById('sulfideEditingLogId');
+            if (idInp) idInp.value = '';
+            
+            const dateInp = document.getElementById('sulfideSampleDate');
+            if (dateInp) dateInp.value = new Date().toISOString().split('T')[0];
+            
+            const labInp = document.getElementById('sulfideSampleLab');
+            if (labInp) labInp.value = '';
+            
+            const wtInp = document.getElementById('sulfideSampleWt');
+            if (wtInp) wtInp.value = '';
+            
+            const totInp = document.getElementById('sulfideSampleTot');
+            if (totInp) totInp.value = '';
+            
+            const reactInp = document.getElementById('sulfideSampleReact');
+            if (reactInp) reactInp.value = '';
+            
+            const notesInp = document.getElementById('sulfideSampleNotes');
+            if (notesInp) notesInp.value = '';
+            
+            onSingleTotInputChange();
+            
+            const titleEl = document.getElementById('sulfideFormTitle');
+            if (titleEl) titleEl.innerHTML = '➕ Enter Daily Sample Test Result';
+            
+            const saveBtn = document.getElementById('btnSaveSulfideSample');
+            if (saveBtn) saveBtn.innerHTML = '➕ Save Sample Log';
+            
+            const cancelBtn = document.getElementById('btnCancelSulfideEdit');
+            if (cancelBtn) cancelBtn.classList.add('d-none');
+        }
+
+        function updateSulfideStatsHeader(stats) {
+            if (!stats) return;
+            
+            const totMeanEl = document.getElementById('calcTotMean');
+            if (totMeanEl) totMeanEl.innerText = stats.total_sulfide.mean.toFixed(2);
+            
+            const reactMeanEl = document.getElementById('calcReactMean');
+            if (reactMeanEl) reactMeanEl.innerText = stats.reactive_sulfide.mean > 0 ? stats.reactive_sulfide.mean.toFixed(2) : 'N/A (≤1000)';
+            
+            const totStdEl = document.getElementById('calcTotStddev');
+            if (totStdEl) totStdEl.innerText = stats.total_sulfide.stddev.toFixed(2);
+            
+            const reactStdEl = document.getElementById('calcReactStddev');
+            if (reactStdEl) reactStdEl.innerText = stats.reactive_sulfide.mean > 0 ? stats.reactive_sulfide.stddev.toFixed(2) : '0.00';
+            
+            const totDfEl = document.getElementById('calcTotDf');
+            if (totDfEl) totDfEl.innerText = stats.df;
+            
+            const reactDfEl = document.getElementById('calcReactDf');
+            if (reactDfEl) reactDfEl.innerText = stats.df;
+            
+            const totTvalEl = document.getElementById('calcTotTval');
+            if (totTvalEl) totTvalEl.innerText = stats.t_value.toFixed(3);
+            
+            const reactTvalEl = document.getElementById('calcReactTval');
+            if (reactTvalEl) reactTvalEl.innerText = stats.t_value.toFixed(3);
+            
+            const tot90El = document.getElementById('calcTot90CI');
+            if (tot90El) tot90El.innerText = stats.total_sulfide.ci90.toFixed(2) + ' mg/kg';
+            
+            const react90El = document.getElementById('calcReact90CI');
+            if (react90El) react90El.innerText = stats.reactive_sulfide.mean > 0 ? stats.reactive_sulfide.ci90.toFixed(2) + ' mg/kg' : 'N/A (≤1000 mg/kg)';
+            
+            const badgeEl = document.getElementById('sulfideProgressBadge');
+            if (badgeEl) {
+                if (stats.n >= 5) {
+                    badgeEl.className = 'badge bg-success fs-6';
+                    badgeEl.innerText = `${stats.n} / 5 Samples Logged (Complete)`;
                 } else {
-                    reactInputs[i].disabled = true;
-                    reactInputs[i].value = '';
-                    reactInputs[i].classList.add('bg-secondary', 'bg-opacity-10', 'text-muted');
-                    reactInputs[i].placeholder = 'N/A (≤1000)';
+                    badgeEl.className = 'badge bg-warning text-dark fs-6';
+                    badgeEl.innerText = `${stats.n} / 5 Samples Logged (${stats.tests_remaining} Needed)`;
                 }
-                
-                if (!isNaN(totVal)) totSamples.push(totVal);
             }
-            
-            function computeStats(arr) {
-                const n = arr.length;
-                if (n === 0) return { n: 0, df: 0, mean: 0, stddev: 0, tVal: 1.638, ci90: 0 };
-                const mean = arr.reduce((a, b) => a + b, 0) / n;
-                let stddev = 0;
-                if (n > 1) {
-                    const variance = arr.reduce((sum, x) => sum + Math.pow(x - mean, 2), 0) / (n - 1);
-                    stddev = Math.sqrt(variance);
-                }
-                const df = Math.max(1, n - 1);
-                const tVal = T_TABLE_90_MAP[df] || 1.476;
-                const ci90 = mean + (stddev * tVal);
-                return { n, df, mean, stddev, tVal, ci90 };
-            }
-            
-            const totStats = computeStats(totSamples);
-            const reactStats = computeStats(reactSamples);
-            
-            document.getElementById('calcTotMean').innerText = totStats.mean.toFixed(2);
-            document.getElementById('calcReactMean').innerText = reactStats.n > 0 ? reactStats.mean.toFixed(2) : 'N/A (≤1000)';
-            
-            document.getElementById('calcTotStddev').innerText = totStats.stddev.toFixed(2);
-            document.getElementById('calcReactStddev').innerText = reactStats.n > 0 ? reactStats.stddev.toFixed(2) : '0.00';
-            
-            document.getElementById('calcTotDf').innerText = totStats.df;
-            document.getElementById('calcReactDf').innerText = reactStats.df;
-            
-            document.getElementById('calcTotTval').innerText = totStats.tVal.toFixed(3);
-            document.getElementById('calcReactTval').innerText = reactStats.tVal.toFixed(3);
-            
-            document.getElementById('calcTot90CI').innerText = totStats.ci90.toFixed(2) + ' mg/kg';
-            document.getElementById('calcReact90CI').innerText = reactStats.n > 0 ? reactStats.ci90.toFixed(2) + ' mg/kg' : 'N/A (≤1000 mg/kg)';
             
             const conclusionEl = document.getElementById('calcConclusion');
-            const hasExceedance = totSamples.some(v => v > 1000);
-
-            if (totStats.n === 0) {
-                conclusionEl.innerHTML = '<span class="badge bg-secondary fs-6">Awaiting Sample Data</span>';
-            } else if (totStats.n < 5) {
-                conclusionEl.innerHTML = `<span class="badge bg-warning text-dark fs-6">💾 Saved ${totStats.n}/5 Tests — ${5 - totStats.n} More Test(s) Required Before Approval</span>`;
-            } else if (!hasExceedance) {
-                conclusionEl.innerHTML = `<span class="badge bg-success fs-6">✅ APPROVED: 5/5 Tests Complete — No Further Testing Required</span>`;
-            } else if (reactStats.n === 0) {
-                conclusionEl.innerHTML = `<span class="badge bg-warning text-dark fs-6">⚠️ Total > 1000 mg/kg: Reactive Test Required</span>`;
-            } else if (reactStats.ci90 <= 500.0) {
-                conclusionEl.innerHTML = `<span class="badge bg-success fs-6">✅ APPROVED: 5/5 Tests Complete — ${reactStats.ci90.toFixed(2)} mg/kg (≤ 500 limit)</span>`;
-            } else {
-                conclusionEl.innerHTML = `<span class="badge bg-danger fs-6">⚠️ FAIL: ${reactStats.ci90.toFixed(2)} mg/kg EXCEEDS 500 mg/kg LIMIT!</span>`;
+            if (conclusionEl) {
+                if (stats.n === 0) {
+                    conclusionEl.innerHTML = '<span class="badge bg-secondary fs-6">Awaiting Sample Data</span>';
+                } else if (stats.n < 5) {
+                    conclusionEl.innerHTML = `<span class="badge bg-warning text-dark fs-6">💾 ${stats.n}/5 Samples Logged — ${stats.tests_remaining} More Required Before Approval</span>`;
+                } else if (stats.reactive_pass) {
+                    conclusionEl.innerHTML = `<span class="badge bg-success fs-6">✅ APPROVED: 5/5 Samples Logged — No Further Sulfide Testing Required</span>`;
+                } else {
+                    conclusionEl.innerHTML = `<span class="badge bg-danger fs-6">⚠️ FAIL: ${stats.reactive_sulfide.ci90.toFixed(2)} mg/kg EXCEEDS 500 mg/kg LIMIT!</span>`;
+                }
             }
+        }
+
+        function submitSingleSulfideSample() {
+            if (!currentProfile) {
+                alert('Please select a profile first.');
+                return;
+            }
+            
+            const editingId = document.getElementById('sulfideEditingLogId').value.trim();
+            const dateVal = document.getElementById('sulfideSampleDate').value || new Date().toISOString().split('T')[0];
+            const labVal = document.getElementById('sulfideSampleLab').value.trim();
+            const wtVal = document.getElementById('sulfideSampleWt').value.trim();
+            const totVal = document.getElementById('sulfideSampleTot').value.trim();
+            const reactVal = document.getElementById('sulfideSampleReact').value.trim();
+            const notesVal = document.getElementById('sulfideSampleNotes').value.trim();
+            
+            if (!totVal || isNaN(parseFloat(totVal))) {
+                alert('Please enter a valid numeric Total Sulfide value.');
+                document.getElementById('sulfideSampleTot').focus();
+                return;
+            }
+            
+            const totNum = parseFloat(totVal);
+            if (totNum > 1000 && (!reactVal || isNaN(parseFloat(reactVal)))) {
+                alert('Total Sulfide exceeds 1000 mg/kg. Please enter the Reactive Sulfide test measurement.');
+                document.getElementById('sulfideSampleReact').focus();
+                return;
+            }
+            
+            const payload = {
+                test_date: dateVal,
+                lab_number: labVal,
+                cp1_number: labVal,
+                weight_ticket: wtVal,
+                total_sulfide: totNum,
+                reactive_sulfide: reactVal !== '' ? parseFloat(reactVal) : null,
+                notes: notesVal,
+                tested_by: 'Lab Chemist'
+            };
+            
+            const url = editingId 
+                ? `/api/profile/sulfide_log/${editingId}` 
+                : `/api/profile/${encodeURIComponent(currentProfile)}/sulfide_log`;
+            const method = editingId ? 'PUT' : 'POST';
+            
+            fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    currentSulfideLogs = data.logs || [];
+                    updateSulfideStatsHeader(data.stats);
+                    renderSulfideHistoryTable(data.logs);
+                    resetSulfideSampleForm();
+                    
+                    if (editingId) {
+                        alert('Sample log entry updated successfully!');
+                    } else {
+                        const statusMsg = data.stats.approval_status === 'APPROVED'
+                            ? '✅ APPROVED (5/5 Samples Logged - No Further Testing Required)'
+                            : `💾 Saved (${data.stats.n}/5 Samples Logged - ${data.stats.tests_remaining} More Required)`;
+                        alert(`Sample Log Saved Successfully!\nStatus: ${statusMsg}`);
+                    }
+                } else {
+                    alert('Error saving sample log: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(err => alert('Network error while saving sample log.'));
+        }
+
+        function editSulfideSample(logId) {
+            const item = currentSulfideLogs.find(l => l.id == logId);
+            if (!item) return;
+            
+            document.getElementById('sulfideEditingLogId').value = item.id;
+            document.getElementById('sulfideSampleDate').value = item.test_date ? item.test_date.split('T')[0].split(' ')[0] : new Date().toISOString().split('T')[0];
+            document.getElementById('sulfideSampleLab').value = item.lab_number || item.cp1_number || '';
+            document.getElementById('sulfideSampleWt').value = item.weight_ticket || '';
+            document.getElementById('sulfideSampleTot').value = item.total_sulfide !== null && item.total_sulfide !== undefined ? item.total_sulfide : '';
+            
+            onSingleTotInputChange();
+            
+            if (item.reactive_sulfide !== null && item.reactive_sulfide !== undefined) {
+                document.getElementById('sulfideSampleReact').value = item.reactive_sulfide;
+            }
+            document.getElementById('sulfideSampleNotes').value = item.notes || '';
+            
+            document.getElementById('sulfideFormTitle').innerHTML = `✏️ Edit Sample Log Entry (ID #${item.id})`;
+            document.getElementById('btnSaveSulfideSample').innerHTML = '💾 Update Sample Log';
+            document.getElementById('btnCancelSulfideEdit').classList.remove('d-none');
+            document.getElementById('sulfideSampleTot').focus();
+        }
+
+        function deleteSulfideSample(logId) {
+            if (!confirm(`Are you sure you want to delete sample log entry #${logId}?`)) return;
+            
+            fetch(`/api/profile/sulfide_log/${logId}`, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        currentSulfideLogs = data.logs || [];
+                        updateSulfideStatsHeader(data.stats);
+                        renderSulfideHistoryTable(data.logs);
+                        resetSulfideSampleForm();
+                        alert('Sample log entry deleted successfully.');
+                    } else {
+                        alert('Error deleting log: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(err => alert('Network error while deleting log.'));
+        }
+
+        function renderSulfideHistoryTable(logs) {
+            const tbody = document.getElementById('sulfideHistoryBody');
+            const countText = document.getElementById('sulfideLoggedCountText');
+            if (!tbody) return;
+            
+            if (countText) countText.innerText = logs ? logs.length : 0;
+            
+            if (!logs || logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">No sample logs recorded for this profile</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = '';
+            logs.forEach((l, idx) => {
+                const dateStr = l.test_date ? l.test_date.split('T')[0].split(' ')[0] : '---';
+                const labStr = l.lab_number || l.cp1_number || '---';
+                const wtStr = l.weight_ticket || '---';
+                const totStr = l.total_sulfide !== null && l.total_sulfide !== undefined ? `${l.total_sulfide} mg/kg` : (l.total_sulfide_90ci ? `${l.total_sulfide_90ci} mg/kg (90% CI)` : '---');
+                const reactStr = l.reactive_sulfide !== null && l.reactive_sulfide !== undefined ? `${l.reactive_sulfide} mg/kg` : '<span class="text-muted fst-italic">N/A (≤1000)</span>';
+                
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="fw-bold text-muted">${idx + 1}</td>
+                        <td>${dateStr}</td>
+                        <td class="fw-bold text-dark">${labStr}</td>
+                        <td class="fw-bold text-primary">${wtStr}</td>
+                        <td class="fw-bold text-primary">${totStr}</td>
+                        <td class="fw-bold text-danger">${reactStr}</td>
+                        <td>${l.tested_by || 'Lab Chemist'}</td>
+                        <td>
+                            <button class="btn btn-xs btn-outline-primary py-0 px-2 me-1" onclick="editSulfideSample(${l.id})" title="Edit Sample Entry">✏️ Edit</button>
+                            <button class="btn btn-xs btn-outline-danger py-0 px-2" onclick="deleteSulfideSample(${l.id})" title="Delete Sample Entry">🗑️ Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function loadSulfideHistory(profNum) {
+            if (!profNum) return;
+            resetSulfideSampleForm();
+            fetch(`/api/profile/${encodeURIComponent(profNum)}/sulfide_log?_t=${Date.now()}`)
+                .then(r => r.json())
+                .then(res => {
+                    currentSulfideLogs = res.logs || [];
+                    updateSulfideStatsHeader(res.stats);
+                    renderSulfideHistoryTable(res.logs);
+                })
+                .catch(err => console.error('Error loading sulfide history:', err));
         }
 
         function saveVocAnalyzerLog() {
@@ -2214,209 +2396,6 @@
                                 <td class="text-muted fst-italic">${l.notes || '---'}</td>
                             </tr>
                         `;
-                    });
-                });
-        }
-
-        function saveSulfideLog() {
-            if (!currentProfile) {
-                alert('Please select a profile first.');
-                return;
-            }
-            const labInputs = document.querySelectorAll('.sulfide-lab');
-            const dateInputs = document.querySelectorAll('.sulfide-date');
-            const wtInputs = document.querySelectorAll('.sulfide-wt');
-            const cp1Inputs = document.querySelectorAll('.sulfide-cp1');
-            const totInputs = document.querySelectorAll('.sulfide-tot');
-            const reactInputs = document.querySelectorAll('.sulfide-react');
-            const notes = document.getElementById('sulfideNotes').value.trim();
-            
-            let totSamples = [];
-            let reactSamples = [];
-            let sampleMeta = [];
-            
-            for (let i = 0; i < totInputs.length; i++) {
-                const totVal = parseFloat(totInputs[i].value);
-                const reactVal = parseFloat(reactInputs[i].value);
-                
-                if (!isNaN(totVal) || !isNaN(reactVal)) {
-                    if (!isNaN(totVal)) totSamples.push(totVal);
-                    if (!isNaN(reactVal)) reactSamples.push(reactVal);
-                    
-                    const labCp1Val = (labInputs[i]?.value || '').trim().toUpperCase();
-                    sampleMeta.push({
-                        sample_num: i + 1,
-                        lab_number: labCp1Val,
-                        cp1_number: labCp1Val,
-                        test_date: dateInputs[i]?.value || new Date().toISOString().split('T')[0],
-                        weight_ticket: (wtInputs[i]?.value || '').trim().toUpperCase(),
-                        total_sulfide: !isNaN(totVal) ? totVal : null,
-                        reactive_sulfide: !isNaN(reactVal) ? reactVal : null
-                    });
-                }
-            }
-            
-            if (totSamples.length === 0) {
-                alert('Please enter at least 1 valid sample measurement for Total Sulfide.');
-                return;
-            }
-            const hasExceedance = totSamples.some(v => v > 1000);
-            if (hasExceedance && reactSamples.length === 0) {
-                alert('Total Sulfide exceeds 1000 mg/kg on 1 or more samples. Please enter the Reactive Sulfide test results.');
-                return;
-            }
-            
-            const firstLab = sampleMeta[0]?.lab_number || '';
-            const firstDate = sampleMeta[0]?.test_date || '';
-            const firstWt = sampleMeta[0]?.weight_ticket || '';
-            const firstCp1 = sampleMeta[0]?.cp1_number || '';
-            
-            fetch(`/api/profile/${encodeURIComponent(currentProfile)}/sulfide_log`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    cp1_number: firstCp1,
-                    lab_number: firstLab,
-                    weight_ticket: firstWt,
-                    test_date: firstDate,
-                    total_sulfide_samples: totSamples,
-                    reactive_sulfide_samples: reactSamples,
-                    sample_metadata: sampleMeta,
-                    notes: notes,
-                    tested_by: 'Lab Chemist'
-                })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    totInputs.forEach(inp => inp.value = '');
-                    reactInputs.forEach(inp => inp.value = '');
-                    labInputs.forEach(inp => inp.value = '');
-                    wtInputs.forEach(inp => inp.value = '');
-                    cp1Inputs.forEach(inp => inp.value = '');
-                    document.getElementById('sulfideNotes').value = '';
-                    recalcSulfideStats();
-                    loadSulfideHistory(currentProfile);
-                    
-                    let statusText = '';
-                    if (data.approval_status === 'APPROVED') {
-                        statusText = '✅ APPROVED (5/5 Tests Complete - No Further Testing Required)';
-                    } else if (data.approval_status === 'IN_PROGRESS') {
-                        statusText = `💾 IN PROGRESS (${data.n}/5 Tests Taken - ${data.tests_remaining} More Required Before Approval)`;
-                    } else {
-                        statusText = '⚠️ FAILED (Exceeds 500 mg/kg limit)';
-                    }
-                    alert(`Sulfide Testing Log Saved Successfully!\nStatus: ${statusText}\nTotal 90% CI: ${data.total_sulfide.ci90} mg/kg`);
-                } else {
-                    alert('Error saving sulfide testing log: ' + (data.error || 'Unknown error'));
-                }
-            })
-            .catch(err => alert('Network error while saving sulfide testing log.'));
-        }
-
-        function loadSulfideHistory(profNum) {
-            if (!profNum) return;
-            const tbody = document.getElementById('sulfideHistoryBody');
-            if (!tbody) return;
-            
-            fetch(`/api/profile/${encodeURIComponent(profNum)}/sulfide_log?_t=${Date.now()}`)
-                .then(r => r.json())
-                .then(logs => {
-                    if (logs.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">No sulfide test logs recorded</td></tr>';
-                        return;
-                    }
-                    tbody.innerHTML = '';
-                    logs.forEach(l => {
-                        let passBadge = '';
-                        if (l.sample_count < 5) {
-                            passBadge = `<span class="badge bg-warning text-dark">IN PROGRESS (${l.sample_count}/5 Tests)</span>`;
-                        } else if (l.reactive_pass) {
-                            passBadge = '<span class="badge bg-success">APPROVED (5/5 Tests)</span>';
-                        } else {
-                            passBadge = '<span class="badge bg-danger">FAIL (> 500)</span>';
-                        }
-                            
-                        let sampleMetaArr = [];
-                        if (l.sample_metadata) {
-                            try { sampleMetaArr = typeof l.sample_metadata === 'string' ? JSON.parse(l.sample_metadata) : l.sample_metadata; }
-                            catch (e) {}
-                        }
-                        
-                        let labDisplay = l.lab_number || l.cp1_number || '---';
-                        let wtDisplay = l.weight_ticket || '---';
-                        
-                        if (sampleMetaArr.length > 0) {
-                            const uniqueLabs = [...new Set(sampleMetaArr.map(s => s.lab_number || s.cp1_number).filter(Boolean))];
-                            if (uniqueLabs.length > 0) labDisplay = uniqueLabs.join(', ');
-                            
-                            const uniqueWts = [...new Set(sampleMetaArr.map(s => s.weight_ticket).filter(Boolean))];
-                            if (uniqueWts.length > 0) wtDisplay = uniqueWts.join(', ');
-                        }
-                        
-                        let subTableRows = '';
-                        if (sampleMetaArr.length > 0) {
-                            sampleMetaArr.forEach(s => {
-                                const totStr = s.total_sulfide !== null && s.total_sulfide !== undefined ? `${s.total_sulfide} mg/kg` : '---';
-                                const reactStr = s.reactive_sulfide !== null && s.reactive_sulfide !== undefined ? `${s.reactive_sulfide} mg/kg` : '<span class="text-muted fst-italic">N/A (≤1000)</span>';
-                                subTableRows += `
-                                    <tr>
-                                        <td class="fw-bold">Sample ${s.sample_num}</td>
-                                        <td class="fw-bold text-dark">${s.lab_number || s.cp1_number || '---'}</td>
-                                        <td>${s.test_date || '---'}</td>
-                                        <td class="text-primary">${s.weight_ticket || '---'}</td>
-                                        <td class="fw-bold text-primary">${totStr}</td>
-                                        <td class="fw-bold text-danger">${reactStr}</td>
-                                    </tr>
-                                `;
-                            });
-                        }
-                        
-                        const collapseId = `sulfideSubRow_${l.id}`;
-                        const hasDetails = sampleMetaArr.length > 0;
-                        const toggleBtn = hasDetails 
-                            ? `<button class="btn btn-xs btn-outline-secondary py-0 px-1 me-1 border-0" data-bs-toggle="collapse" data-bs-target="#${collapseId}" title="Toggle per-sample breakdown">🔍</button>` 
-                            : '';
-                        
-                        tbody.innerHTML += `
-                            <tr>
-                                <td>${toggleBtn}${l.test_date ? l.test_date.split('T')[0].split(' ')[0] : '---'}</td>
-                                <td class="fw-bold text-dark">${labDisplay}</td>
-                                <td class="fw-bold text-primary">${wtDisplay}</td>
-                                <td class="text-center fw-bold">${l.sample_count}</td>
-                                <td class="fw-bold text-primary">${l.total_sulfide_90ci} mg/kg</td>
-                                <td class="fw-bold text-danger">${l.reactive_sulfide_90ci} mg/kg</td>
-                                <td>${passBadge}</td>
-                                <td>${l.tested_by || 'Lab Chemist'}</td>
-                            </tr>
-                        `;
-                        
-                        if (hasDetails) {
-                            tbody.innerHTML += `
-                                <tr id="${collapseId}" class="collapse bg-light">
-                                    <td colspan="8" class="p-2 border-bottom">
-                                        <div class="bg-white p-2 rounded border shadow-sm">
-                                            <div class="fw-bold text-secondary small mb-1 text-start ps-1">📋 Individual Sample Results Breakdown:</div>
-                                            <table class="table table-sm table-bordered text-center mb-0 small">
-                                                <thead class="table-light">
-                                                    <tr>
-                                                        <th>Sample #</th>
-                                                        <th>Lab / CP1 #</th>
-                                                        <th>Test Date</th>
-                                                        <th>Weight Ticket #</th>
-                                                        <th>Total Sulfide</th>
-                                                        <th>Reactive Sulfide</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    ${subTableRows}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </td>
-                                </tr>
-                            `;
-                        }
                     });
                 });
         }

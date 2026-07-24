@@ -759,6 +759,74 @@ def api_profile_voc_analyzer(profile_number):
             return jsonify([dict(l) for l in logs])
 
 
+def calculate_sulfide_summary_stats(logs):
+    import math
+    tot_samples = []
+    react_samples = []
+    
+    for l in logs:
+        # Check single sample columns
+        t_val_item = l.get('total_sulfide')
+        r_val_item = l.get('reactive_sulfide')
+        
+        if t_val_item is not None and str(t_val_item).strip() != '':
+            try: tot_samples.append(float(t_val_item))
+            except: pass
+            if r_val_item is not None and str(r_val_item).strip() != '':
+                try: react_samples.append(float(r_val_item))
+                except: pass
+        elif l.get('total_sulfide_samples'):
+            # Legacy bulk array handling
+            try:
+                raw_tot = json.loads(l['total_sulfide_samples']) if isinstance(l['total_sulfide_samples'], str) else l['total_sulfide_samples']
+                tot_samples.extend([float(x) for x in raw_tot if x is not None])
+            except: pass
+            try:
+                raw_react = json.loads(l['reactive_sulfide_samples']) if isinstance(l['reactive_sulfide_samples'], str) else l['reactive_sulfide_samples']
+                react_samples.extend([float(x) for x in raw_react if x is not None])
+            except: pass
+
+    n = len(tot_samples)
+    if n == 0:
+        return {
+            'n': 0, 'df': 0, 't_value': 1.638,
+            'total_sulfide': {'mean': 0.0, 'stddev': 0.0, 'ci90': 0.0},
+            'reactive_sulfide': {'mean': 0.0, 'stddev': 0.0, 'ci90': 0.0},
+            'reactive_pass': False,
+            'approval_status': 'AWAITING_DATA',
+            'tests_remaining': 5
+        }
+        
+    df = max(1, n - 1)
+    t_val = T_TABLE_90_CONFIDENCE.get(df, 1.476)
+    
+    def calc(samples):
+        cnt = len(samples)
+        if cnt == 0: return 0.0, 0.0, 0.0
+        mean = sum(samples) / float(cnt)
+        stddev = math.sqrt(sum((x - mean)**2 for x in samples) / float(cnt - 1)) if cnt > 1 else 0.0
+        ci90 = mean + (stddev * t_val)
+        return round(mean, 2), round(stddev, 2), round(ci90, 2)
+        
+    tot_mean, tot_stddev, tot_ci90 = calc(tot_samples)
+    react_mean, react_stddev, react_ci90 = calc(react_samples)
+    
+    is_approved = (n >= 5) and (len(react_samples) == 0 or react_ci90 <= 500.0)
+    reactive_pass = 1 if is_approved else 0
+    approval_status = "APPROVED" if is_approved else ("IN_PROGRESS" if n < 5 else "FAILED")
+    tests_remaining = max(0, 5 - n)
+    
+    return {
+        'n': n,
+        'df': df,
+        't_value': t_val,
+        'total_sulfide': {'mean': tot_mean, 'stddev': tot_stddev, 'ci90': tot_ci90},
+        'reactive_sulfide': {'mean': react_mean, 'stddev': react_stddev, 'ci90': react_ci90},
+        'reactive_pass': bool(reactive_pass),
+        'approval_status': approval_status,
+        'tests_remaining': tests_remaining
+    }
+
 @approvals_bp.route('/api/profile/<path:profile_number>/sulfide_log', methods=['GET', 'POST'])
 def api_profile_sulfide_log(profile_number):
     profile_clean = str(profile_number).strip().upper()
@@ -772,109 +840,116 @@ def api_profile_sulfide_log(profile_number):
             tested_by = str(data.get('tested_by', 'Lab Chemist')).strip()
             notes = str(data.get('notes', '')).strip()
             test_date_input = data.get('test_date')
-            sample_metadata_input = data.get('sample_metadata', [])
             
-            tot_raw = data.get('total_sulfide_samples', [])
-            react_raw = data.get('reactive_sulfide_samples', [])
+            tot_val = data.get('total_sulfide')
+            react_val = data.get('reactive_sulfide')
             
-            if isinstance(tot_raw, str):
-                try: tot_raw = json.loads(tot_raw)
-                except: tot_raw = [float(x) for x in tot_raw.split(',') if x.strip()]
-            if isinstance(react_raw, str):
-                try: react_raw = json.loads(react_raw)
-                except: react_raw = [float(x) for x in react_raw.split(',') if x.strip()]
-            if isinstance(sample_metadata_input, str):
-                try: sample_metadata_input = json.loads(sample_metadata_input)
-                except: sample_metadata_input = []
+            # Single sample validation
+            if tot_val is None or str(tot_val).strip() == '':
+                # Check legacy array input fallback
+                tot_raw = data.get('total_sulfide_samples', [])
+                if not tot_raw:
+                    return jsonify({'error': 'Total Sulfide (mg/kg) is required.'}), 400
+                tot_val = tot_raw[0] if isinstance(tot_raw, list) else float(tot_raw)
                 
-            tot_samples = [float(x) for x in tot_raw if x is not None and str(x).strip() != '']
-            react_samples = [float(x) for x in react_raw if x is not None and str(x).strip() != '']
-            
-            n = len(tot_samples)
-            if n == 0:
-                return jsonify({'error': 'At least 1 valid test sample is required.'}), 400
-                
-            df = max(1, n - 1)
-            t_val = T_TABLE_90_CONFIDENCE.get(df, 1.476)
-            
-            def calc_stats(samples, df, t_val):
-                n_count = len(samples)
-                if n_count == 0:
-                    return 0.0, 0.0, 0.0
-                mean = sum(samples) / float(n_count)
-                if n_count > 1:
-                    variance = sum((x - mean) ** 2 for x in samples) / float(n_count - 1)
-                    stddev = math.sqrt(variance)
-                else:
-                    stddev = 0.0
-                ci_90 = mean + (stddev * t_val)
-                return round(mean, 2), round(stddev, 2), round(ci_90, 2)
-                
-            tot_mean, tot_stddev, tot_ci90 = calc_stats(tot_samples, df, t_val)
-            react_mean, react_stddev, react_ci90 = calc_stats(react_samples, df, t_val)
-            
-            # Approval requires at least 5 tests (n >= 5) and meeting the sulfide limits
-            is_approved = (n >= 5) and (len(react_samples) == 0 or react_ci90 <= 500.0)
-            reactive_pass = 1 if is_approved else 0
-            approval_status = "APPROVED" if is_approved else ("IN_PROGRESS" if n < 5 else "FAILED")
-            tests_remaining = max(0, 5 - n)
-            sample_meta_json = json.dumps(sample_metadata_input)
+            tot_num = float(tot_val)
+            react_num = float(react_val) if (react_val is not None and str(react_val).strip() != '') else None
             
             if test_date_input:
                 conn.execute('''
                     INSERT INTO sulfide_testing_logs (
-                        profile_number, cp1_number, lab_number, weight_ticket, sample_count,
-                        total_sulfide_samples, reactive_sulfide_samples, total_sulfide_mean,
-                        total_sulfide_stddev, total_sulfide_90ci, reactive_sulfide_mean,
-                        reactive_sulfide_stddev, reactive_sulfide_90ci, degrees_of_freedom,
-                        t_value, reactive_pass, tested_by, test_date, notes, sample_metadata
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        profile_number, cp1_number, lab_number, weight_ticket,
+                        total_sulfide, reactive_sulfide, tested_by, test_date, notes
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
-                    profile_clean, cp1_number, lab_number, weight_ticket, n,
-                    json.dumps(tot_samples), json.dumps(react_samples), tot_mean,
-                    tot_stddev, tot_ci90, react_mean, react_stddev, react_ci90,
-                    df, t_val, reactive_pass, tested_by, test_date_input, notes, sample_meta_json
+                    profile_clean, cp1_number, lab_number, weight_ticket,
+                    tot_num, react_num, tested_by, test_date_input, notes
                 ))
             else:
                 conn.execute('''
                     INSERT INTO sulfide_testing_logs (
-                        profile_number, cp1_number, lab_number, weight_ticket, sample_count,
-                        total_sulfide_samples, reactive_sulfide_samples, total_sulfide_mean,
-                        total_sulfide_stddev, total_sulfide_90ci, reactive_sulfide_mean,
-                        reactive_sulfide_stddev, reactive_sulfide_90ci, degrees_of_freedom,
-                        t_value, reactive_pass, tested_by, notes, sample_metadata
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        profile_number, cp1_number, lab_number, weight_ticket,
+                        total_sulfide, reactive_sulfide, tested_by, notes
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
-                    profile_clean, cp1_number, lab_number, weight_ticket, n,
-                    json.dumps(tot_samples), json.dumps(react_samples), tot_mean,
-                    tot_stddev, tot_ci90, react_mean, react_stddev, react_ci90,
-                    df, t_val, reactive_pass, tested_by, notes, sample_meta_json
+                    profile_clean, cp1_number, lab_number, weight_ticket,
+                    tot_num, react_num, tested_by, notes
                 ))
             conn.commit()
             
+            # Fetch all logs to compute summary
+            rows = conn.execute('''
+                SELECT * FROM sulfide_testing_logs
+                WHERE TRIM(UPPER(profile_number)) = ?
+                ORDER BY test_date ASC, id ASC
+            ''', (profile_clean,)).fetchall()
+            logs = [dict(r) for r in rows]
+            stats = calculate_sulfide_summary_stats(logs)
+            
             return jsonify({
                 'success': True,
-                'n': n,
-                'df': df,
-                't_value': t_val,
-                'total_sulfide': {'mean': tot_mean, 'stddev': tot_stddev, 'ci90': tot_ci90},
-                'reactive_sulfide': {'mean': react_mean, 'stddev': react_stddev, 'ci90': react_ci90},
-                'reactive_pass': bool(reactive_pass),
-                'approval_status': approval_status,
-                'tests_remaining': tests_remaining
+                'stats': stats,
+                'logs': logs
             })
         else:
-            logs = conn.execute('''
-                SELECT id, cp1_number, lab_number, weight_ticket, sample_count,
-                       total_sulfide_samples, reactive_sulfide_samples, total_sulfide_mean,
-                       total_sulfide_stddev, total_sulfide_90ci, reactive_sulfide_mean,
-                       reactive_sulfide_stddev, reactive_sulfide_90ci, degrees_of_freedom,
-                       t_value, reactive_pass, tested_by, test_date, notes, sample_metadata
-                FROM sulfide_testing_logs
+            rows = conn.execute('''
+                SELECT * FROM sulfide_testing_logs
                 WHERE TRIM(UPPER(profile_number)) = ?
-                ORDER BY test_date DESC
+                ORDER BY test_date ASC, id ASC
             ''', (profile_clean,)).fetchall()
-            return jsonify([dict(l) for l in logs])
+            logs = [dict(r) for r in rows]
+            stats = calculate_sulfide_summary_stats(logs)
+            return jsonify({'logs': logs, 'stats': stats})
+
+
+@approvals_bp.route('/api/profile/sulfide_log/<int:log_id>', methods=['PUT', 'DELETE'])
+def api_profile_sulfide_log_item(log_id):
+    with closing(get_db_connection()) as conn:
+        log = conn.execute('SELECT * FROM sulfide_testing_logs WHERE id = ?', (log_id,)).fetchone()
+        if not log:
+            return jsonify({'error': 'Log entry not found'}), 404
+            
+        profile_clean = log['profile_number']
+        
+        if request.method == 'DELETE':
+            conn.execute('DELETE FROM sulfide_testing_logs WHERE id = ?', (log_id,))
+            conn.commit()
+        elif request.method == 'PUT':
+            data = request.json or request.form
+            cp1_number = str(data.get('cp1_number', '')).strip().upper()
+            lab_number = str(data.get('lab_number', '')).strip().upper()
+            weight_ticket = str(data.get('weight_ticket', '')).strip().upper()
+            tested_by = str(data.get('tested_by', log['tested_by'] or 'Lab Chemist')).strip()
+            notes = str(data.get('notes', '')).strip()
+            test_date_input = data.get('test_date')
+            
+            tot_val = data.get('total_sulfide')
+            react_val = data.get('reactive_sulfide')
+            
+            tot_num = float(tot_val) if (tot_val is not None and str(tot_val).strip() != '') else log['total_sulfide']
+            react_num = float(react_val) if (react_val is not None and str(react_val).strip() != '') else None
+            
+            conn.execute('''
+                UPDATE sulfide_testing_logs
+                SET cp1_number = ?, lab_number = ?, weight_ticket = ?,
+                    total_sulfide = ?, reactive_sulfide = ?, tested_by = ?,
+                    test_date = COALESCE(?, test_date), notes = ?
+                WHERE id = ?
+            ''', (
+                cp1_number, lab_number, weight_ticket,
+                tot_num, react_num, tested_by, test_date_input, notes, log_id
+            ))
+            conn.commit()
+            
+        # Re-fetch updated logs & stats for profile
+        rows = conn.execute('''
+            SELECT * FROM sulfide_testing_logs
+            WHERE TRIM(UPPER(profile_number)) = ?
+            ORDER BY test_date ASC, id ASC
+        ''', (profile_clean,)).fetchall()
+        logs = [dict(r) for r in rows]
+        stats = calculate_sulfide_summary_stats(logs)
+        return jsonify({'success': True, 'stats': stats, 'logs': logs})
 
 @approvals_bp.route('/uploads/profiles/<path:filename>')
 def serve_profile_upload(filename):
