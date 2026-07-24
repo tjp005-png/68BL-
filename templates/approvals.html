@@ -616,7 +616,7 @@
                             <div>
                                 <h3 class="fw-bold text-primary mb-1 d-flex align-items-center flex-wrap gap-2">
                                     <span id="dashProfileNum">---</span> 
-                                    <span id="dashContainerTypeBadge" class="badge bg-primary text-white fs-6 align-middle">🥁 Drum Profile</span>
+                                    <span id="dashContainerTypeBadge" class="badge bg-primary text-white fs-6 align-middle">🛢️ Drum Profile</span>
                                 </h3>
                                 <h6 class="text-muted fw-bold mb-0 d-flex align-items-center flex-wrap gap-2">
                                     <span id="dashGenerator" class="text-truncate" style="max-width: 480px; display: inline-block; vertical-align: bottom;" title="">---</span> 
@@ -1143,7 +1143,7 @@
                                 const cType = p.shipping_container_type || 'Containerized';
                                 const isDrum = cType === 'Containerized';
                                 const tagBadge = isDrum
-                                    ? `<span class="badge bg-primary text-white ms-2" style="font-size: 0.7rem;">🥁 Drum Profile</span>`
+                                    ? `<span class="badge bg-primary text-white ms-2" style="font-size: 0.7rem;">🛢️ Drum Profile</span>`
                                     : `<span class="badge bg-secondary text-white ms-2" style="font-size: 0.7rem;">📦 ${cType}</span>`;
 
                                 const btn = document.createElement('button');
@@ -1311,7 +1311,7 @@
             if (typeBadge) {
                 if (isDrum) {
                     typeBadge.className = 'badge bg-primary text-white fs-6 align-middle';
-                    typeBadge.innerText = '🥁 Drum Profile';
+                    typeBadge.innerText = '🛢️ Drum Profile';
                 } else {
                     typeBadge.className = 'badge bg-secondary text-white fs-6 align-middle';
                     typeBadge.innerText = `📦 ${cType}`;
