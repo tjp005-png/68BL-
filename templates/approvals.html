@@ -1122,6 +1122,17 @@
         const dashboard = document.getElementById('profileDashboard');
         const noSelectionCard = document.getElementById('noSelectionCard');
 
+        function getProfileContainerType(p) {
+            if (p && p.shipping_container_type && p.shipping_container_type.trim() !== '') {
+                return p.shipping_container_type;
+            }
+            const c = (p && p.comments ? p.comments : '').toString().toUpperCase();
+            if (c.includes('SIP') || c.includes('TREA')) {
+                return 'Containerized';
+            }
+            return 'Bulk Solid';
+        }
+
         // Dynamic Search
         searchInput.addEventListener('input', function() {
             clearTimeout(searchTimeout);
@@ -1140,7 +1151,7 @@
                             searchResults.innerHTML = '<div class="list-group-item text-muted p-3">No matching profiles found in database.</div>';
                         } else {
                             data.forEach(p => {
-                                const cType = p.shipping_container_type || 'Containerized';
+                                const cType = getProfileContainerType(p);
                                 const isDrum = cType === 'Containerized';
                                 const tagBadge = isDrum
                                     ? `<span class="badge bg-primary text-white ms-2" style="font-size: 0.7rem;">🛢️ Drum Profile</span>`
@@ -1299,14 +1310,15 @@
             if (document.getElementById('form-treatment-recipe')) { 
                 document.getElementById('form-treatment-recipe').value = p.treatment_recipe || ''; 
             }
+            // Helper to get Container Type with fallback to comments (SIP / TREA)
+            const cType = getProfileContainerType(p);
+            const isDrum = cType === 'Containerized';
+            
             if (document.getElementById('form-shipping-container')) {
-                document.getElementById('form-shipping-container').value = p.shipping_container_type || 'Containerized';
+                document.getElementById('form-shipping-container').value = cType;
             }
 
             // Update Container Type Badge & Drum Audit Trail visibility
-            const cType = p.shipping_container_type || 'Containerized';
-            const isDrum = cType === 'Containerized';
-            
             const typeBadge = document.getElementById('dashContainerTypeBadge');
             if (typeBadge) {
                 if (isDrum) {

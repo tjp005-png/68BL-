@@ -144,7 +144,16 @@ def upgrade_db():
         if not column_exists(cursor, 'profiles', 'ldr_option'):
             cursor.execute('ALTER TABLE profiles ADD COLUMN ldr_option INTEGER')
         if not column_exists(cursor, 'profiles', 'shipping_container_type'):
-            cursor.execute('ALTER TABLE profiles ADD COLUMN shipping_container_type TEXT DEFAULT "Containerized"')
+            cursor.execute('ALTER TABLE profiles ADD COLUMN shipping_container_type TEXT')
+            
+        cursor.execute('''
+            UPDATE profiles 
+            SET shipping_container_type = CASE 
+                WHEN UPPER(COALESCE(comments, '')) LIKE '%SIP%' OR UPPER(COALESCE(comments, '')) LIKE '%TREA%' THEN 'Containerized'
+                ELSE 'Bulk Solid'
+            END
+            WHERE shipping_container_type IS NULL OR shipping_container_type = '' OR shipping_container_type = 'Containerized';
+        ''')
         if not column_exists(cursor, 'profiles', 'state_waste_code'):
             cursor.execute('ALTER TABLE profiles ADD COLUMN state_waste_code TEXT')
         if not column_exists(cursor, 'profiles', 'federal_waste_code'):

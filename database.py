@@ -265,23 +265,27 @@ def ensure_profile_exists(conn, profile_number, excel_path=None):
         elif 'EPA_ID' in df.columns:
             epa_id = str(row_data.get('EPA_ID', '')).strip()
             
+        c_upper = str(comments or '').upper()
+        container_type = 'Containerized' if ('SIP' in c_upper or 'TREA' in c_upper) else 'Bulk Solid'
+
         if row:
             conn.execute('''
                 UPDATE profiles 
                 SET generator = ?, status = ?, expiration_date = ?, 
                     waste_description = ?, voc_percentage = ?, win_code = ?,
-                    last_synced_mtime = ?, epa_id = ?, lab_number = ?, haz = ?, rcra = ?, comments = ?
+                    last_synced_mtime = ?, epa_id = ?, lab_number = ?, haz = ?, rcra = ?, comments = ?,
+                    shipping_container_type = ?
                 WHERE TRIM(UPPER(profile_number)) = ?
-            ''', (generator, status_val, exp_date, waste_name, voc_percentage, win_code, excel_mtime, epa_id, lab_number, haz, rcra, comments, clean_profile))
+            ''', (generator, status_val, exp_date, waste_name, voc_percentage, win_code, excel_mtime, epa_id, lab_number, haz, rcra, comments, container_type, clean_profile))
         else:
             conn.execute('''
                 INSERT INTO profiles (
                     profile_number, generator, status, expiration_date, 
                     waste_description, voc_percentage, win_code, last_synced_mtime, epa_id,
-                    lab_number, haz, rcra, comments
+                    lab_number, haz, rcra, comments, shipping_container_type
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (clean_profile, generator, status_val, exp_date, waste_name, voc_percentage, win_code, excel_mtime, epa_id, lab_number, haz, rcra, comments))
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (clean_profile, generator, status_val, exp_date, waste_name, voc_percentage, win_code, excel_mtime, epa_id, lab_number, haz, rcra, comments, container_type))
             
         conn.commit()
         enrich_profile_from_wvi(conn, clean_profile)
