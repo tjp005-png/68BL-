@@ -268,7 +268,13 @@ def ensure_profile_exists(conn, profile_number, excel_path=None):
             epa_id = str(row_data.get('EPA_ID', '')).strip()
             
         c_upper = str(comments or '').upper()
-        container_type = 'Containerized' if ('SIP' in c_upper or 'TREA' in c_upper) else 'Bulk Solid'
+        w_upper = str(win_code or '').strip().upper()
+        if 'SIP' in c_upper or 'TREA' in c_upper:
+            container_type = 'Containerized'
+        elif w_upper in ['CNOS', 'CBPS']:
+            container_type = 'Bulk Liquid'
+        else:
+            container_type = 'Bulk Solid'
 
         if row:
             conn.execute('''

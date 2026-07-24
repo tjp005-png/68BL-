@@ -150,9 +150,9 @@ def upgrade_db():
             UPDATE profiles 
             SET shipping_container_type = CASE 
                 WHEN UPPER(COALESCE(comments, '')) LIKE '%SIP%' OR UPPER(COALESCE(comments, '')) LIKE '%TREA%' THEN 'Containerized'
+                WHEN UPPER(COALESCE(win_code, '')) IN ('CNOS', 'CBPS') OR UPPER(COALESCE(physical_appearance, '')) LIKE '%LIQUID%' THEN 'Bulk Liquid'
                 ELSE 'Bulk Solid'
-            END
-            WHERE shipping_container_type IS NULL OR shipping_container_type = '' OR shipping_container_type = 'Containerized';
+            END;
         ''')
         if not column_exists(cursor, 'profiles', 'state_waste_code'):
             cursor.execute('ALTER TABLE profiles ADD COLUMN state_waste_code TEXT')

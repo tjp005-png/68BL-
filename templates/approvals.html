@@ -1128,8 +1128,13 @@
                 return p.shipping_container_type;
             }
             const c = (p && p.comments ? p.comments : '').toString().toUpperCase();
+            const w = (p && p.win_code ? p.win_code : '').toString().trim().toUpperCase();
+            const s = (p && p.physical_appearance ? p.physical_appearance : '').toString().trim().toUpperCase();
+            
             if (c.includes('SIP') || c.includes('TREA')) {
                 return 'Containerized';
+            } else if (['CNOS', 'CBPS'].includes(w) || s === 'LIQUID') {
+                return 'Bulk Liquid';
             }
             return 'Bulk Solid';
         }
