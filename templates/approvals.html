@@ -1561,12 +1561,10 @@
         window.activeLogData = []; // cached log records
 
         function loadReviewLog(force = false) {
-            // Check if any element inside reviewLogBody has focus to avoid losing user input
             const tbody = document.getElementById('reviewLogBody');
             if (tbody && !force) {
                 const activeEl = document.activeElement;
                 if (activeEl && tbody.contains(activeEl)) {
-                    // Skip refresh only if user is currently editing a text input
                     if (activeEl.tagName === 'INPUT' && activeEl.type === 'text') {
                         return;
                     }
@@ -1574,10 +1572,19 @@
             }
 
             fetch(`/api/waste_acceptance/log?archived=${currentArchivedMode}`)
-                .then(r => r.json())
+                .then(r => {
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    return r.json();
+                })
                 .then(data => {
-                    window.activeLogData = data;
+                    window.activeLogData = data || [];
                     applyLogFilters();
+                })
+                .catch(err => {
+                    console.error("Error loading waste acceptance log:", err);
+                    if (tbody) {
+                        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">⚠️ Error loading review log: ${err.message}. <button class="btn btn-xs btn-outline-danger ms-2" onclick="loadReviewLog(true)">Retry</button></td></tr>`;
+                    }
                 });
         }
 
@@ -1585,7 +1592,8 @@
             const searchText = (document.getElementById('logFilterSearch')?.value || '').toLowerCase().trim();
             const statusFilter = document.getElementById('logFilterStatus')?.value || 'ALL';
 
-            const filtered = window.activeLogData.filter(log => {
+            const filtered = (window.activeLogData || []).filter(log => {
+                if (!log) return false;
                 // 1. Filter by Status
                 if (statusFilter !== 'ALL' && log.status !== statusFilter) {
                     return false;
@@ -1616,7 +1624,7 @@
             if (!tbody) return;
 
             // 1. Sort the list
-            let sortedList = [...dataList];
+            let sortedList = [...(dataList || [])];
             if (currentSortKey) {
                 sortedList.sort((a, b) => {
                     let valA = '';
@@ -1666,16 +1674,17 @@
                 const safeNotes = (log.notes || '').toString();
                 const hasNotes = safeNotes.trim() !== '';
                 const escapedNotesForTitle = safeNotes.replace(/"/g, '&quot;');
-                const escapedNotesForJS = safeNotes.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$').replace(/'/g, "\\'");
                 const notesBtn = hasNotes
-                    ? `<button class="btn btn-sm btn-warning border p-1 position-relative" title="${escapedNotesForTitle}" onclick="openReviewNotes(${log.id}, \`${escapedNotesForJS}\`)">📝<span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle" style="font-size: 0px;"></span></button>`
-                    : `<button class="btn btn-sm btn-light border p-1" title="Add notes" onclick="openReviewNotes(${log.id}, '')">✏️</button>`;
+                    ? `<button class="btn btn-sm btn-warning border p-1 position-relative" title="${escapedNotesForTitle}" onclick="openReviewNotes(${log.id})">📝<span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle" style="font-size: 0px;"></span></button>`
+                    : `<button class="btn btn-sm btn-light border p-1" title="Add notes" onclick="openReviewNotes(${log.id})">✏️</button>`;
 
                 const rawProf = (log.profile_number || '').toString().trim();
                 const upProf = rawProf.toUpperCase();
                 const isPlaceholder = !rawProf || upProf === 'PENDING' || upProf === 'TBD' || upProf.startsWith('PENDING') || upProf.startsWith('TBD');
                 const safeProfForJS = rawProf.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-                
+                const escapedProfForTitle = rawProf.replace(/"/g, '&quot;');
+                const escapedGenForTitle = (log.generator || '').toString().replace(/"/g, '&quot;');
+
                 const linkBtn = isPlaceholder
                     ? ''
                     : `<a href="#" onclick="searchAndSelect('${safeProfForJS}'); return false;" class="text-decoration-none ms-1" style="font-size: 1rem;" title="Open Profile">📑</a>`;
@@ -1699,7 +1708,7 @@
                 const profileCell = `
                     <div class="d-flex align-items-center">
                         <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold ${isPlaceholder ? 'text-muted' : 'text-primary'}" 
-                               value="${rawProf}" title="${rawProf}" placeholder="Profile..." style="width: 170px; text-overflow: ellipsis;"
+                               value="${escapedProfForTitle}" title="${escapedProfForTitle}" placeholder="Profile..." style="width: 170px; text-overflow: ellipsis;"
                                onfocus="this.dataset.oldVal = this.value"
                                onblur="if(this.value.toUpperCase().trim() !== (this.dataset.oldVal || '').toUpperCase().trim()) { this.title = this.value; updateReviewLog(${log.id}, 'profile_number', this.value.toUpperCase().trim()); }"
                                ${disabledAttr}>
@@ -1717,8 +1726,8 @@
                         <td>${profileCell}</td>
                         <td>
                             <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" 
-                                   value="${log.generator || ''}" 
-                                   title="${log.generator || ''}"
+                                   value="${escapedGenForTitle}" 
+                                   title="${escapedGenForTitle}"
                                    placeholder="Generator..." 
                                    style="min-width: 280px; text-overflow: ellipsis;"
                                    onfocus="this.dataset.oldVal = this.value"
@@ -1737,7 +1746,7 @@
                             </select>
                         </td>
                         <td>
-                            <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" value="${log.assigned_to || ''}" placeholder="Unassigned" 
+                            <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" value="${(log.assigned_to || '').toString().replace(/"/g, '&quot;')}" placeholder="Unassigned" 
                                    onfocus="this.dataset.oldVal = this.value"
                                    onblur="if(this.value.trim() !== (this.dataset.oldVal || '').trim()) { updateReviewLog(${log.id}, 'assigned_to', this.value.trim()); }"
                                    ${disabledAttr}>
@@ -1874,7 +1883,9 @@
             });
         }
 
-        function openReviewNotes(id, currentNotes) {
+        function openReviewNotes(id) {
+            const item = (window.activeLogData || []).find(x => x.id == id);
+            const currentNotes = item ? (item.notes || '') : '';
             document.getElementById('modalLogId').value = id;
             document.getElementById('modalLogNotes').value = currentNotes;
             const modal = new bootstrap.Modal(document.getElementById('reviewNotesModal'));
