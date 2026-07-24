@@ -425,6 +425,18 @@
                                 </div>
 
                                 <div class="row mb-3">
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label text-muted small fw-bold mb-1">Shipping Container Type</label>
+                                        <select class="form-select border-secondary px-2" id="form-shipping-container" name="shipping_container_type" required>
+                                            <option value="Containerized" selected>Containerized (Drum Profile)</option>
+                                            <option value="Bulk Solid">Bulk Solid (Bulk)</option>
+                                            <option value="Bulk Liquid">Bulk Liquid (Bulk)</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
                                     <div class="col-6 col-md-3">
                                         <label class="form-label text-muted small fw-bold mb-1">Physical State</label>
                                         <select class="form-select border-secondary px-2" id="form-state" name="physical_appearance" required>
@@ -444,18 +456,6 @@
                                     <div class="col-6 col-md-3">
                                         <label class="form-label text-muted small fw-bold mb-1">Color</label>
                                         <input type="text" class="form-control border-secondary px-2" id="form-color" name="color" placeholder="e.g. Varies">
-                                    </div>
-                                </div>
-
-                                <div class="row mb-3">
-                                    <div class="col-12 col-md-6">
-                                        <label class="form-label text-muted small fw-bold mb-1">Shipping Container Type</label>
-                                        <select class="form-select border-secondary px-2" id="form-shipping-container" name="shipping_container_type" required>
-                                            <option value="Containerized" selected>Containerized (Drum Profile)</option>
-                                            <option value="Bulk Solid">Bulk Solid (Bulk)</option>
-                                            <option value="Bulk Liquid">Bulk Liquid (Bulk)</option>
-                                            <option value="Other">Other</option>
-                                        </select>
                                     </div>
                                 </div>
                                 <div class="row mb-3">
@@ -1248,10 +1248,8 @@
             document.getElementById('dashDot').innerText = p.dot_description || '---';
             document.getElementById('dashDot').title = p.dot_description || '';
 
-            // Populate WVI Qualitative Procedures
-            document.getElementById('dashVerProc').innerText = p.verification_procedures || 'Refer to Standard Fingerprint Testing';
-            document.getElementById('dashSampleProc').innerText = p.sample_procedures || 'Collect Sample With Scoop';
-            document.getElementById('dashUnloading').innerText = p.unloading_instructions || p.special_handling || 'Direct Waste to Landfill';
+            // Populate WVI Qualitative Procedures dynamically based on Win Code & Lab Number
+            updateWviDashboardProcedures(p.win_code, p.lab_number || p.lab_num, p);
 
             if (p.notes_revisions && p.notes_revisions.trim() !== '') {
                 document.getElementById('dashWviNotes').innerText = p.notes_revisions;
@@ -2092,7 +2090,68 @@
             }
         }
 
-        document.getElementById('form-win').addEventListener('input', toggleTreatmentRecipe);
+        // Dynamically update WVI Qualitative Procedures on dashboard
+        function updateWviDashboardProcedures(winCodeOverride, labNumOverride, pDataOverride) {
+            const winInp = document.getElementById('form-win');
+            const labInp = document.getElementById('form-lab');
+            
+            const winCode = (winCodeOverride !== undefined ? winCodeOverride : (winInp ? winInp.value : '')).toString().trim().toUpperCase();
+            const labNum = (labNumOverride !== undefined ? labNumOverride : (labInp ? labInp.value : '')).toString().trim().toUpperCase();
+            const isMonolith = labNum.includes('MONOLITH') || labNum.includes('MONO');
+            
+            const p = pDataOverride || {};
+
+            // 1. Verification Procedures
+            let verProc = p.verification_procedures;
+            if (!verProc) {
+                if (winCode === 'CNIA' || isMonolith) {
+                    verProc = 'Visual';
+                } else {
+                    verProc = 'Refer to Standard Fingerprint Testing';
+                }
+            }
+            if (document.getElementById('dashVerProc')) {
+                document.getElementById('dashVerProc').innerText = verProc;
+            }
+
+            // 2. Sampling Procedures
+            let sampleProc = p.sample_procedures;
+            if (!sampleProc) {
+                if (winCode === 'CNIA') {
+                    sampleProc = 'NO SAMPLE REQUIRED';
+                } else if (['CBPS', 'CNOS'].includes(winCode)) {
+                    sampleProc = 'COLLECT SAMPLE WITH COLIWASA';
+                } else {
+                    sampleProc = 'Collect Sample With Scoop';
+                }
+            }
+            if (document.getElementById('dashSampleProc')) {
+                document.getElementById('dashSampleProc').innerText = sampleProc;
+            }
+
+            // 3. Unloading & Handling Instructions
+            let unloadingInst = p.unloading_instructions || p.special_handling;
+            if (!unloadingInst) {
+                if (winCode === 'CNIA') {
+                    unloadingInst = 'CONTAINS ASBESTOS DO NOT SAMPLE';
+                } else if (['CCS', 'CCSM'].includes(winCode) || winCode.startsWith('CCS')) {
+                    unloadingInst = 'Follow Red Folder';
+                } else {
+                    unloadingInst = 'Direct Waste to Landfill';
+                }
+            }
+            if (document.getElementById('dashUnloading')) {
+                document.getElementById('dashUnloading').innerText = unloadingInst;
+            }
+        }
+
+        document.getElementById('form-win').addEventListener('input', () => {
+            toggleTreatmentRecipe();
+            updateWviDashboardProcedures();
+        });
+        if (document.getElementById('form-lab')) {
+            document.getElementById('form-lab').addEventListener('input', updateWviDashboardProcedures);
+        }
         document.getElementById('form-ldr').addEventListener('change', toggleLdrOption);
         if (document.getElementById('form-voc')) document.getElementById('form-voc').addEventListener('input', toggleConditionalLogCards);
         if (document.getElementById('form-sulfide')) document.getElementById('form-sulfide').addEventListener('change', toggleConditionalLogCards);
