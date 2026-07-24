@@ -813,7 +813,11 @@ def api_profile_sulfide_log(profile_number):
             tot_mean, tot_stddev, tot_ci90 = calc_stats(tot_samples, df, t_val)
             react_mean, react_stddev, react_ci90 = calc_stats(react_samples, df, t_val)
             
-            reactive_pass = 1 if (len(react_samples) == 0 or react_ci90 <= 500.0) else 0
+            # Approval requires at least 5 tests (n >= 5) and meeting the sulfide limits
+            is_approved = (n >= 5) and (len(react_samples) == 0 or react_ci90 <= 500.0)
+            reactive_pass = 1 if is_approved else 0
+            approval_status = "APPROVED" if is_approved else ("IN_PROGRESS" if n < 5 else "FAILED")
+            tests_remaining = max(0, 5 - n)
             sample_meta_json = json.dumps(sample_metadata_input)
             
             if test_date_input:
@@ -855,7 +859,9 @@ def api_profile_sulfide_log(profile_number):
                 't_value': t_val,
                 'total_sulfide': {'mean': tot_mean, 'stddev': tot_stddev, 'ci90': tot_ci90},
                 'reactive_sulfide': {'mean': react_mean, 'stddev': react_stddev, 'ci90': react_ci90},
-                'reactive_pass': bool(reactive_pass)
+                'reactive_pass': bool(reactive_pass),
+                'approval_status': approval_status,
+                'tests_remaining': tests_remaining
             })
         else:
             logs = conn.execute('''

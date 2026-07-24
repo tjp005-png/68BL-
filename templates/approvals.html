@@ -2129,12 +2129,14 @@
 
             if (totStats.n === 0) {
                 conclusionEl.innerHTML = '<span class="badge bg-secondary fs-6">Awaiting Sample Data</span>';
+            } else if (totStats.n < 5) {
+                conclusionEl.innerHTML = `<span class="badge bg-warning text-dark fs-6">💾 Saved ${totStats.n}/5 Tests — ${5 - totStats.n} More Test(s) Required Before Approval</span>`;
             } else if (!hasExceedance) {
-                conclusionEl.innerHTML = `<span class="badge bg-success fs-6">✅ PASS: Total Sulfide ≤ 1000 mg/kg (Reactive Testing N/A)</span>`;
+                conclusionEl.innerHTML = `<span class="badge bg-success fs-6">✅ APPROVED: 5/5 Tests Complete — No Further Testing Required</span>`;
             } else if (reactStats.n === 0) {
                 conclusionEl.innerHTML = `<span class="badge bg-warning text-dark fs-6">⚠️ Total > 1000 mg/kg: Reactive Test Required</span>`;
             } else if (reactStats.ci90 <= 500.0) {
-                conclusionEl.innerHTML = `<span class="badge bg-success fs-6">✅ PASS: ${reactStats.ci90.toFixed(2)} mg/kg (≤ 500 mg/kg limit)</span>`;
+                conclusionEl.innerHTML = `<span class="badge bg-success fs-6">✅ APPROVED: 5/5 Tests Complete — ${reactStats.ci90.toFixed(2)} mg/kg (≤ 500 limit)</span>`;
             } else {
                 conclusionEl.innerHTML = `<span class="badge bg-danger fs-6">⚠️ FAIL: ${reactStats.ci90.toFixed(2)} mg/kg EXCEEDS 500 mg/kg LIMIT!</span>`;
             }
@@ -2296,8 +2298,15 @@
                     recalcSulfideStats();
                     loadSulfideHistory(currentProfile);
                     
-                    const statusText = data.reactive_pass ? '✅ PASSED (≤ 500 mg/kg)' : '⚠️ FAILED (> 500 mg/kg)';
-                    alert(`Sulfide Testing Log Saved Successfully!\nStatus: ${statusText}\nReactive 90% CI: ${data.reactive_sulfide.ci90} mg/kg`);
+                    let statusText = '';
+                    if (data.approval_status === 'APPROVED') {
+                        statusText = '✅ APPROVED (5/5 Tests Complete - No Further Testing Required)';
+                    } else if (data.approval_status === 'IN_PROGRESS') {
+                        statusText = `💾 IN PROGRESS (${data.n}/5 Tests Taken - ${data.tests_remaining} More Required Before Approval)`;
+                    } else {
+                        statusText = '⚠️ FAILED (Exceeds 500 mg/kg limit)';
+                    }
+                    alert(`Sulfide Testing Log Saved Successfully!\nStatus: ${statusText}\nTotal 90% CI: ${data.total_sulfide.ci90} mg/kg`);
                 } else {
                     alert('Error saving sulfide testing log: ' + (data.error || 'Unknown error'));
                 }
@@ -2319,9 +2328,14 @@
                     }
                     tbody.innerHTML = '';
                     logs.forEach(l => {
-                        const passBadge = l.reactive_pass 
-                            ? '<span class="badge bg-success">PASS (≤ 500)</span>' 
-                            : '<span class="badge bg-danger">FAIL (> 500)</span>';
+                        let passBadge = '';
+                        if (l.sample_count < 5) {
+                            passBadge = `<span class="badge bg-warning text-dark">IN PROGRESS (${l.sample_count}/5 Tests)</span>`;
+                        } else if (l.reactive_pass) {
+                            passBadge = '<span class="badge bg-success">APPROVED (5/5 Tests)</span>';
+                        } else {
+                            passBadge = '<span class="badge bg-danger">FAIL (> 500)</span>';
+                        }
                             
                         let sampleMetaArr = [];
                         if (l.sample_metadata) {
