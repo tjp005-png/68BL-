@@ -442,6 +442,8 @@ def add_master_profile():
     expiration_date = request.form.get('expiration_date', '').strip()
     
     ldr_required = request.form.get('ldr_required', 'No').strip()
+    ldr_option_str = request.form.get('ldr_option', '').strip()
+    ldr_option = int(ldr_option_str) if ldr_option_str.isdigit() else None
     state_waste_code = request.form.get('state_waste_code', '').strip().upper()
     federal_waste_code = request.form.get('federal_waste_code', '').strip().upper()
     dot_description = request.form.get('dot_description', '').strip().upper()
@@ -467,25 +469,25 @@ def add_master_profile():
                 UPDATE profiles 
                 SET generator = ?, waste_description = ?, win_code = ?, voc_percentage = ?, 
                     special_handling = ?, ph_range = ?, physical_appearance = ?, flash_point = ?, 
-                    expiration_date = ?, epa_id = ?, ldr_required = ?, state_waste_code = ?, 
+                    expiration_date = ?, epa_id = ?, ldr_required = ?, ldr_option = ?, state_waste_code = ?, 
                     federal_waste_code = ?, dot_description = ?, cyanide = ?, sulfide = ?, 
                     free_liquids = ?, status = ?, lab_number = ?, color = ?, treatment_recipe = ?
                 WHERE TRIM(UPPER(profile_number)) = ?
             ''', (generator, waste_description, win_code, voc_pct, 
                   special_handling, ph_range, physical_appearance, flash_point, 
-                  expiration_date, epa_id, ldr_required, state_waste_code, 
+                  expiration_date, epa_id, ldr_required, ldr_option, state_waste_code, 
                   federal_waste_code, dot_description, cyanide, sulfide, 
                   free_liquids, status, lab_number, color, treatment_recipe, profile_number))
         else:
             conn.execute('''
                 INSERT INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, 
                                       special_handling, ph_range, physical_appearance, flash_point, expiration_date, 
-                                      epa_id, status, ldr_required, state_waste_code, federal_waste_code, 
+                                      epa_id, status, ldr_required, ldr_option, state_waste_code, federal_waste_code, 
                                       dot_description, cyanide, sulfide, free_liquids, lab_number, color, treatment_recipe)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (profile_number, generator, waste_description, win_code, voc_pct, 
                   special_handling, ph_range, physical_appearance, flash_point, expiration_date, 
-                  epa_id, status, ldr_required, state_waste_code, federal_waste_code, 
+                  epa_id, status, ldr_required, ldr_option, state_waste_code, federal_waste_code, 
                   dot_description, cyanide, sulfide, free_liquids, lab_number, color, treatment_recipe))
         conn.commit()
         
@@ -1154,6 +1156,29 @@ def archive_waste_acceptance_log():
         conn.commit()
     return jsonify({'success': True})
 
+LDR_OPTIONS_MAP = {
+    1: 'Not subject to LDR',
+    2: 'This is subject to LDR.',
+    3: 'Alternate Debris Standard',
+    4: 'Meets LDR Standards',
+    5: 'Alternate Soil Std-meets std. (with listed and characteristic hazardous waste)',
+    6: 'Alternate Soil Std-meets std. (with characteristic hazardous waste only)',
+    7: 'Alternate Soil Std-meets std. (with listed hazardous waste only)',
+    8: 'Alternate Soil Std-does not meet std. (with listed and characteristic hazardous waste)',
+    9: 'Alternate Soil Std-does not meet std. (with listed hazardous waste only)',
+    10: 'Alternate Soil Std-does not meet std. (with characteristic hazardous waste only)',
+    11: 'Labpack Alternate Standard',
+    12: 'Subject to a variance or exemption',
+    13: 'Partially meets LDR standards',
+    14: 'Treatment Technology & Process certification',
+    15: 'Contaminated Soil Treatment Tech. And Process Cert.',
+    16: 'Concentration-based Certification for combustion residues',
+    17: 'Waste treated to remove characteristic, but not UHCs',
+    18: 'Waste treated to remove characteristic and UHCs',
+    19: 'Treated Debris under 268.45',
+    20: 'Generator chooses not to make the determination of whether the waste must be treated.'
+}
+
 @approvals_bp.route('/api/profile/<path:profile_number>/wvi')
 def export_wvi_excel(profile_number):
     import io
@@ -1243,7 +1268,8 @@ def export_wvi_excel(profile_number):
         'lab_num': w_row['lab_num'] if (w_row and w_row['lab_num']) else (p_row['lab_number'] if p_row else ''),
         'voc_ppm': w_row['voc_ppm'] if (w_row and w_row['voc_ppm'] is not None) else None,
         'treatment_information': w_row['treatment_information'] if (w_row and w_row['treatment_information']) else 'Not applicable',
-        'notes_revisions': w_row['notes_revisions'] if (w_row and w_row['notes_revisions']) else ''
+        'notes_revisions': w_row['notes_revisions'] if (w_row and w_row['notes_revisions']) else '',
+        'ldr_option': int(p_row['ldr_option']) if (p_row and 'ldr_option' in p_row.keys() and p_row['ldr_option'] is not None and str(p_row['ldr_option']).isdigit()) else None
     }
 
     # Convert all string values in combined dictionary to uppercase
@@ -1460,10 +1486,14 @@ def export_wvi_excel(profile_number):
     sec2.font = section_font
     sec2.fill = section_fill
     
+    ldr_display = combined['ldr']
+    if combined.get('ldr_option') and combined['ldr_option'] in LDR_OPTIONS_MAP:
+        ldr_display = f"{combined['ldr']} - Option {combined['ldr_option']}: {LDR_OPTIONS_MAP[combined['ldr_option']]}"
+        
     reg_info = [
         ("DOT Description:", combined['dot_description'], "", ""),
         ("State Waste Codes:", combined['state_waste_codes'], "Federal Waste Codes:", combined['federal_waste_codes']),
-        ("LDR Required:", combined['ldr'], "Reactivity Codes:", combined['reactivity_codes'])
+        ("LDR Required:", ldr_display, "Reactivity Codes:", combined['reactivity_codes'])
     ]
     
     row += 1
