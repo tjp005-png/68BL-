@@ -2314,7 +2314,7 @@
                 .then(r => r.json())
                 .then(logs => {
                     if (logs.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3">No sulfide test logs recorded</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">No sulfide test logs recorded</td></tr>';
                         return;
                     }
                     tbody.innerHTML = '';
@@ -2329,18 +2329,46 @@
                             catch (e) {}
                         }
                         
-                        let metaSummary = '---';
+                        let labDisplay = l.lab_number || l.cp1_number || '---';
+                        let wtDisplay = l.weight_ticket || '---';
+                        
                         if (sampleMetaArr.length > 0) {
-                            metaSummary = sampleMetaArr.map(s => `[S${s.sample_num}: ${s.lab_number||'NoLab'} | Date: ${s.test_date||'---'} | WT: ${s.weight_ticket||'---'} | CP1: ${s.cp1_number||'---'}]`).join('<br>');
-                        } else {
-                            metaSummary = `Lab: ${l.lab_number||'---'} | Date: ${l.test_date ? l.test_date.split('T')[0] : '---'} | WT: ${l.weight_ticket||'---'} | CP1: ${l.cp1_number||'---'}`;
+                            const uniqueLabs = [...new Set(sampleMetaArr.map(s => s.lab_number || s.cp1_number).filter(Boolean))];
+                            if (uniqueLabs.length > 0) labDisplay = uniqueLabs.join(', ');
+                            
+                            const uniqueWts = [...new Set(sampleMetaArr.map(s => s.weight_ticket).filter(Boolean))];
+                            if (uniqueWts.length > 0) wtDisplay = uniqueWts.join(', ');
                         }
+                        
+                        let subTableRows = '';
+                        if (sampleMetaArr.length > 0) {
+                            sampleMetaArr.forEach(s => {
+                                const totStr = s.total_sulfide !== null && s.total_sulfide !== undefined ? `${s.total_sulfide} mg/kg` : '---';
+                                const reactStr = s.reactive_sulfide !== null && s.reactive_sulfide !== undefined ? `${s.reactive_sulfide} mg/kg` : '<span class="text-muted fst-italic">N/A (≤1000)</span>';
+                                subTableRows += `
+                                    <tr>
+                                        <td class="fw-bold">Sample ${s.sample_num}</td>
+                                        <td class="fw-bold text-dark">${s.lab_number || s.cp1_number || '---'}</td>
+                                        <td>${s.test_date || '---'}</td>
+                                        <td class="text-primary">${s.weight_ticket || '---'}</td>
+                                        <td class="fw-bold text-primary">${totStr}</td>
+                                        <td class="fw-bold text-danger">${reactStr}</td>
+                                    </tr>
+                                `;
+                            });
+                        }
+                        
+                        const collapseId = `sulfideSubRow_${l.id}`;
+                        const hasDetails = sampleMetaArr.length > 0;
+                        const toggleBtn = hasDetails 
+                            ? `<button class="btn btn-xs btn-outline-secondary py-0 px-1 me-1 border-0" data-bs-toggle="collapse" data-bs-target="#${collapseId}" title="Toggle per-sample breakdown">🔍</button>` 
+                            : '';
                         
                         tbody.innerHTML += `
                             <tr>
-                                <td>${l.test_date ? l.test_date.split('T')[0].split(' ')[0] : '---'}</td>
-                                <td class="fw-bold text-dark">${l.lab_number || l.cp1_number || '---'}</td>
-                                <td class="fw-bold text-primary">${l.weight_ticket || '---'}</td>
+                                <td>${toggleBtn}${l.test_date ? l.test_date.split('T')[0].split(' ')[0] : '---'}</td>
+                                <td class="fw-bold text-dark">${labDisplay}</td>
+                                <td class="fw-bold text-primary">${wtDisplay}</td>
                                 <td class="text-center fw-bold">${l.sample_count}</td>
                                 <td class="fw-bold text-primary">${l.total_sulfide_90ci} mg/kg</td>
                                 <td class="fw-bold text-danger">${l.reactive_sulfide_90ci} mg/kg</td>
@@ -2348,6 +2376,33 @@
                                 <td>${l.tested_by || 'Lab Chemist'}</td>
                             </tr>
                         `;
+                        
+                        if (hasDetails) {
+                            tbody.innerHTML += `
+                                <tr id="${collapseId}" class="collapse bg-light">
+                                    <td colspan="8" class="p-2 border-bottom">
+                                        <div class="bg-white p-2 rounded border shadow-sm">
+                                            <div class="fw-bold text-secondary small mb-1 text-start ps-1">📋 Individual Sample Results Breakdown:</div>
+                                            <table class="table table-sm table-bordered text-center mb-0 small">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>Sample #</th>
+                                                        <th>Lab / CP1 #</th>
+                                                        <th>Test Date</th>
+                                                        <th>Weight Ticket #</th>
+                                                        <th>Total Sulfide</th>
+                                                        <th>Reactive Sulfide</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    ${subTableRows}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }
                     });
                 });
         }
