@@ -840,12 +840,12 @@
                                         </thead>
                                         <tbody class="small">
                                             <tr>
-                                                <td class="fw-bold text-start ps-2 bg-light">Lab Number</td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-lab" placeholder="Lab #"></td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-lab" placeholder="Lab #"></td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-lab" placeholder="Lab #"></td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-lab" placeholder="Lab #"></td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-lab" placeholder="Lab #"></td>
+                                                <td class="fw-bold text-start ps-2 bg-light">Lab / CP1 Number</td>
+                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-lab" placeholder="Lab / CP1 #"></td>
+                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-lab" placeholder="Lab / CP1 #"></td>
+                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-lab" placeholder="Lab / CP1 #"></td>
+                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-lab" placeholder="Lab / CP1 #"></td>
+                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-lab" placeholder="Lab / CP1 #"></td>
                                             </tr>
                                             <tr>
                                                 <td class="fw-bold text-start ps-2 bg-light">Test Date</td>
@@ -862,14 +862,6 @@
                                                 <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-wt" placeholder="WT #"></td>
                                                 <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-wt" placeholder="WT #"></td>
                                                 <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-wt" placeholder="WT #"></td>
-                                            </tr>
-                                            <tr>
-                                                <td class="fw-bold text-start ps-2 bg-light">CP1 Number</td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-cp1" placeholder="CP1 #"></td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-cp1" placeholder="CP1 #"></td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-cp1" placeholder="CP1 #"></td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-cp1" placeholder="CP1 #"></td>
-                                                <td><input type="text" class="form-control form-control-sm text-center text-uppercase sulfide-grid-input sulfide-cp1" placeholder="CP1 #"></td>
                                             </tr>
                                             <tr class="table-primary border-top border-primary">
                                                 <td class="fw-bold text-start ps-2">Total Sulfide (mg/kg)</td>
@@ -955,9 +947,8 @@
                                         <thead class="table-dark small">
                                             <tr>
                                                 <th>Date</th>
-                                                <th>Lab #</th>
+                                                <th>Lab / CP1 #</th>
                                                 <th>Weight Ticket</th>
-                                                <th>CP1 #</th>
                                                 <th>Samples (n)</th>
                                                 <th>Total 90% CI</th>
                                                 <th>Reactive 90% CI</th>
@@ -966,7 +957,7 @@
                                             </tr>
                                         </thead>
                                         <tbody id="sulfideHistoryBody" class="small">
-                                            <tr><td colspan="9" class="text-center text-muted py-3">No sulfide test logs recorded</td></tr>
+                                            <tr><td colspan="8" class="text-center text-muted py-3">No sulfide test logs recorded</td></tr>
                                         </tbody>
                                     </table>
                                 </div>
@@ -2234,12 +2225,13 @@
                     if (!isNaN(totVal)) totSamples.push(totVal);
                     if (!isNaN(reactVal)) reactSamples.push(reactVal);
                     
+                    const labCp1Val = (labInputs[i]?.value || '').trim().toUpperCase();
                     sampleMeta.push({
                         sample_num: i + 1,
-                        lab_number: (labInputs[i]?.value || '').trim().toUpperCase(),
+                        lab_number: labCp1Val,
+                        cp1_number: labCp1Val,
                         test_date: dateInputs[i]?.value || new Date().toISOString().split('T')[0],
                         weight_ticket: (wtInputs[i]?.value || '').trim().toUpperCase(),
-                        cp1_number: (cp1Inputs[i]?.value || '').trim().toUpperCase(),
                         total_sulfide: !isNaN(totVal) ? totVal : null,
                         reactive_sulfide: !isNaN(reactVal) ? reactVal : null
                     });
@@ -2330,9 +2322,8 @@
                         tbody.innerHTML += `
                             <tr>
                                 <td>${l.test_date ? l.test_date.split('T')[0].split(' ')[0] : '---'}</td>
-                                <td class="fw-bold text-dark">${l.lab_number || '---'}</td>
+                                <td class="fw-bold text-dark">${l.lab_number || l.cp1_number || '---'}</td>
                                 <td class="fw-bold text-primary">${l.weight_ticket || '---'}</td>
-                                <td class="text-muted">${l.cp1_number || '---'}</td>
                                 <td class="text-center fw-bold">${l.sample_count}</td>
                                 <td class="fw-bold text-primary">${l.total_sulfide_90ci} mg/kg</td>
                                 <td class="fw-bold text-danger">${l.reactive_sulfide_90ci} mg/kg</td>
