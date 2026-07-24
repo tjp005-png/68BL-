@@ -1493,7 +1493,8 @@ def export_wvi_excel(profile_number):
     reg_info = [
         ("DOT Description:", combined['dot_description'], "", ""),
         ("State Waste Codes:", combined['state_waste_codes'], "Federal Waste Codes:", combined['federal_waste_codes']),
-        ("LDR Required:", ldr_display, "Reactivity Codes:", combined['reactivity_codes'])
+        ("Reactivity Codes:", combined['reactivity_codes'], "", ""),
+        ("LDR Required:", ldr_display, "", "")
     ]
     
     row += 1
@@ -1501,10 +1502,16 @@ def export_wvi_excel(profile_number):
         ws[f'A{row}'].value = reg[0]
         ws[f'B{row}'].value = reg[1]
         
-        if reg[0] == "DOT Description:":
+        if reg[0] in ["DOT Description:", "LDR Required:"]:
             ws.merge_cells(f'B{row}:D{row}')
-            ws[f'B{row}'].alignment = Alignment(wrap_text=True)
-            ws.row_dimensions[row].height = 20
+            ws[f'B{row}'].alignment = Alignment(wrap_text=True, vertical='center')
+            text_len = len(str(reg[1] or ''))
+            if text_len > 70:
+                ws.row_dimensions[row].height = 36
+            elif text_len > 40:
+                ws.row_dimensions[row].height = 24
+            else:
+                ws.row_dimensions[row].height = 20
         else:
             ws[f'C{row}'].value = reg[2]
             ws[f'D{row}'].value = reg[3]
