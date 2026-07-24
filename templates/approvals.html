@@ -805,11 +805,11 @@
                         </div>
                     </div>
 
-                    <!-- VOC Analyzer Log Card (Required if VOC >= 50 ppm) -->
-                    <div class="card premium-card mt-3 border-warning d-none" id="vocAnalyzerCard">
+                    <!-- VOC Analyzer Log Card (Required Yearly with CP1 for All Loads) -->
+                    <div class="card premium-card mt-3 border-warning" id="vocAnalyzerCard">
                         <div class="card-header bg-warning text-dark fw-bold py-2 d-flex justify-content-between align-items-center">
                             <span>⚡ VOC Analyzer Test Log (CP1 Reference & Separate Analyzer Reading)</span>
-                            <span class="badge bg-dark text-warning px-2 py-1" id="vocAnalyzerBadge">Required for VOC &ge; 50 ppm</span>
+                            <span class="badge bg-dark text-warning px-2 py-1" id="vocAnalyzerBadge">Required Yearly with CP1</span>
                         </div>
                         <div class="card-body p-3 bg-light">
                             <div class="row g-3">
@@ -1344,15 +1344,10 @@
             loadAttachments();
             loadDrumHistory();
             
-            // Check VOC >= 50 ppm requirement
-            const vocVal = parseFloat(p.voc_percentage || 0);
+            // VOC Analyzer Card is required for all profiles/loads (yearly CP1 reference)
             const vocCard = document.getElementById('vocAnalyzerCard');
             if (vocCard) {
-                if (vocVal >= 50.0) {
-                    vocCard.classList.remove('d-none');
-                } else {
-                    vocCard.classList.add('d-none');
-                }
+                vocCard.classList.remove('d-none');
             }
             
             // Pre-fill Sulfide per-sample metadata defaults
