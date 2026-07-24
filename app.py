@@ -304,6 +304,46 @@ def upgrade_db():
             )
         ''')
 
+        # 10. VOC ANALYZER LOGS TABLE (> 50 PPM)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS voc_analyzer_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_number TEXT,
+                cp1_number TEXT,
+                voc_analyzer_value REAL,
+                original_voc_value REAL,
+                tested_by TEXT,
+                test_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                notes TEXT
+            )
+        ''')
+
+        # 11. SULFIDE TESTING LOGS TABLE (5-SAMPLE 90% CI STATISTICAL SUITE)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sulfide_testing_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_number TEXT,
+                cp1_number TEXT,
+                lab_number TEXT,
+                weight_ticket TEXT,
+                sample_count INTEGER,
+                total_sulfide_samples TEXT,
+                reactive_sulfide_samples TEXT,
+                total_sulfide_mean REAL,
+                total_sulfide_stddev REAL,
+                total_sulfide_90ci REAL,
+                reactive_sulfide_mean REAL,
+                reactive_sulfide_stddev REAL,
+                reactive_sulfide_90ci REAL,
+                degrees_of_freedom INTEGER,
+                t_value REAL,
+                reactive_pass INTEGER,
+                tested_by TEXT,
+                test_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                notes TEXT
+            )
+        ''')
+
         # Add performance indexes
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_profiles_win_code ON profiles (win_code)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_truck_logs_profile_number ON truck_logs (profile_number)")
@@ -312,6 +352,8 @@ def upgrade_db():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_daily_schedule_profile_number ON daily_schedule (profile_number)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_profile_wvi_profile ON profile_wvi (profile)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_profile_attachments_profile ON profile_attachments (profile_number)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_voc_analyzer_profile ON voc_analyzer_logs (profile_number)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sulfide_logs_profile ON sulfide_testing_logs (profile_number)")
         
         conn.commit()
 

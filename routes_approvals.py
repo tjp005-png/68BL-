@@ -709,6 +709,162 @@ def api_profile_attachments(profile_number):
         ''', (profile_number,)).fetchall()
     return jsonify([dict(a) for a in attachments])
 
+# ==========================================
+# VOC ANALYZER & SULFIDE STATISTICAL TESTING LOGS
+# ==========================================
+
+T_TABLE_90_CONFIDENCE = {
+    1: 3.078,
+    2: 1.886,
+    3: 1.638,
+    4: 1.533
+}
+
+@approvals_bp.route('/api/profile/<path:profile_number>/voc_analyzer', methods=['GET', 'POST'])
+def api_profile_voc_analyzer(profile_number):
+    profile_clean = str(profile_number).strip().upper()
+    with closing(get_db_connection()) as conn:
+        if request.method == 'POST':
+            data = request.json or request.form
+            cp1_number = str(data.get('cp1_number', '')).strip().upper()
+            try:
+                voc_val = float(data.get('voc_analyzer_value'))
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid VOC Analyzer reading'}), 400
+                
+            orig_voc = data.get('original_voc_value')
+            try:
+                orig_voc = float(orig_voc) if orig_voc is not None else None
+            except:
+                orig_voc = None
+                
+            tested_by = str(data.get('tested_by', 'Lab Chemist')).strip()
+            notes = str(data.get('notes', '')).strip()
+            
+            conn.execute('''
+                INSERT INTO voc_analyzer_logs (
+                    profile_number, cp1_number, voc_analyzer_value, original_voc_value, tested_by, notes
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            ''', (profile_clean, cp1_number, voc_val, orig_voc, tested_by, notes))
+            conn.commit()
+            return jsonify({'success': True})
+            
+        else:
+            logs = conn.execute('''
+                SELECT id, cp1_number, voc_analyzer_value, original_voc_value, tested_by, test_date, notes
+                FROM voc_analyzer_logs
+                WHERE TRIM(UPPER(profile_number)) = ?
+                ORDER BY test_date DESC
+            ''', (profile_clean,)).fetchall()
+            return jsonify([dict(l) for l in logs])
+
+
+@approvals_bp.route('/api/profile/<path:profile_number>/sulfide_log', methods=['GET', 'POST'])
+def api_profile_sulfide_log(profile_number):
+    profile_clean = str(profile_number).strip().upper()
+    import json, math
+    with closing(get_db_connection()) as conn:
+        if request.method == 'POST':
+            data = request.json or request.form
+            cp1_number = str(data.get('cp1_number', '')).strip().upper()
+            lab_number = str(data.get('lab_number', '')).strip().upper()
+            weight_ticket = str(data.get('weight_ticket', '')).strip().upper()
+            tested_by = str(data.get('tested_by', 'Lab Chemist')).strip()
+            notes = str(data.get('notes', '')).strip()
+            test_date_input = data.get('test_date')
+            
+            tot_raw = data.get('total_sulfide_samples', [])
+            react_raw = data.get('reactive_sulfide_samples', [])
+            
+            if isinstance(tot_raw, str):
+                try: tot_raw = json.loads(tot_raw)
+                except: tot_raw = [float(x) for x in tot_raw.split(',') if x.strip()]
+            if isinstance(react_raw, str):
+                try: react_raw = json.loads(react_raw)
+                except: react_raw = [float(x) for x in react_raw.split(',') if x.strip()]
+                
+            tot_samples = [float(x) for x in tot_raw if x is not None and str(x).strip() != '']
+            react_samples = [float(x) for x in react_raw if x is not None and str(x).strip() != '']
+            
+            n = len(tot_samples)
+            if n == 0:
+                return jsonify({'error': 'At least 1 valid test sample is required.'}), 400
+                
+            df = max(1, n - 1)
+            t_val = T_TABLE_90_CONFIDENCE.get(df, 1.476)
+            
+            def calc_stats(samples, df, t_val):
+                n_count = len(samples)
+                if n_count == 0:
+                    return 0.0, 0.0, 0.0
+                mean = sum(samples) / float(n_count)
+                if n_count > 1:
+                    variance = sum((x - mean) ** 2 for x in samples) / float(n_count - 1)
+                    stddev = math.sqrt(variance)
+                else:
+                    stddev = 0.0
+                ci_90 = mean + (stddev * t_val)
+                return round(mean, 2), round(stddev, 2), round(ci_90, 2)
+                
+            tot_mean, tot_stddev, tot_ci90 = calc_stats(tot_samples, df, t_val)
+            react_mean, react_stddev, react_ci90 = calc_stats(react_samples, df, t_val)
+            
+            reactive_pass = 1 if react_ci90 <= 500.0 else 0
+            
+            if test_date_input:
+                conn.execute('''
+                    INSERT INTO sulfide_testing_logs (
+                        profile_number, cp1_number, lab_number, weight_ticket, sample_count,
+                        total_sulfide_samples, reactive_sulfide_samples, total_sulfide_mean,
+                        total_sulfide_stddev, total_sulfide_90ci, reactive_sulfide_mean,
+                        reactive_sulfide_stddev, reactive_sulfide_90ci, degrees_of_freedom,
+                        t_value, reactive_pass, tested_by, test_date, notes
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    profile_clean, cp1_number, lab_number, weight_ticket, n,
+                    json.dumps(tot_samples), json.dumps(react_samples), tot_mean,
+                    tot_stddev, tot_ci90, react_mean, react_stddev, react_ci90,
+                    df, t_val, reactive_pass, tested_by, test_date_input, notes
+                ))
+            else:
+                conn.execute('''
+                    INSERT INTO sulfide_testing_logs (
+                        profile_number, cp1_number, lab_number, weight_ticket, sample_count,
+                        total_sulfide_samples, reactive_sulfide_samples, total_sulfide_mean,
+                        total_sulfide_stddev, total_sulfide_90ci, reactive_sulfide_mean,
+                        reactive_sulfide_stddev, reactive_sulfide_90ci, degrees_of_freedom,
+                        t_value, reactive_pass, tested_by, notes
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    profile_clean, cp1_number, lab_number, weight_ticket, n,
+                    json.dumps(tot_samples), json.dumps(react_samples), tot_mean,
+                    tot_stddev, tot_ci90, react_mean, react_stddev, react_ci90,
+                    df, t_val, reactive_pass, tested_by, notes
+                ))
+            conn.commit()
+            
+            return jsonify({
+                'success': True,
+                'n': n,
+                'df': df,
+                't_value': t_val,
+                'total_sulfide': {'mean': tot_mean, 'stddev': tot_stddev, 'ci90': tot_ci90},
+                'reactive_sulfide': {'mean': react_mean, 'stddev': react_stddev, 'ci90': react_ci90},
+                'reactive_pass': bool(reactive_pass)
+            })
+        else:
+            logs = conn.execute('''
+                SELECT id, cp1_number, lab_number, weight_ticket, sample_count,
+                       total_sulfide_samples, reactive_sulfide_samples, total_sulfide_mean,
+                       total_sulfide_stddev, total_sulfide_90ci, reactive_sulfide_mean,
+                       reactive_sulfide_stddev, reactive_sulfide_90ci, degrees_of_freedom,
+                       t_value, reactive_pass, tested_by, test_date, notes
+                FROM sulfide_testing_logs
+                WHERE TRIM(UPPER(profile_number)) = ?
+                ORDER BY test_date DESC
+            ''', (profile_clean,)).fetchall()
+            return jsonify([dict(l) for l in logs])
+
 @approvals_bp.route('/uploads/profiles/<path:filename>')
 def serve_profile_upload(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
