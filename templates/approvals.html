@@ -1663,26 +1663,43 @@
                 else if(log.status === 'Need Info') statusColor = 'text-info';
                 else if(log.status === 'Needs Review') statusColor = 'text-primary';
                 
-                const hasNotes = log.notes && log.notes.trim() !== '';
-                const escapedNotesForTitle = (log.notes || '').replace(/"/g, '&quot;');
-                const escapedNotesForJS = (log.notes || '').replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+                const safeNotes = (log.notes || '').toString();
+                const hasNotes = safeNotes.trim() !== '';
+                const escapedNotesForTitle = safeNotes.replace(/"/g, '&quot;');
+                const escapedNotesForJS = safeNotes.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$').replace(/'/g, "\\'");
                 const notesBtn = hasNotes
                     ? `<button class="btn btn-sm btn-warning border p-1 position-relative" title="${escapedNotesForTitle}" onclick="openReviewNotes(${log.id}, \`${escapedNotesForJS}\`)">📝<span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle" style="font-size: 0px;"></span></button>`
                     : `<button class="btn btn-sm btn-light border p-1" title="Add notes" onclick="openReviewNotes(${log.id}, '')">✏️</button>`;
 
-                const upProf = log.profile_number.toUpperCase().trim();
-                const isPlaceholder = upProf === 'PENDING' || upProf === 'TBD' || upProf.startsWith('PENDING') || upProf.startsWith('TBD');
+                const rawProf = (log.profile_number || '').toString().trim();
+                const upProf = rawProf.toUpperCase();
+                const isPlaceholder = !rawProf || upProf === 'PENDING' || upProf === 'TBD' || upProf.startsWith('PENDING') || upProf.startsWith('TBD');
+                const safeProfForJS = rawProf.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 
                 const linkBtn = isPlaceholder
                     ? ''
-                    : `<a href="#" onclick="searchAndSelect('${log.profile_number}'); return false;" class="text-decoration-none ms-1" style="font-size: 1rem;" title="Open Profile">📑</a>`;
+                    : `<a href="#" onclick="searchAndSelect('${safeProfForJS}'); return false;" class="text-decoration-none ms-1" style="font-size: 1rem;" title="Open Profile">📑</a>`;
 
                 const disabledAttr = currentArchivedMode === 1 ? 'disabled style="pointer-events: none;"' : '';
+
+                function parseDateStr(str) {
+                    if (!str) return '---';
+                    try {
+                        const isoStr = String(str).replace(' ', 'T');
+                        const d = new Date(isoStr.endsWith('Z') ? isoStr : isoStr + 'Z');
+                        return isNaN(d.getTime()) ? String(str).split(' ')[0] : d.toLocaleDateString();
+                    } catch(e) {
+                        return String(str).split(' ')[0] || '---';
+                    }
+                }
+
+                const dateAddedDisplay = parseDateStr(log.date_added);
+                const lastUpdatedDisplay = parseDateStr(log.last_updated);
 
                 const profileCell = `
                     <div class="d-flex align-items-center">
                         <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold ${isPlaceholder ? 'text-muted' : 'text-primary'}" 
-                               value="${log.profile_number}" title="${log.profile_number}" placeholder="Profile..." style="width: 170px; text-overflow: ellipsis;"
+                               value="${rawProf}" title="${rawProf}" placeholder="Profile..." style="width: 170px; text-overflow: ellipsis;"
                                onfocus="this.dataset.oldVal = this.value"
                                onblur="if(this.value.toUpperCase().trim() !== (this.dataset.oldVal || '').toUpperCase().trim()) { this.title = this.value; updateReviewLog(${log.id}, 'profile_number', this.value.toUpperCase().trim()); }"
                                ${disabledAttr}>
@@ -1696,7 +1713,7 @@
 
                 tbody.innerHTML += `
                     <tr>
-                        <td class="text-muted small">${log.date_added ? new Date(log.date_added + 'Z').toLocaleDateString() : '---'}</td>
+                        <td class="text-muted small">${dateAddedDisplay}</td>
                         <td>${profileCell}</td>
                         <td>
                             <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" 
@@ -1725,7 +1742,7 @@
                                    onblur="if(this.value.trim() !== (this.dataset.oldVal || '').trim()) { updateReviewLog(${log.id}, 'assigned_to', this.value.trim()); }"
                                    ${disabledAttr}>
                         </td>
-                        <td class="text-muted small">${log.last_updated ? new Date(log.last_updated + 'Z').toLocaleDateString() : '---'}</td>
+                        <td class="text-muted small">${lastUpdatedDisplay}</td>
                         <td>
                             ${notesBtn}
                             ${archiveBtn}
