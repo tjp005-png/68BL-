@@ -228,6 +228,8 @@ def ensure_profile_exists(conn, profile_number, excel_path=None):
             status_val = 'ACTIVE'
         elif status_val.upper() in ['A', 'ACTIVE']:
             status_val = 'ACTIVE'
+        elif status_val.upper() in ['E', 'EXP', 'EXPIRED']:
+            status_val = 'EXPIRED'
             
         exp_date = 'No Date'
         if 'EXP DATE' in df.columns:

@@ -546,6 +546,7 @@
                                             <option value="ACTIVE">Active</option>
                                             <option value="S" selected>Pending LAS (S)</option>
                                             <option value="NOT APPROVED">Not Approved</option>
+                                            <option value="EXPIRED">Expired</option>
                                         </select>
                                     </div>
                                 </div>
@@ -1157,12 +1158,15 @@
                                     ? `<span class="badge bg-primary text-white ms-2" style="font-size: 0.7rem;">🛢️ Drum Profile</span>`
                                     : `<span class="badge bg-secondary text-white ms-2" style="font-size: 0.7rem;">📦 ${cType}</span>`;
 
+                                const statusClass = p.status === 'ACTIVE' ? 'text-success' : (p.status === 'S' ? 'text-warning' : (p.status === 'EXPIRED' ? 'text-danger fw-bold' : (p.status === 'NOT APPROVED' ? 'text-danger' : 'text-muted')));
+                                const statusLabel = p.status === 'S' ? 'PENDING LAS (S)' : (p.status === 'EXPIRED' ? 'EXPIRED' : (p.status || 'UNKNOWN'));
+
                                 const btn = document.createElement('button');
                                 btn.className = 'list-group-item list-group-item-action py-2 search-item';
                                 btn.innerHTML = `
                                     <div class="d-flex w-100 justify-content-between align-items-center">
                                         <h6 class="mb-0 fw-bold text-primary">${p.profile_number} ${tagBadge}</h6>
-                                        <small class="${p.status === 'ACTIVE' ? 'text-success' : (p.status === 'S' ? 'text-warning' : (p.status === 'NOT APPROVED' ? 'text-danger' : 'text-muted'))} fw-bold me-3">${p.status === 'S' ? 'PENDING LAS (S)' : (p.status || 'UNKNOWN')}</small>
+                                        <small class="${statusClass} me-3">${statusLabel}</small>
                                     </div>
                                     <p class="mb-1 mt-1 small text-truncate w-100" style="color: var(--text-main); font-weight: 500;" title="${p.generator || 'No Generator'}">${p.generator || 'No Generator'}</p>
                                     <small class="text-muted d-block text-truncate w-100">Desc: ${p.waste_description || '---'} | Lab: ${p.lab_number || '---'} | WIN: ${p.win_code || '---'}</small>
@@ -1231,11 +1235,13 @@
             if (p.status === 'S') statusText = 'PENDING LAS (S)';
             else if (p.status === 'ACTIVE') statusText = 'ACTIVE';
             else if (p.status === 'NOT APPROVED') statusText = 'NOT APPROVED';
+            else if (p.status === 'EXPIRED') statusText = 'EXPIRED';
 
             let badgeClass = 'bg-secondary';
             if (p.status === 'ACTIVE') badgeClass = 'bg-success';
             else if (p.status === 'S') badgeClass = 'bg-warning text-dark';
             else if (p.status === 'NOT APPROVED') badgeClass = 'bg-danger';
+            else if (p.status === 'EXPIRED') badgeClass = 'bg-dark text-white border border-light';
 
             document.getElementById('dashStatus').innerText = statusText;
             document.getElementById('dashStatus').className = `badge mb-1 px-3 py-2 fs-6 ${badgeClass}`;
@@ -2038,6 +2044,11 @@
                     const nextYear = new Date();
                     nextYear.setFullYear(nextYear.getFullYear() + 1);
                     expField.value = nextYear.toISOString().split('T')[0];
+                }
+            } else if (this.value === 'EXPIRED') {
+                if (!expField.value) {
+                    const today = new Date().toISOString().split('T')[0];
+                    expField.value = today;
                 }
             } else {
                 expField.value = '';
