@@ -338,11 +338,12 @@ def upgrade_db():
                 degrees_of_freedom INTEGER,
                 t_value REAL,
                 reactive_pass INTEGER,
-                tested_by TEXT,
                 test_date DATETIME DEFAULT CURRENT_TIMESTAMP,
                 notes TEXT
             )
         ''')
+        if not column_exists(cursor, 'sulfide_testing_logs', 'sample_metadata'):
+            cursor.execute('ALTER TABLE sulfide_testing_logs ADD COLUMN sample_metadata TEXT')
 
         # Add performance indexes
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_profiles_win_code ON profiles (win_code)")

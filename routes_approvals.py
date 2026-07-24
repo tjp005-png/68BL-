@@ -772,6 +772,7 @@ def api_profile_sulfide_log(profile_number):
             tested_by = str(data.get('tested_by', 'Lab Chemist')).strip()
             notes = str(data.get('notes', '')).strip()
             test_date_input = data.get('test_date')
+            sample_metadata_input = data.get('sample_metadata', [])
             
             tot_raw = data.get('total_sulfide_samples', [])
             react_raw = data.get('reactive_sulfide_samples', [])
@@ -782,6 +783,9 @@ def api_profile_sulfide_log(profile_number):
             if isinstance(react_raw, str):
                 try: react_raw = json.loads(react_raw)
                 except: react_raw = [float(x) for x in react_raw.split(',') if x.strip()]
+            if isinstance(sample_metadata_input, str):
+                try: sample_metadata_input = json.loads(sample_metadata_input)
+                except: sample_metadata_input = []
                 
             tot_samples = [float(x) for x in tot_raw if x is not None and str(x).strip() != '']
             react_samples = [float(x) for x in react_raw if x is not None and str(x).strip() != '']
@@ -810,6 +814,7 @@ def api_profile_sulfide_log(profile_number):
             react_mean, react_stddev, react_ci90 = calc_stats(react_samples, df, t_val)
             
             reactive_pass = 1 if react_ci90 <= 500.0 else 0
+            sample_meta_json = json.dumps(sample_metadata_input)
             
             if test_date_input:
                 conn.execute('''
@@ -818,13 +823,13 @@ def api_profile_sulfide_log(profile_number):
                         total_sulfide_samples, reactive_sulfide_samples, total_sulfide_mean,
                         total_sulfide_stddev, total_sulfide_90ci, reactive_sulfide_mean,
                         reactive_sulfide_stddev, reactive_sulfide_90ci, degrees_of_freedom,
-                        t_value, reactive_pass, tested_by, test_date, notes
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        t_value, reactive_pass, tested_by, test_date, notes, sample_metadata
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     profile_clean, cp1_number, lab_number, weight_ticket, n,
                     json.dumps(tot_samples), json.dumps(react_samples), tot_mean,
                     tot_stddev, tot_ci90, react_mean, react_stddev, react_ci90,
-                    df, t_val, reactive_pass, tested_by, test_date_input, notes
+                    df, t_val, reactive_pass, tested_by, test_date_input, notes, sample_meta_json
                 ))
             else:
                 conn.execute('''
@@ -833,13 +838,13 @@ def api_profile_sulfide_log(profile_number):
                         total_sulfide_samples, reactive_sulfide_samples, total_sulfide_mean,
                         total_sulfide_stddev, total_sulfide_90ci, reactive_sulfide_mean,
                         reactive_sulfide_stddev, reactive_sulfide_90ci, degrees_of_freedom,
-                        t_value, reactive_pass, tested_by, notes
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        t_value, reactive_pass, tested_by, notes, sample_metadata
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     profile_clean, cp1_number, lab_number, weight_ticket, n,
                     json.dumps(tot_samples), json.dumps(react_samples), tot_mean,
                     tot_stddev, tot_ci90, react_mean, react_stddev, react_ci90,
-                    df, t_val, reactive_pass, tested_by, notes
+                    df, t_val, reactive_pass, tested_by, notes, sample_meta_json
                 ))
             conn.commit()
             
@@ -858,7 +863,7 @@ def api_profile_sulfide_log(profile_number):
                        total_sulfide_samples, reactive_sulfide_samples, total_sulfide_mean,
                        total_sulfide_stddev, total_sulfide_90ci, reactive_sulfide_mean,
                        reactive_sulfide_stddev, reactive_sulfide_90ci, degrees_of_freedom,
-                       t_value, reactive_pass, tested_by, test_date, notes
+                       t_value, reactive_pass, tested_by, test_date, notes, sample_metadata
                 FROM sulfide_testing_logs
                 WHERE TRIM(UPPER(profile_number)) = ?
                 ORDER BY test_date DESC
