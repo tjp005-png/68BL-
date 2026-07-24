@@ -448,6 +448,17 @@
                                 </div>
 
                                 <div class="row mb-3">
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label text-muted small fw-bold mb-1">Shipping Container Type</label>
+                                        <select class="form-select border-secondary px-2" id="form-shipping-container" name="shipping_container_type" required>
+                                            <option value="Containerized" selected>Containerized (Drum Profile)</option>
+                                            <option value="Bulk Solid">Bulk Solid (Bulk)</option>
+                                            <option value="Bulk Liquid">Bulk Liquid (Bulk)</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
                                     <div class="col-4">
                                         <label class="form-label text-muted small fw-bold mb-1">Cyanide</label>
                                         <select class="form-select border-secondary px-2" id="form-cyanide" name="cyanide" required>
@@ -603,7 +614,10 @@
                     <div class="card premium-card border-0" style="border-left: 6px solid var(--primary-crimson) !important;">
                         <div class="card-body d-flex justify-content-between align-items-start pb-2">
                             <div>
-                                <h3 id="dashProfileNum" class="fw-bold text-primary mb-1">---</h3>
+                                <h3 class="fw-bold text-primary mb-1 d-flex align-items-center flex-wrap gap-2">
+                                    <span id="dashProfileNum">---</span> 
+                                    <span id="dashContainerTypeBadge" class="badge bg-primary text-white fs-6 align-middle">🥁 Drum Profile</span>
+                                </h3>
                                 <h6 class="text-muted fw-bold mb-0 d-flex align-items-center flex-wrap gap-2">
                                     <span id="dashGenerator" class="text-truncate" style="max-width: 480px; display: inline-block; vertical-align: bottom;" title="">---</span> 
                                     <span id="dashEpaIdBadge" class="badge bg-light text-dark border small fw-bold px-2 py-1">EPA: ---</span>
@@ -761,7 +775,7 @@
                     </div>
 
                     <!-- Drum Lab & VOC Audit Trail Panel -->
-                    <div class="card premium-card mt-3 border-secondary">
+                    <div class="card premium-card mt-3 border-secondary" id="drumAuditCard">
                         <div class="card-header card-header-dark py-2 d-flex justify-content-between align-items-center">
                             <span>🧪 VOC & Lab Testing Drum Audit Trail</span>
                             <button class="btn btn-sm btn-outline-light py-0 px-2 fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#drumAuditCollapse" aria-expanded="false">
@@ -1054,6 +1068,9 @@
                     setAndHighlight('form-fp', data.flash_point);
                     setAndHighlight('form-ldr', data.ldr_required);
                     toggleLdrOption();
+                    if (data.shipping_container_type) {
+                        setAndHighlight('form-shipping-container', data.shipping_container_type);
+                    }
                     setAndHighlight('form-color', data.color);
                     
                     // Handle physical state select & dispatch its change listener
@@ -1123,11 +1140,17 @@
                             searchResults.innerHTML = '<div class="list-group-item text-muted p-3">No matching profiles found in database.</div>';
                         } else {
                             data.forEach(p => {
+                                const cType = p.shipping_container_type || 'Containerized';
+                                const isDrum = cType === 'Containerized';
+                                const tagBadge = isDrum
+                                    ? `<span class="badge bg-primary text-white ms-2" style="font-size: 0.7rem;">🥁 Drum Profile</span>`
+                                    : `<span class="badge bg-secondary text-white ms-2" style="font-size: 0.7rem;">📦 ${cType}</span>`;
+
                                 const btn = document.createElement('button');
                                 btn.className = 'list-group-item list-group-item-action py-2 search-item';
                                 btn.innerHTML = `
                                     <div class="d-flex w-100 justify-content-between align-items-center">
-                                        <h6 class="mb-0 fw-bold text-primary">${p.profile_number}</h6>
+                                        <h6 class="mb-0 fw-bold text-primary">${p.profile_number} ${tagBadge}</h6>
                                         <small class="${p.status === 'ACTIVE' ? 'text-success' : (p.status === 'S' ? 'text-warning' : (p.status === 'NOT APPROVED' ? 'text-danger' : 'text-muted'))} fw-bold me-3">${p.status === 'S' ? 'PENDING LAS (S)' : (p.status || 'UNKNOWN')}</small>
                                     </div>
                                     <p class="mb-1 mt-1 small text-truncate w-100" style="color: var(--text-main); font-weight: 500;" title="${p.generator || 'No Generator'}">${p.generator || 'No Generator'}</p>
@@ -1278,6 +1301,34 @@
             if (document.getElementById('form-treatment-recipe')) { 
                 document.getElementById('form-treatment-recipe').value = p.treatment_recipe || ''; 
             }
+            if (document.getElementById('form-shipping-container')) {
+                document.getElementById('form-shipping-container').value = p.shipping_container_type || 'Containerized';
+            }
+
+            // Update Container Type Badge & Drum Audit Trail visibility
+            const cType = p.shipping_container_type || 'Containerized';
+            const isDrum = cType === 'Containerized';
+            
+            const typeBadge = document.getElementById('dashContainerTypeBadge');
+            if (typeBadge) {
+                if (isDrum) {
+                    typeBadge.className = 'badge bg-primary text-white fs-6 align-middle';
+                    typeBadge.innerText = '🥁 Drum Profile';
+                } else {
+                    typeBadge.className = 'badge bg-secondary text-white fs-6 align-middle';
+                    typeBadge.innerText = `📦 ${cType}`;
+                }
+            }
+
+            const drumAuditCard = document.getElementById('drumAuditCard');
+            if (drumAuditCard) {
+                if (isDrum) {
+                    drumAuditCard.classList.remove('d-none');
+                } else {
+                    drumAuditCard.classList.add('d-none');
+                }
+            }
+
             toggleTreatmentRecipe();
             toggleLdrOption();
 

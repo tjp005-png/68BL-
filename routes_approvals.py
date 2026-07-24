@@ -225,7 +225,7 @@ def parse_profile_pdf():
         'epa_id': '', 'dot_description': '', 'state_waste_code': '', 
         'federal_waste_code': '', 'ph_range': '', 'flash_point': '',
         'cyanide': 'No', 'sulfide': 'No', 'free_liquids': 'No', 'ldr_required': 'No',
-        'color': ''
+        'color': '', 'shipping_container_type': 'Containerized'
     }
     try:
         import pdfplumber
@@ -324,6 +324,14 @@ def parse_profile_pdf():
                             free_liquids = "Yes"
                     elif "powder" in line_text or "monolithic" in line_text:
                         physical_state = "Solid"
+                    
+                    # Shipping Container Type Check
+                    if "container" in line_text or "drum" in line_text:
+                        extracted_data['shipping_container_type'] = "Containerized"
+                    elif "bulk solid" in line_text:
+                        extracted_data['shipping_container_type'] = "Bulk Solid"
+                    elif "bulk liquid" in line_text:
+                        extracted_data['shipping_container_type'] = "Bulk Liquid"
                 
                 # 2. pH Checkbox (top is roughly between 380 and 550, x is strictly in the pH column)
                 elif 380 < cm['top'] < 550 and 80 < cm['x0'] < 140:
@@ -452,6 +460,7 @@ def add_master_profile():
     free_liquids = request.form.get('free_liquids', 'No').strip()
     lab_number = request.form.get('lab_number', '').strip().upper()
     color = request.form.get('color', '').strip().upper()
+    shipping_container_type = request.form.get('shipping_container_type', 'Containerized').strip()
 
     voc_pct = 0.0
     try:
@@ -471,24 +480,28 @@ def add_master_profile():
                     special_handling = ?, ph_range = ?, physical_appearance = ?, flash_point = ?, 
                     expiration_date = ?, epa_id = ?, ldr_required = ?, ldr_option = ?, state_waste_code = ?, 
                     federal_waste_code = ?, dot_description = ?, cyanide = ?, sulfide = ?, 
-                    free_liquids = ?, status = ?, lab_number = ?, color = ?, treatment_recipe = ?
+                    free_liquids = ?, status = ?, lab_number = ?, color = ?, treatment_recipe = ?,
+                    shipping_container_type = ?
                 WHERE TRIM(UPPER(profile_number)) = ?
             ''', (generator, waste_description, win_code, voc_pct, 
                   special_handling, ph_range, physical_appearance, flash_point, 
                   expiration_date, epa_id, ldr_required, ldr_option, state_waste_code, 
                   federal_waste_code, dot_description, cyanide, sulfide, 
-                  free_liquids, status, lab_number, color, treatment_recipe, profile_number))
+                  free_liquids, status, lab_number, color, treatment_recipe,
+                  shipping_container_type, profile_number))
         else:
             conn.execute('''
                 INSERT INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, 
                                       special_handling, ph_range, physical_appearance, flash_point, expiration_date, 
                                       epa_id, status, ldr_required, ldr_option, state_waste_code, federal_waste_code, 
-                                      dot_description, cyanide, sulfide, free_liquids, lab_number, color, treatment_recipe)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                      dot_description, cyanide, sulfide, free_liquids, lab_number, color, treatment_recipe,
+                                      shipping_container_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (profile_number, generator, waste_description, win_code, voc_pct, 
                   special_handling, ph_range, physical_appearance, flash_point, expiration_date, 
                   epa_id, status, ldr_required, ldr_option, state_waste_code, federal_waste_code, 
-                  dot_description, cyanide, sulfide, free_liquids, lab_number, color, treatment_recipe))
+                  dot_description, cyanide, sulfide, free_liquids, lab_number, color, treatment_recipe,
+                  shipping_container_type))
         conn.commit()
         
     return redirect(url_for('approvals_bp.approvals_portal', selected_profile=profile_number))

@@ -39,6 +39,13 @@ app.secret_key = 'clh-secret-session-key-2026'
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 socketio.init_app(app)
 
+@app.after_request
+def add_header(response):
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '-1'
+    return response
+
 
 # Register Blueprints
 app.register_blueprint(receiving_bp)
@@ -134,6 +141,10 @@ def upgrade_db():
             cursor.execute('ALTER TABLE profiles ADD COLUMN comments TEXT')
         if not column_exists(cursor, 'profiles', 'ldr_required'):
             cursor.execute('ALTER TABLE profiles ADD COLUMN ldr_required TEXT DEFAULT "No"')
+        if not column_exists(cursor, 'profiles', 'ldr_option'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN ldr_option INTEGER')
+        if not column_exists(cursor, 'profiles', 'shipping_container_type'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN shipping_container_type TEXT DEFAULT "Containerized"')
         if not column_exists(cursor, 'profiles', 'state_waste_code'):
             cursor.execute('ALTER TABLE profiles ADD COLUMN state_waste_code TEXT')
         if not column_exists(cursor, 'profiles', 'federal_waste_code'):
