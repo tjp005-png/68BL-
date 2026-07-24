@@ -491,6 +491,35 @@
                                     </div>
                                 </div>
 
+                                <div class="row mb-3 d-none" id="ldrOptionContainer">
+                                    <div class="col-12">
+                                        <label class="form-label text-muted small fw-bold mb-1 text-warning">⚡ LDR Certification Option</label>
+                                        <select class="form-select border-warning px-2" id="form-ldr-option" name="ldr_option">
+                                            <option value="" selected>None Selected</option>
+                                            <option value="1">1: Not subject to LDR</option>
+                                            <option value="2">2: This is subject to LDR.</option>
+                                            <option value="3">3: Alternate Debris Standard</option>
+                                            <option value="4">4: Meets LDR Standards</option>
+                                            <option value="5">5: Alternate Soil Std-meets std. (with listed and characteristic hazardous waste)</option>
+                                            <option value="6">6: Alternate Soil Std-meets std. (with characteristic hazardous waste only)</option>
+                                            <option value="7">7: Alternate Soil Std-meets std. (with listed hazardous waste only)</option>
+                                            <option value="8">8: Alternate Soil Std-does not meet std. (with listed and characteristic hazardous waste)</option>
+                                            <option value="9">9: Alternate Soil Std-does not meet std. (with listed hazardous waste only)</option>
+                                            <option value="10">10: Alternate Soil Std-does not meet std. (with characteristic hazardous waste only)</option>
+                                            <option value="11">11: Labpack Alternate Standard</option>
+                                            <option value="12">12: Subject to a variance or exemption</option>
+                                            <option value="13">13: Partially meets LDR standards</option>
+                                            <option value="14">14: Treatment Technology & Process certification</option>
+                                            <option value="15">15: Contaminated Soil Treatment Tech. And Process Cert.</option>
+                                            <option value="16">16: Concentration-based Certification for combustion residues</option>
+                                            <option value="17">17: Waste treated to remove characteristic, but not UHCs</option>
+                                            <option value="18">18: Waste treated to remove characteristic and UHCs</option>
+                                            <option value="19">19: Treated Debris under 268.45</option>
+                                            <option value="20">20: Generator chooses not to make the determination of whether the waste must be treated.</option>
+                                        </select>
+                                    </div>
+                                </div>
+
                                 <div class="row mb-3">
                                     <div class="col-4">
                                         <label class="form-label text-muted small fw-bold mb-1">BL Waste Code</label>
@@ -1024,6 +1053,7 @@
                     setAndHighlight('form-ph', data.ph_range);
                     setAndHighlight('form-fp', data.flash_point);
                     setAndHighlight('form-ldr', data.ldr_required);
+                    toggleLdrOption();
                     setAndHighlight('form-color', data.color);
                     
                     // Handle physical state select & dispatch its change listener
@@ -1239,6 +1269,7 @@
             document.getElementById('form-sulfide').value = p.sulfide || 'No';
             document.getElementById('form-free-liquids').value = p.free_liquids || 'No';
             document.getElementById('form-ldr').value = p.ldr_required || 'No';
+            document.getElementById('form-ldr-option').value = p.ldr_option || '';
             document.getElementById('form-state-code').value = p.state_waste_code || '';
             document.getElementById('form-federal-code').value = p.federal_waste_code || '';
             document.getElementById('form-dot').value = p.dot_description || '';
@@ -1248,6 +1279,7 @@
                 document.getElementById('form-treatment-recipe').value = p.treatment_recipe || ''; 
             }
             toggleTreatmentRecipe();
+            toggleLdrOption();
 
             document.getElementById('form-profile').readOnly = true;
             document.getElementById('clearFormBtn').classList.remove('d-none');
@@ -1973,7 +2005,24 @@
                 if (recipeInput) recipeInput.value = '';
             }
         }
+        
+        // Toggle LDR Certification Option when LDR Required is Yes
+        function toggleLdrOption() {
+            const ldrSelect = document.getElementById('form-ldr');
+            const container = document.getElementById('ldrOptionContainer');
+            if (!ldrSelect || !container) return;
+            const ldrVal = ldrSelect.value.trim();
+            if (ldrVal === 'Yes') {
+                container.classList.remove('d-none');
+            } else {
+                container.classList.add('d-none');
+                const ldrOptInput = document.getElementById('form-ldr-option');
+                if (ldrOptInput) ldrOptInput.value = '';
+            }
+        }
+
         document.getElementById('form-win').addEventListener('input', toggleTreatmentRecipe);
+        document.getElementById('form-ldr').addEventListener('change', toggleLdrOption);
 
         // Handle browser back/forward buttons
         window.addEventListener('popstate', () => {
