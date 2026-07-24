@@ -2071,15 +2071,25 @@
             let totSamples = [];
             let reactSamples = [];
             
-            totInputs.forEach(inp => {
-                const v = parseFloat(inp.value);
-                if (!isNaN(v)) totSamples.push(v);
-            });
-            
-            reactInputs.forEach(inp => {
-                const v = parseFloat(inp.value);
-                if (!isNaN(v)) reactSamples.push(v);
-            });
+            for (let i = 0; i < totInputs.length; i++) {
+                const totVal = parseFloat(totInputs[i].value);
+                
+                if (!isNaN(totVal) && totVal > 1000) {
+                    reactInputs[i].disabled = false;
+                    reactInputs[i].classList.remove('bg-secondary', 'bg-opacity-10', 'text-muted');
+                    reactInputs[i].placeholder = 'React #';
+                    
+                    const rVal = parseFloat(reactInputs[i].value);
+                    if (!isNaN(rVal)) reactSamples.push(rVal);
+                } else {
+                    reactInputs[i].disabled = true;
+                    reactInputs[i].value = '';
+                    reactInputs[i].classList.add('bg-secondary', 'bg-opacity-10', 'text-muted');
+                    reactInputs[i].placeholder = 'N/A (≤1000)';
+                }
+                
+                if (!isNaN(totVal)) totSamples.push(totVal);
+            }
             
             function computeStats(arr) {
                 const n = arr.length;
@@ -2100,10 +2110,10 @@
             const reactStats = computeStats(reactSamples);
             
             document.getElementById('calcTotMean').innerText = totStats.mean.toFixed(2);
-            document.getElementById('calcReactMean').innerText = reactStats.mean.toFixed(2);
+            document.getElementById('calcReactMean').innerText = reactStats.n > 0 ? reactStats.mean.toFixed(2) : 'N/A (≤1000)';
             
             document.getElementById('calcTotStddev').innerText = totStats.stddev.toFixed(2);
-            document.getElementById('calcReactStddev').innerText = reactStats.stddev.toFixed(2);
+            document.getElementById('calcReactStddev').innerText = reactStats.n > 0 ? reactStats.stddev.toFixed(2) : '0.00';
             
             document.getElementById('calcTotDf').innerText = totStats.df;
             document.getElementById('calcReactDf').innerText = reactStats.df;
@@ -2112,11 +2122,17 @@
             document.getElementById('calcReactTval').innerText = reactStats.tVal.toFixed(3);
             
             document.getElementById('calcTot90CI').innerText = totStats.ci90.toFixed(2) + ' mg/kg';
-            document.getElementById('calcReact90CI').innerText = reactStats.ci90.toFixed(2) + ' mg/kg';
+            document.getElementById('calcReact90CI').innerText = reactStats.n > 0 ? reactStats.ci90.toFixed(2) + ' mg/kg' : 'N/A (≤1000 mg/kg)';
             
             const conclusionEl = document.getElementById('calcConclusion');
-            if (reactStats.n === 0) {
+            const hasExceedance = totSamples.some(v => v > 1000);
+
+            if (totStats.n === 0) {
                 conclusionEl.innerHTML = '<span class="badge bg-secondary fs-6">Awaiting Sample Data</span>';
+            } else if (!hasExceedance) {
+                conclusionEl.innerHTML = `<span class="badge bg-success fs-6">✅ PASS: Total Sulfide ≤ 1000 mg/kg (Reactive Testing N/A)</span>`;
+            } else if (reactStats.n === 0) {
+                conclusionEl.innerHTML = `<span class="badge bg-warning text-dark fs-6">⚠️ Total > 1000 mg/kg: Reactive Test Required</span>`;
             } else if (reactStats.ci90 <= 500.0) {
                 conclusionEl.innerHTML = `<span class="badge bg-success fs-6">✅ PASS: ${reactStats.ci90.toFixed(2)} mg/kg (≤ 500 mg/kg limit)</span>`;
             } else {
@@ -2242,8 +2258,9 @@
                 alert('Please enter at least 1 valid sample measurement for Total Sulfide.');
                 return;
             }
-            if (reactSamples.length === 0) {
-                alert('Please enter at least 1 valid sample measurement for Reactive Sulfide.');
+            const hasExceedance = totSamples.some(v => v > 1000);
+            if (hasExceedance && reactSamples.length === 0) {
+                alert('Total Sulfide exceeds 1000 mg/kg on 1 or more samples. Please enter the Reactive Sulfide test results.');
                 return;
             }
             
