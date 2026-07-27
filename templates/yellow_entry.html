@@ -143,7 +143,7 @@
                                         <th>Generator</th>
                                         <th class="text-end">Net Weight (Lbs)</th>
                                         <th class="text-end">Tons</th>
-                                        <th class="text-center">VOC %</th>
+                                        <th class="text-center">VOC PPM</th>
                                         <th class="text-center">SG</th>
                                         <th class="text-center">Grid</th>
                                         <th class="text-center">Actions</th>
@@ -161,9 +161,9 @@
                                                 <td class="text-end fw-bold text-success">{{ "{:,.2f}".format((log.gross_weight or 0) / 2000.0) }} T</td>
                                                 <td class="text-center">
                                                     {% if log.measured_voc is not none %}
-                                                        <span class="badge {% if log.measured_voc >= 50 %}bg-danger{% else %}bg-secondary{% endif %}">{{ log.measured_voc }}%</span>
+                                                        <span class="badge {% if log.measured_voc >= 50 %}bg-danger{% else %}bg-secondary{% endif %}">{{ log.measured_voc }} ppm</span>
                                                     {% else %}
-                                                        <span class="badge bg-secondary">0%</span>
+                                                        <span class="badge bg-secondary">0 ppm</span>
                                                     {% endif %}
                                                 </td>
                                                 <td class="text-center">
@@ -253,7 +253,7 @@
                                     if (masterVoc === undefined || masterVoc === null || masterVoc === 'TBD' || masterVoc === 'None' || masterVoc === '' || masterVoc === '?') {
                                         masterVoc = 0;
                                     }
-                                    badge.innerHTML = `<strong>Generator:</strong> ${data.generator || 'N/A'} &nbsp;|&nbsp; <strong>WIN:</strong> ${data.win_code || 'N/A'} &nbsp;|&nbsp; <strong>Master VOC:</strong> ${masterVoc}%${isLiquidBulk ? ' &nbsp;|&nbsp; <span class="text-danger fw-bold">⚠️ SPECIFIC GRAVITY REQUIRED</span>' : ''}`;
+                                    badge.innerHTML = `<strong>Generator:</strong> ${data.generator || 'N/A'} &nbsp;|&nbsp; <strong>WIN:</strong> ${data.win_code || 'N/A'} &nbsp;|&nbsp; <strong>Master VOC:</strong> ${masterVoc} ppm${isLiquidBulk ? ' &nbsp;|&nbsp; <span class="text-danger fw-bold">⚠️ SPECIFIC GRAVITY REQUIRED</span>' : ''}`;
                                     badge.classList.remove('d-none');
                                 }
                             }
@@ -302,7 +302,7 @@
                                 <input type="text" class="form-control border-secondary text-uppercase fw-bold" name="grid_location" id="edit_grid_location">
                             </div>
                             <div class="col-6">
-                                <label class="form-label text-dark small fw-bold mb-1">VOC %</label>
+                                <label class="form-label text-dark small fw-bold mb-1">VOC PPM</label>
                                 <input type="number" step="0.1" class="form-control border-secondary fw-bold" name="voc_percentage" id="edit_voc_percentage">
                             </div>
                         </div>
