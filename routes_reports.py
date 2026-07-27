@@ -9,153 +9,194 @@ from database import get_db_connection
 
 reports_bp = Blueprint('reports_bp', __name__)
 
+def build_2026voc_excel(trucks, selected_date):
+    import openpyxl
+    from openpyxl.styles import Font
+
+    wb = openpyxl.Workbook()
+    
+    # Setup exact 5 sheets matching I:\Buttonwillow\VOCs and TONNAGE by YEAR\2026VOC
+    ws35 = wb.active
+    ws35.title = '35'
+    ws_non = wb.create_sheet(title='NON-VOC')
+    ws31 = wb.create_sheet(title='31 GALLONS ')
+    ws_s34 = wb.create_sheet(title='STORAGE TO 34')
+    ws_tw = wb.create_sheet(title='TREATED WASTE (34 TO 35)')
+
+    # Sheet 1: '35'
+    ws35['A1'] = 'DAILY WMU 35 VOC TRACKING'
+    ws35['A1'].font = Font(bold=True, size=12)
+    ws35.append([]) # Row 2 blank
+    headers_35 = ['RECEIVED', 'VOCs (ppm)', 'Weight (Pounds)', 'Weight (TONs)', 'VOCSxWt.', 'MANIFEST #', 'APPROVAL #', 'WMU', 'Weighmaster Load No.']
+    ws35.append(headers_35)
+    for col in range(1, 10):
+        ws35.cell(row=3, column=col).font = Font(bold=True)
+
+    # Sheet 2: 'NON-VOC'
+    ws_non['A1'] = "DAILY NON-VOC'S REPORT"
+    ws_non['A1'].font = Font(bold=True, size=12)
+    headers_non = ['RECEIVED', 'VOCs ppm', 'Pounds', 'TONs', 'VOCS/Wt.', 'MANIFEST #', 'APPROVAL #', 'WMU', 'Weighmaster Load No.']
+    ws_non.append(headers_non)
+    for col in range(1, 10):
+        ws_non.cell(row=2, column=col).font = Font(bold=True)
+
+    # Sheet 3: '31 GALLONS '
+    ws31.append([])
+    ws31['A2'] = 'GALLONS PER LOAD CALCULATOR'
+    ws31['A2'].font = Font(bold=True, size=12)
+    ws31.append([])
+    headers_31 = ['SPECIFIC GRAVITY', 'NET (LBS) WEIGHT OF LOAD', 'GALLONS PER LOAD', 'WEIGHT TICKET #', 'WMU #']
+    ws31.append(headers_31)
+    for col in range(1, 6):
+        ws31.cell(row=4, column=col).font = Font(bold=True)
+
+    # Sheet 4: 'STORAGE TO 34'
+    ws_s34['A1'] = 'TREATED WASTE TRANSFER TO WMU 34 (for storage) '
+    ws_s34['A1'].font = Font(bold=True, size=12)
+    headers_s34 = ['DATE', 'STU Batch #s', 'Waste (Tons)', 'Additive (Tons)', 'Waste + Additive (Tons)', 'Water (Tons)', 'VOCs (ppm)', 'VOC/Wt. (PPM)', 'Final Grid', 'Date Moved', 'Cell 35-?', 'Note:', 'ZERO VOC']
+    ws_s34.append(headers_s34)
+    for col in range(1, 14):
+        ws_s34.cell(row=2, column=col).font = Font(bold=True)
+
+    # Sheet 5: 'TREATED WASTE (34 TO 35)'
+    ws_tw['A1'] = 'TREATED WASTE TRANSFER TO WMU 35 from STORAGE (from map)'
+    ws_tw['A1'].font = Font(bold=True, size=12)
+    headers_tw = ['Date ', 'STU Batch #s', 'Waste (Tons)', 'Additive (Tons)', 'Waste + Additive (Tons)', 'Water (Tons) ', 'VOCs (ppm)', 'VOC/Wt.', 'Final Grid', 'Date', 'Cell 35-?']
+    ws_tw.append(headers_tw)
+    for col in range(1, 12):
+        ws_tw.cell(row=2, column=col).font = Font(bold=True)
+
+    row_35_idx = 4
+    row_non_idx = 3
+    row_31_idx = 5
+
+    try:
+        dt_received = datetime.strptime(selected_date, '%Y-%m-%d').date()
+    except Exception:
+        dt_received = selected_date
+
+    for t in trucks:
+        wmu_cell = str(t.get('cell_location', '') or '').strip().upper()
+        wmu_grid = str(t.get('grid_location', '') or '').strip().upper()
+        
+        if wmu_cell and wmu_grid:
+            wmu = f"{wmu_cell}/{wmu_grid}"
+        elif wmu_cell:
+            wmu = wmu_cell
+        elif wmu_grid:
+            wmu = wmu_grid
+        else:
+            wmu = '35-7' if '35' in str(t.get('win_code', '')) else ('31' if '31' in str(t.get('win_code', '')) else '35-7')
+
+        try: voc = float(t.get('measured_voc') if t.get('measured_voc') is not None else (t.get('voc_percentage') or 0.0))
+        except (ValueError, TypeError): voc = 0.0
+
+        try:
+            gross = float(t.get('gross_weight') or 0)
+            tare = float(t.get('exit_weight') or 0)
+            lbs = gross - tare if gross > tare else gross
+        except (ValueError, TypeError):
+            lbs = 0.0
+
+        manifest = str(t.get('manifest_number', '') or '').strip()
+        profile = str(t.get('profile_number', '') or '').strip()
+        ticket = t.get('truck_id') or t.get('load_number', '')
+        try:
+            ticket = int(ticket)
+        except Exception:
+            pass
+
+        # Sheet 1: '35'
+        if wmu.startswith('35') or '35' in wmu:
+            ws35.cell(row=row_35_idx, column=1, value=dt_received)
+            ws35.cell(row=row_35_idx, column=2, value=voc)
+            ws35.cell(row=row_35_idx, column=3, value=lbs)
+            ws35.cell(row=row_35_idx, column=4, value=f"=C{row_35_idx}/2000")
+            ws35.cell(row=row_35_idx, column=5, value=f"=D{row_35_idx}*B{row_35_idx}")
+            ws35.cell(row=row_35_idx, column=6, value=manifest)
+            ws35.cell(row=row_35_idx, column=7, value=profile)
+            ws35.cell(row=row_35_idx, column=8, value=wmu)
+            ws35.cell(row=row_35_idx, column=9, value=ticket)
+            row_35_idx += 1
+
+        # Sheet 2: 'NON-VOC'
+        is_stu = '34' in wmu or 'STU' in wmu or 'BAY' in wmu or wmu in ['CCS', 'CCSF', 'CCSM']
+        if '31' in wmu or is_stu or (('35' in wmu) and voc == 0):
+            ws_non.cell(row=row_non_idx, column=1, value=dt_received)
+            ws_non.cell(row=row_non_idx, column=2, value=voc)
+            ws_non.cell(row=row_non_idx, column=3, value=lbs)
+            ws_non.cell(row=row_non_idx, column=4, value=f"=C{row_non_idx}/2000")
+            ws_non.cell(row=row_non_idx, column=5, value=f"=D{row_non_idx}*B{row_non_idx}")
+            ws_non.cell(row=row_non_idx, column=6, value=manifest)
+            ws_non.cell(row=row_non_idx, column=7, value=profile)
+            ws_non.cell(row=row_non_idx, column=8, value=wmu)
+            ws_non.cell(row=row_non_idx, column=9, value=ticket)
+            row_non_idx += 1
+
+        # Sheet 3: '31 GALLONS '
+        if '31' in wmu or str(t.get('win_code', '')).upper() in ['CBPS', 'CNOS']:
+            try: sg = float(t.get('specific_gravity') or 1.0)
+            except Exception: sg = 1.0
+            if sg <= 0: sg = 1.0
+
+            ws31.cell(row=row_31_idx, column=1, value=sg)
+            ws31.cell(row=row_31_idx, column=2, value=lbs)
+            ws31.cell(row=row_31_idx, column=3, value=f"=IFERROR(B{row_31_idx}/(A{row_31_idx}*8.33), 0)")
+            ws31.cell(row=row_31_idx, column=4, value=ticket)
+            ws31.cell(row=row_31_idx, column=5, value=wmu)
+            row_31_idx += 1
+
+    # Totals for Sheet '35'
+    if row_35_idx > 4:
+        ws35.cell(row=row_35_idx, column=1, value="TOTAL").font = Font(bold=True)
+        ws35.cell(row=row_35_idx, column=3, value=f"=SUM(C4:C{row_35_idx-1})").font = Font(bold=True)
+        ws35.cell(row=row_35_idx, column=4, value=f"=SUM(D4:D{row_35_idx-1})").font = Font(bold=True)
+        ws35.cell(row=row_35_idx, column=5, value=f"=SUM(E4:E{row_35_idx-1})").font = Font(bold=True)
+
+    # Totals for Sheet 'NON-VOC'
+    if row_non_idx > 3:
+        ws_non.cell(row=row_non_idx, column=1, value="TOTAL").font = Font(bold=True)
+        ws_non.cell(row=row_non_idx, column=3, value=f"=SUM(C3:C{row_non_idx-1})").font = Font(bold=True)
+        ws_non.cell(row=row_non_idx, column=4, value=f"=SUM(D3:D{row_non_idx-1})").font = Font(bold=True)
+        ws_non.cell(row=row_non_idx, column=5, value=f"=SUM(E3:E{row_non_idx-1})").font = Font(bold=True)
+
+    # Totals for Sheet '31 GALLONS '
+    if row_31_idx > 5:
+        ws31.cell(row=row_31_idx, column=1, value="TOTAL").font = Font(bold=True)
+        ws31.cell(row=row_31_idx, column=2, value=f"=SUM(B5:B{row_31_idx-1})").font = Font(bold=True)
+        ws31.cell(row=row_31_idx, column=3, value=f"=SUM(C5:C{row_31_idx-1})").font = Font(bold=True)
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
+
 @reports_bp.route('/export')
 def export_excel():
     selected_date = request.args.get('date', date.today().isoformat())
 
     with closing(get_db_connection()) as conn:
-        # Pull all completed/weighed-out trucks for the selected date
         trucks_raw = conn.execute('''
-            SELECT t.*, p.voc_percentage
+            SELECT t.*, p.voc_percentage, p.win_code
             FROM truck_logs t
-            LEFT JOIN profiles p ON t.profile_number = p.profile_number
-            WHERE t.date_received = ? AND t.test_status != 'REJECTED' AND t.exit_weight IS NOT NULL
+            LEFT JOIN profiles p ON TRIM(UPPER(t.profile_number)) = TRIM(UPPER(p.profile_number))
+            WHERE t.date_received = ? AND t.test_status != 'REJECTED'
             ORDER BY CAST(t.load_number AS INTEGER) ASC
         ''', (selected_date,)).fetchall()
-
-    # Lists to hold data for each specific Excel tab
-    wmu35_data = []
-    non_voc_data = []
-    gallons_data = []
-
-    for row in trucks_raw:
-        t = dict(row)
-        wmu = str(t.get('cell_location', '')).strip().upper()
         
-        # Safely parse VOC
-        try: voc = float(t.get('voc_percentage'))
-        except (ValueError, TypeError): voc = 0.0
-            
-        # Safely calculate Net LBS from Gross and Tare
-        try:
-            gross = float(t.get('gross_weight') or 0)
-            tare = float(t.get('exit_weight') or 0)
-            lbs = gross - tare
-        except ValueError:
-            lbs = 0.0
-            
-        # Do the Tonnage and VOC math
-        tons = lbs / 2000.0 if lbs else 0.0
-        voc_x_wt = voc * tons
-        
-        # Build the standard base row (Removed EXTRA FEES & RECEIVED, moved Load # to front)
-        base_row = {
-            'Weighmaster Load No.': t.get('load_number', ''),
-            'VOCs (ppm)': voc,
-            'Weight (Pounds)': lbs,
-            'Weight (TONs)': round(tons, 2),
-            'VOCSxWt.': round(voc_x_wt, 2),
-            'MANIFEST #': t.get('manifest_number', ''),
-            'APPROVAL #': t.get('profile_number', ''),
-            'WMU': wmu
-        }
-
-        # ---------------------------------------------------------
-        # SHEET 1: WMU 35 VOC TRACKING (All 35 loads)
-        # ---------------------------------------------------------
-        if wmu.startswith('35'):
-            wmu35_data.append(base_row.copy())
-            
-        # ---------------------------------------------------------
-        # SHEET 2: DAILY NON-VOC'S (WMU 31, STU, BAY, and WMU 35 0-VOCs)
-        # ---------------------------------------------------------
-        # Added 'BAY' to the check list
-        is_stu = wmu.startswith('34') or wmu.startswith('STU') or 'BAY' in wmu or wmu in ['CCS', 'CCSF', 'CCSM']
-        
-        if wmu.startswith('31') or is_stu or (wmu.startswith('35') and voc == 0):
-            non_voc_row = base_row.copy()
-            # Rename columns to match the exact format of the Non-VOC sheet
-            non_voc_row['Pounds'] = non_voc_row.pop('Weight (Pounds)')
-            non_voc_row['TONs'] = non_voc_row.pop('Weight (TONs)')
-            non_voc_row['VOCS/Wt.'] = non_voc_row.pop('VOCSxWt.')
-            non_voc_data.append(non_voc_row)
-            
-        # ---------------------------------------------------------
-        # SHEET 3: GALLONS CALCULATOR (WMU 31 loads only)
-        # ---------------------------------------------------------
-        if wmu.startswith('31'):
-            # Retrieve Specific Gravity from database or default to 1.0
-            sg = t.get('specific_gravity')
-            try:
-                sg_val = float(sg) if sg is not None else 1.0
-            except (ValueError, TypeError):
-                sg_val = 1.0
-            if sg_val <= 0:
-                sg_val = 1.0
-                
-            # Convert LBS to Gallons (Using Specific Gravity)
-            gallons = (lbs / (8.34 * sg_val)) if lbs else 0.0 
-            gallons_data.append({
-                'SPECIFIC GRAVITY': sg_val,
-                'NET (LBS) WEIGHT OF LOAD': lbs,
-                'GALLONS PER LOAD': round(gallons, 2),
-                'WEIGHT TICKET #': t.get('load_number', ''),
-                'WMU #': wmu
-            })
-
-    # Generate Excel File in memory
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        
-        # Helper function to generate sheets with Totals and auto-width
-        def write_formatted_sheet(data, sheet_name, columns, sum_cols):
-            df = pd.DataFrame(data, columns=columns) if data else pd.DataFrame(columns=columns)
-            
-            # Append a Totals Row at the bottom
-            if not df.empty and sum_cols:
-                totals = {col: '' for col in columns}
-                totals[columns[0]] = 'TOTAL'
-                for col in sum_cols:
-                    if col in df.columns:
-                        totals[col] = df[col].sum()
-                df = pd.concat([df, pd.DataFrame([totals])], ignore_index=True)
-            
-            # Write to Excel
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
-            
-            # Auto-adjust column widths for a polished look
-            worksheet = writer.sheets[sheet_name]
-            for idx, col in enumerate(df.columns):
-                max_len = max(df[col].astype(str).map(len).max(), len(str(col))) + 2
-                worksheet.column_dimensions[chr(65 + idx)].width = min(max_len, 30)
-                
-            worksheet.page_setup.fitToPage = True
-            worksheet.page_setup.fitToWidth = 1
-            worksheet.page_setup.fitToHeight = 0
-            worksheet.page_setup.orientation = 'landscape'
-        
-        # 1. Write WMU 35 Sheet
-        write_formatted_sheet(wmu35_data, 'WMU 35 VOC TRACKING', 
-                    ['Weighmaster Load No.', 'VOCs (ppm)', 'Weight (Pounds)', 'Weight (TONs)', 'VOCSxWt.', 'MANIFEST #', 'APPROVAL #', 'WMU'],
-                    ['Weight (Pounds)', 'Weight (TONs)', 'VOCSxWt.'])
-                    
-        # 2. Write NON-VOC Sheet
-        write_formatted_sheet(non_voc_data, "DAILY NON-VOC'S REPORT", 
-                    ['Weighmaster Load No.', 'VOCs (ppm)', 'Pounds', 'TONs', 'VOCS/Wt.', 'MANIFEST #', 'APPROVAL #', 'WMU'],
-                    ['Pounds', 'TONs', 'VOCS/Wt.'])
-                    
-        # 3. Write GALLONS Sheet
-        write_formatted_sheet(gallons_data, 'GALLONS CALCULATOR', 
-                    ['SPECIFIC GRAVITY', 'NET (LBS) WEIGHT OF LOAD', 'GALLONS PER LOAD', 'WEIGHT TICKET #', 'WMU #'],
-                    ['NET (LBS) WEIGHT OF LOAD', 'GALLONS PER LOAD'])
-
-    output.seek(0)
+    trucks = [dict(r) for r in trucks_raw]
+    excel_stream = build_2026voc_excel(trucks, selected_date)
     
-    # Return the dynamic multi-sheet workbook to the user
+    try:
+        dt = datetime.strptime(selected_date, '%Y-%m-%d')
+        file_name = f"{dt.strftime('%m%d%Y')}VOC.xlsx"
+    except Exception:
+        file_name = f"Daily_VOC_Tracking_{selected_date}.xlsx"
+
     return send_file(
-        output, 
+        excel_stream, 
         as_attachment=True, 
-        download_name=f"Daily_Tracking_Logs_{selected_date}.xlsx", 
+        download_name=file_name, 
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 
