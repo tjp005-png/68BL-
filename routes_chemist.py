@@ -611,10 +611,8 @@ def edit_yellow_entry(log_id):
     except ValueError:
         weight_num = 0.0
         
-    if weight_unit == 'TONS':
-        gross_weight = weight_num * 2000.0
-    else:
-        gross_weight = weight_num
+    gross_lbs = weight_num * 2000.0 if weight_unit == 'TONS' else weight_num
+    net_tons = gross_lbs / 2000.0
         
     voc_num = 0.0
     if voc_val != '':
@@ -638,7 +636,7 @@ def edit_yellow_entry(log_id):
                 container_type = ?, cell_location = ?, grid_location = ?, specific_gravity = ?
             WHERE id = ?
         ''', (ticket_number, manifest_number, profile_number, load_number,
-              gross_weight, gross_weight, date_received, voc_num,
+              gross_lbs, net_tons, date_received, voc_num,
               container_type, cell_location, grid_location, sg_num, log_id))
         conn.commit()
         
