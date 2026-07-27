@@ -539,10 +539,17 @@ def yellow_entry():
             FROM truck_logs t
             LEFT JOIN profiles p ON TRIM(UPPER(t.profile_number)) = TRIM(UPPER(p.profile_number))
             WHERE t.date_received = ?
-            ORDER BY t.id DESC
         ''', (selected_date,)).fetchall()
         
         logs = [dict(r) for r in logs_raw]
+        
+        def ticket_sort_key(log):
+            tid = str(log.get('truck_id') or log.get('load_number') or '0').strip()
+            digits = re.findall(r'\d+', tid)
+            num = int(digits[0]) if digits else 0
+            return (num, tid)
+
+        logs.sort(key=ticket_sort_key)
         
     return render_template('yellow_entry.html', 
                            logs=logs, 
