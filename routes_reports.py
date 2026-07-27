@@ -166,6 +166,20 @@ def build_2026voc_excel(trucks, selected_date):
         ws31.cell(row=row_31_idx, column=2, value=f"=SUM(B5:B{row_31_idx-1})").font = Font(bold=True)
         ws31.cell(row=row_31_idx, column=3, value=f"=SUM(C5:C{row_31_idx-1})").font = Font(bold=True)
 
+    # Auto-fit column widths generously across all sheets
+    from openpyxl.utils import get_column_letter
+    for ws in [ws35, ws_non, ws31, ws_s34, ws_tw]:
+        for col in ws.columns:
+            max_len = 0
+            col_letter = get_column_letter(col[0].column)
+            for cell in col:
+                val = str(cell.value or '')
+                if val.startswith('='):
+                    max_len = max(max_len, 14)
+                else:
+                    max_len = max(max_len, len(val))
+            ws.column_dimensions[col_letter].width = max(max_len + 5, 18)
+
     output = BytesIO()
     wb.save(output)
     output.seek(0)
