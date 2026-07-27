@@ -766,27 +766,42 @@ def compliance_data():
                 if actual_map.get(iso_date, 0) == 0 and iso_date in voc_file_counts:
                     actual_map[iso_date] = voc_file_counts[iso_date]
             
-            labels = date_list
-            scheduled_data = [sched_map.get(d, 0) for d in labels]
-            actual_data = [actual_map.get(d, 0) for d in labels]
-            variance_data = [actual_data[i] - scheduled_data[i] for i in range(len(labels))]
+            raw_labels = date_list
+            raw_scheduled = [sched_map.get(d, 0) for d in raw_labels]
+            raw_actual = [actual_map.get(d, 0) for d in raw_labels]
+            raw_variance = [raw_actual[i] - raw_scheduled[i] for i in range(len(raw_labels))]
             
-            # Active operating days math (excluding 0/0 days if include_weekends is false)
-            active_days_cnt = 0
-            for i, d in enumerate(labels):
-                s = scheduled_data[i]
-                a = actual_data[i]
+            labels = []
+            scheduled_data = []
+            actual_data = []
+            variance_data = []
+            table_data = []
+
+            for i, d in enumerate(raw_labels):
+                s = raw_scheduled[i]
+                a = raw_actual[i]
+                v = raw_variance[i]
+                dt = datetime.strptime(d, '%Y-%m-%d').date()
+                is_weekend = dt.weekday() >= 5
+                
+                # Exclude 0/0 weekend or non-operating days if include_weekends is false
                 if not include_weekends and s == 0 and a == 0:
                     continue
-                active_days_cnt += 1
+                    
+                labels.append(d)
+                scheduled_data.append(s)
+                actual_data.append(a)
+                variance_data.append(v)
+                table_data.append({
+                    'date': d, 'scheduled': s, 'actual': a, 'variance': f"{v:+d}"
+                })
 
             # Summary Metrics
-            total_sched = sum(scheduled_data)
-            total_act = sum(actual_data)
+            total_sched = sum(raw_scheduled)
+            total_act = sum(raw_actual)
             net_variance = total_act - total_sched
             
-            divisor = len(labels) if include_weekends else (active_days_cnt if active_days_cnt > 0 else 1)
-            avg_variance = round(net_variance / divisor, 1)
+            avg_variance = round(net_variance / len(labels), 1) if labels else 0
             
             summary = {
                 'kpi1_val': total_sched, 'kpi1_label': 'Total Scheduled',
@@ -795,13 +810,6 @@ def compliance_data():
                 'kpi4_val': avg_variance, 'kpi4_label': 'Avg Daily Variance' + ('' if include_weekends else ' (Active Days)')
             }
             
-            # Details table data
-            table_data = []
-            for i, d in enumerate(labels):
-                table_data.append({
-                    'date': d, 'scheduled': scheduled_data[i], 'actual': actual_data[i], 'variance': f"{variance_data[i]:+d}"
-                })
-                
             return jsonify({
                 'labels': labels,
                 'datasets': [
