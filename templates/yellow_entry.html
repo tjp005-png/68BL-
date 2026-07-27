@@ -101,6 +101,12 @@
                                 <!-- Profile info dynamically populated here -->
                             </div>
 
+                            <div id="sg_container" class="mb-3 d-none p-3 border rounded border-danger bg-light">
+                                <label class="form-label text-danger small fw-bold mb-1">SPECIFIC GRAVITY (SG) <span class="text-danger">*</span></label>
+                                <input type="number" step="0.001" class="form-control border-danger fw-bold" name="specific_gravity" id="specific_gravity" placeholder="e.g. 1.05">
+                                <small class="text-danger fw-bold d-block mt-1">⚠️ Required for Bulk Liquid (CBPS / CNOS) profiles</small>
+                            </div>
+
                             <div class="mb-3">
                                 <label class="form-label text-dark small fw-bold mb-1">CONTAINER TYPE</label>
                                 <select class="form-select border-secondary" name="container_type">
@@ -143,6 +149,7 @@
                                         <th class="text-end">Net Weight (Lbs)</th>
                                         <th class="text-end">Tons</th>
                                         <th class="text-center">VOC %</th>
+                                        <th class="text-center">SG</th>
                                         <th class="text-center">Actions</th>
                                     </tr>
                                 </thead>
@@ -161,6 +168,13 @@
                                                         <span class="badge {% if log.measured_voc >= 50 %}bg-danger{% else %}bg-secondary{% endif %}">{{ log.measured_voc }}%</span>
                                                     {% else %}
                                                         <span class="text-muted">0%</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-center">
+                                                    {% if log.specific_gravity %}
+                                                        <span class="badge bg-danger text-white fw-bold">{{ log.specific_gravity }}</span>
+                                                    {% else %}
+                                                        <span class="text-muted">-</span>
                                                     {% endif %}
                                                 </td>
                                                 <td class="text-center">
@@ -215,14 +229,23 @@
                         .then(res => res.json())
                         .then(data => {
                             if (data && !data.error) {
-                                if (data.voc_percentage !== undefined && data.voc_percentage !== 'TBD') {
-                                    document.getElementById('voc_percentage').value = data.voc_percentage;
+                                const winCode = (data.win_code || '').toString().trim().toUpperCase();
+                                const isLiquidBulk = ['CBPS', 'CNOS'].includes(winCode);
+                                
+                                const sgContainer = document.getElementById('sg_container');
+                                const sgInput = document.getElementById('specific_gravity');
+                                if (isLiquidBulk) {
+                                    sgContainer.classList.remove('d-none');
+                                    sgInput.required = true;
                                 } else {
-                                    document.getElementById('voc_percentage').value = '0';
+                                    sgContainer.classList.add('d-none');
+                                    sgInput.required = false;
+                                    sgInput.value = '';
                                 }
+
                                 const badge = document.getElementById('profile_info_badge');
                                 if (badge) {
-                                    badge.innerHTML = `<strong>Generator:</strong> ${data.generator || 'N/A'} &nbsp;|&nbsp; <strong>WIN:</strong> ${data.win_code || 'N/A'} &nbsp;|&nbsp; <strong>Master VOC:</strong> ${data.voc_percentage || '0'}%`;
+                                    badge.innerHTML = `<strong>Generator:</strong> ${data.generator || 'N/A'} &nbsp;|&nbsp; <strong>WIN:</strong> ${data.win_code || 'N/A'} &nbsp;|&nbsp; <strong>Master VOC:</strong> ${data.voc_percentage || '0'}%${isLiquidBulk ? ' &nbsp;|&nbsp; <span class="text-danger fw-bold">⚠️ SPECIFIC GRAVITY REQUIRED</span>' : ''}`;
                                     badge.classList.remove('d-none');
                                 }
                             }

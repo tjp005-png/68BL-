@@ -576,6 +576,14 @@ def submit_yellow_entry():
         gross_weight = weight_num
         net_weight = weight_num
         
+    specific_gravity_val = request.form.get('specific_gravity', '').strip()
+    sg_num = None
+    if specific_gravity_val:
+        try:
+            sg_num = float(specific_gravity_val)
+        except ValueError:
+            sg_num = None
+
     with closing(get_db_connection()) as conn:
         from database import ensure_profile_exists
         ensure_profile_exists(conn, profile_number)
@@ -593,12 +601,12 @@ def submit_yellow_entry():
             INSERT INTO truck_logs (
                 truck_id, profile_number, manifest_number, load_number,
                 gross_weight, net_weight, exit_weight, date_received,
-                measured_voc, test_status, container_type, time_in, time_out
+                measured_voc, specific_gravity, test_status, container_type, time_in, time_out
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, '12:00', '12:05')
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, '12:00', '12:05')
         ''', (ticket_number, profile_number, manifest_number, load_number,
               gross_weight, net_weight, 0.0, date_received,
-              voc_num, container_type))
+              voc_num, sg_num, container_type))
         conn.commit()
         
     socketio.emit('truck_update', {'date': date_received})
