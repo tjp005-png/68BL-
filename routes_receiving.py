@@ -94,6 +94,25 @@ def get_profile_details(profile_number):
             except (ValueError, TypeError):
                 p_dict['voc_percentage'] = 0.0
             
+        win_raw = str(p_dict.get('win_code', '') or '').strip()
+        if not win_raw or win_raw.upper() in ['NONE', 'N/A', 'NULL', '']:
+            wvi = conn.execute('SELECT unloading_instructions, handling_instruction, sample_procedures FROM profile_wvi WHERE TRIM(UPPER(profile)) = ?', (clean_profile,)).fetchone()
+            if wvi:
+                unloading = str(wvi['unloading_instructions'] or '').upper()
+                handling = str(wvi['handling_instruction'] or '').upper()
+                sample = str(wvi['sample_procedures'] or '').upper()
+                if 'ASBESTOS' in handling or 'ASBESTOS' in unloading:
+                    win_raw = 'CNIA'
+                elif 'UNIT 31' in unloading or 'COLIWASA' in sample:
+                    win_raw = 'CBPS'
+                elif 'BAYS' in unloading or 'RED FOLDER' in handling:
+                    win_raw = 'CCS'
+                else:
+                    win_raw = 'CBP'
+            else:
+                win_raw = 'CBP'
+        p_dict['win_code'] = win_raw
+
         exp_raw = str(p_dict.get('expiration_date', '')).strip().lower()
         if exp_raw == 'none':
             p_dict['expiration_date'] = ''
@@ -374,18 +393,28 @@ def submit_truck():
             if not time_out:
                 time_out = datetime.now().strftime('%H:%M')
                 
+            specific_gravity_val = request.form.get('specific_gravity', '').strip()
+            sg_num = None
+            if specific_gravity_val:
+                try:
+                    sg_num = float(specific_gravity_val)
+                except ValueError:
+                    sg_num = None
+
             conn.execute('''
                 INSERT INTO truck_logs (
                     truck_id, profile_number, manifest_number, load_number, 
                     gross_weight, exit_weight, net_weight, cell_location, grid_location,
                     manifest_weight, manifest_units, extra_fees, test_assigned, test_status, 
-                    date_received, sales_order, time_in, time_out, shipping_mode, job_type, container_type
+                    date_received, sales_order, time_in, time_out, shipping_mode, job_type, container_type,
+                    measured_voc, specific_gravity
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (truck_id, profile_number, manifest_number, load_number, 
                   gross_weight, exit_weight, net_weight_tons, cell_location, grid_location,
                   manifest_weight, manifest_units, extra_fees, test_assigned, 
-                  received_date, sales_order, time_in, time_out, shipping_mode, job_type, container_type))
+                  received_date, sales_order, time_in, time_out, shipping_mode, job_type, container_type,
+                  voc_percentage, sg_num))
         else:
             # Added sales_order and time_in to the INSERT statement
             conn.execute('''

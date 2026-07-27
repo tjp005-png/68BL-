@@ -552,65 +552,34 @@ def yellow_entry():
 
 @chemist_bp.route('/submit_yellow_entry', methods=['POST'])
 def submit_yellow_entry():
+    from routes_receiving import submit_truck
+    
     ticket_number = request.form.get('ticket_number', '').strip()
-    manifest_number = request.form.get('manifest_number', '').strip()
-    profile_number = request.form.get('profile_number', '').strip().upper()
     weight_val = request.form.get('weight', '').strip()
     weight_unit = request.form.get('weight_unit', 'LBS').strip().upper()
     date_received = request.form.get('date_received', '').strip() or date.today().isoformat()
-    container_type = request.form.get('container_type', 'End Dump').strip()
-    grid_location = request.form.get('grid_location', '').strip().upper()
-    load_number = ticket_number  # Load # and Weight Ticket # are the same
     
-    if not manifest_number or not profile_number or not weight_val:
-        return "Error: Manifest Number, Profile Number, and Weight are required.", 400
-        
     try:
         weight_num = float(weight_val)
     except ValueError:
-        return "Error: Invalid numeric weight entered.", 400
+        weight_num = 0.0
         
-    if weight_unit == 'TONS':
-        gross_weight = weight_num * 2000.0
-        net_weight = weight_num * 2000.0
-    else:
-        gross_weight = weight_num
-        net_weight = weight_num
-        
-    specific_gravity_val = request.form.get('specific_gravity', '').strip()
-    sg_num = None
-    if specific_gravity_val:
-        try:
-            sg_num = float(specific_gravity_val)
-        except ValueError:
-            sg_num = None
+    gross_lbs = weight_num * 2000.0 if weight_unit == 'TONS' else weight_num
 
-    with closing(get_db_connection()) as conn:
-        from database import ensure_profile_exists
-        ensure_profile_exists(conn, profile_number)
+    # Mutate request.form to include receiving log retroactive fields
+    form_data = request.form.copy()
+    form_data['truck_id'] = ticket_number
+    form_data['load_number'] = ticket_number
+    form_data['gross_weight'] = str(gross_lbs)
+    form_data['exit_weight'] = '0'
+    form_data['is_retroactive'] = 'true'
+    form_data['container_type'] = request.form.get('container_type', 'End Dump')
+    request.form = form_data
+    
+    res = submit_truck()
+    if isinstance(res, tuple) and res[1] == 400:
+        return res
         
-        # Pull VOC % directly from master profiles database
-        p_row = conn.execute('SELECT voc_percentage FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (profile_number,)).fetchone()
-        voc_num = 0.0
-        if p_row and p_row['voc_percentage'] is not None:
-            try:
-                voc_num = float(p_row['voc_percentage'])
-            except (ValueError, TypeError):
-                voc_num = 0.0
-        
-        conn.execute('''
-            INSERT INTO truck_logs (
-                truck_id, profile_number, manifest_number, load_number,
-                gross_weight, net_weight, exit_weight, date_received,
-                measured_voc, specific_gravity, grid_location, test_status, container_type, time_in, time_out
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, '12:00', '12:05')
-        ''', (ticket_number, profile_number, manifest_number, load_number,
-              gross_weight, net_weight, 0.0, date_received,
-              voc_num, sg_num, grid_location, container_type))
-        conn.commit()
-        
-    socketio.emit('truck_update', {'date': date_received})
     return redirect(url_for('chemist_bp.yellow_entry', date=date_received))
 
 
