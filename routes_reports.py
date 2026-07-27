@@ -214,6 +214,138 @@ def export_excel():
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 
+@reports_bp.route('/voc_audit')
+def voc_audit():
+    import openpyxl, glob, os, re, difflib
+
+    selected_date = request.args.get('date', '')
+    filter_typos_only = request.args.get('typos_only', 'false').lower() == 'true'
+
+    with closing(get_db_connection()) as conn:
+        master_rows = conn.execute('SELECT profile_number, generator, win_code FROM profiles').fetchall()
+        master_profiles = {str(r['profile_number']).strip().upper(): dict(r) for r in master_rows if r['profile_number']}
+        master_list = list(master_profiles.keys())
+
+        sched_query = 'SELECT schedule_date, profile_number, load_count FROM daily_schedule'
+        params = ()
+        if selected_date:
+            sched_query += ' WHERE schedule_date = ?'
+            params = (selected_date,)
+            
+        sched_rows = conn.execute(sched_query, params).fetchall()
+        schedule_by_date = {}
+        for r in sched_rows:
+            sdate = str(r['schedule_date']).strip()
+            prof = str(r['profile_number'] or '').strip().upper()
+            if not sdate or not prof: continue
+            if sdate not in schedule_by_date:
+                schedule_by_date[sdate] = {}
+            schedule_by_date[sdate][prof] = schedule_by_date[sdate].get(prof, 0) + (r['load_count'] or 1)
+
+    voc_folder = r'I:\Buttonwillow\VOCs and TONNAGE  by YEAR\2026VOC'
+    if os.path.exists(voc_folder):
+        voc_files = glob.glob(os.path.join(voc_folder, '*VOC.xlsx'))
+    else:
+        voc_files = []
+
+    audit_records = []
+    total_files = len(voc_files)
+    total_typos = 0
+
+    for fpath in sorted(voc_files, reverse=True):
+        fname = os.path.basename(fpath)
+        match = re.match(r'(\d{2})(\d{2})(\d{4})VOC\.xlsx', fname, re.IGNORECASE)
+        if not match: continue
+        mm, dd, yyyy = match.groups()
+        iso_date = f"{yyyy}-{mm}-{dd}"
+
+        if selected_date and iso_date != selected_date:
+            continue
+
+        try:
+            wb = openpyxl.load_workbook(fpath, data_only=True, read_only=True)
+        except Exception:
+            continue
+
+        file_actual_counts = {}
+
+        for sheet_name in ['35', 'NON-VOC']:
+            if sheet_name not in wb.sheetnames: continue
+            ws = wb[sheet_name]
+            
+            header_found = False
+            approval_col_idx = None
+            
+            for row in ws.iter_rows(values_only=True):
+                if not row: continue
+                row_str = [str(c or '').strip().upper() for c in row]
+                if 'APPROVAL #' in row_str or 'APPROVAL#' in row_str:
+                    header_found = True
+                    approval_col_idx = row_str.index('APPROVAL #') if 'APPROVAL #' in row_str else row_str.index('APPROVAL#')
+                    continue
+                
+                if header_found and approval_col_idx is not None and len(row) > approval_col_idx:
+                    raw_prof = row[approval_col_idx]
+                    if not raw_prof or str(raw_prof).strip().upper() in ['TOTAL', 'APPROVAL #', 'NONE', '']:
+                        continue
+                    
+                    prof_clean = str(raw_prof).strip().upper()
+                    file_actual_counts[prof_clean] = file_actual_counts.get(prof_clean, 0) + 1
+
+        wb.close()
+        scheduled_for_date = schedule_by_date.get(iso_date, {})
+
+        for prof, actual_cnt in file_actual_counts.items():
+            if re.match(r'^\d+\.\d+$', prof) or len(prof) < 4:
+                continue
+
+            if prof in master_profiles:
+                is_exact = True
+                suggested = prof
+                score = 100.0
+                gen_name = master_profiles[prof].get('generator', '---')
+            else:
+                is_exact = False
+                matches = difflib.get_close_matches(prof, master_list, n=1, cutoff=0.55)
+                if matches:
+                    suggested = matches[0]
+                    score = round(difflib.SequenceMatcher(None, prof, suggested).ratio() * 100, 1)
+                    gen_name = master_profiles[suggested].get('generator', '---')
+                else:
+                    suggested = None
+                    score = 0.0
+                    gen_name = '---'
+
+            if not is_exact:
+                total_typos += 1
+
+            if filter_typos_only and is_exact:
+                continue
+
+            sched_cnt = scheduled_for_date.get(prof, 0) or (scheduled_for_date.get(suggested, 0) if suggested else 0)
+
+            audit_records.append({
+                'date': iso_date,
+                'file_name': fname,
+                'file_profile': prof,
+                'suggested_master': suggested or 'UNKNOWN',
+                'is_exact': is_exact,
+                'score': score,
+                'generator': gen_name,
+                'actual_count': actual_cnt,
+                'scheduled_count': sched_cnt,
+                'variance': actual_cnt - sched_cnt
+            })
+
+    return render_template(
+        'voc_audit.html',
+        records=audit_records,
+        selected_date=selected_date,
+        filter_typos_only=filter_typos_only,
+        total_files=total_files,
+        total_typos=total_typos
+    )
+
 @reports_bp.route('/reports')
 def reports():
     today_str = date.today().isoformat()
