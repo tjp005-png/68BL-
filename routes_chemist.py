@@ -559,6 +559,7 @@ def submit_yellow_entry():
     weight_unit = request.form.get('weight_unit', 'LBS').strip().upper()
     date_received = request.form.get('date_received', '').strip() or date.today().isoformat()
     container_type = request.form.get('container_type', 'End Dump').strip()
+    grid_location = request.form.get('grid_location', '').strip().upper()
     load_number = ticket_number  # Load # and Weight Ticket # are the same
     
     if not manifest_number or not profile_number or not weight_val:
@@ -590,24 +591,82 @@ def submit_yellow_entry():
         
         # Pull VOC % directly from master profiles database
         p_row = conn.execute('SELECT voc_percentage FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (profile_number,)).fetchone()
-        voc_num = None
+        voc_num = 0.0
         if p_row and p_row['voc_percentage'] is not None:
             try:
                 voc_num = float(p_row['voc_percentage'])
             except (ValueError, TypeError):
-                voc_num = None
+                voc_num = 0.0
         
         conn.execute('''
             INSERT INTO truck_logs (
                 truck_id, profile_number, manifest_number, load_number,
                 gross_weight, net_weight, exit_weight, date_received,
-                measured_voc, specific_gravity, test_status, container_type, time_in, time_out
+                measured_voc, specific_gravity, grid_location, test_status, container_type, time_in, time_out
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, '12:00', '12:05')
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, '12:00', '12:05')
         ''', (ticket_number, profile_number, manifest_number, load_number,
               gross_weight, net_weight, 0.0, date_received,
-              voc_num, sg_num, container_type))
+              voc_num, sg_num, grid_location, container_type))
         conn.commit()
+        
+    socketio.emit('truck_update', {'date': date_received})
+    return redirect(url_for('chemist_bp.yellow_entry', date=date_received))
+
+
+@chemist_bp.route('/edit_yellow_entry/<int:log_id>', methods=['POST'])
+def edit_yellow_entry(log_id):
+    ticket_number = request.form.get('ticket_number', '').strip()
+    manifest_number = request.form.get('manifest_number', '').strip()
+    profile_number = request.form.get('profile_number', '').strip().upper()
+    weight_val = request.form.get('weight', '').strip()
+    weight_unit = request.form.get('weight_unit', 'LBS').strip().upper()
+    voc_val = request.form.get('voc_percentage', '').strip()
+    date_received = request.form.get('date_received', '').strip() or date.today().isoformat()
+    container_type = request.form.get('container_type', 'End Dump').strip()
+    grid_location = request.form.get('grid_location', '').strip().upper()
+    specific_gravity_val = request.form.get('specific_gravity', '').strip()
+    
+    load_number = ticket_number
+    
+    try:
+        weight_num = float(weight_val)
+    except ValueError:
+        weight_num = 0.0
+        
+    if weight_unit == 'TONS':
+        gross_weight = weight_num * 2000.0
+    else:
+        gross_weight = weight_num
+        
+    voc_num = 0.0
+    if voc_val != '':
+        try:
+            voc_num = float(voc_val)
+        except ValueError:
+            voc_num = 0.0
+            
+    sg_num = None
+    if specific_gravity_val:
+        try:
+            sg_num = float(specific_gravity_val)
+        except ValueError:
+            sg_num = None
+            
+    with closing(get_db_connection()) as conn:
+        conn.execute('''
+            UPDATE truck_logs 
+            SET truck_id = ?, manifest_number = ?, profile_number = ?, load_number = ?,
+                gross_weight = ?, net_weight = ?, date_received = ?, measured_voc = ?,
+                container_type = ?, grid_location = ?, specific_gravity = ?
+            WHERE id = ?
+        ''', (ticket_number, manifest_number, profile_number, load_number,
+              gross_weight, gross_weight, date_received, voc_num,
+              container_type, grid_location, sg_num, log_id))
+        conn.commit()
+        
+    socketio.emit('truck_update', {'date': date_received})
+    return redirect(url_for('chemist_bp.yellow_entry', date=date_received))
         
     socketio.emit('truck_update', {'date': date_received})
     return redirect(url_for('chemist_bp.yellow_entry', date=date_received))
