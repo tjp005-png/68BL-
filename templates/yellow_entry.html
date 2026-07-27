@@ -107,20 +107,9 @@
                                 <small class="text-danger fw-bold d-block mt-1">⚠️ Required for Bulk Liquid (CBPS / CNOS) profiles</small>
                             </div>
 
-                            <div class="row mb-3">
-                                <div class="col-6">
-                                    <label class="form-label text-dark small fw-bold mb-1">CONTAINER TYPE</label>
-                                    <select class="form-select border-secondary" name="container_type">
-                                        <option value="End Dump" selected>End Dump</option>
-                                        <option value="Bin">Bin (Roll-off/Tote)</option>
-                                        <option value="Tanker">Tanker</option>
-                                        <option value="Other">Other</option>
-                                    </select>
-                                </div>
-                                <div class="col-6">
-                                    <label class="form-label text-dark small fw-bold mb-1">GRID</label>
-                                    <input type="text" class="form-control border-secondary text-uppercase fw-bold" name="grid_location" placeholder="e.g. A-4">
-                                </div>
+                            <div class="mb-3">
+                                <label class="form-label text-dark small fw-bold mb-1">GRID</label>
+                                <input type="text" class="form-control border-secondary text-uppercase fw-bold" name="grid_location" placeholder="e.g. A-4">
                             </div>
 
                             <button type="submit" class="btn btn-yellow w-100 py-3 text-dark fw-bold shadow-sm fs-6 mt-2">
@@ -303,31 +292,19 @@
                                 <label class="form-label text-dark small fw-bold mb-1">NET WEIGHT (LBS)</label>
                                 <input type="number" step="0.01" class="form-control border-secondary fw-bold" name="weight" id="edit_weight" required>
                             </div>
-                        </div>
                         <div class="row mb-3">
-                            <div class="col-6">
-                                <label class="form-label text-dark small fw-bold mb-1">CONTAINER TYPE</label>
-                                <select class="form-select border-secondary" name="container_type" id="edit_container_type">
-                                    <option value="End Dump">End Dump</option>
-                                    <option value="Bin">Bin (Roll-off/Tote)</option>
-                                    <option value="Tanker">Tanker</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                            </div>
                             <div class="col-6">
                                 <label class="form-label text-dark small fw-bold mb-1">GRID</label>
                                 <input type="text" class="form-control border-secondary text-uppercase fw-bold" name="grid_location" id="edit_grid_location">
                             </div>
-                        </div>
-                        <div class="row mb-3">
                             <div class="col-6">
                                 <label class="form-label text-dark small fw-bold mb-1">VOC %</label>
                                 <input type="number" step="0.1" class="form-control border-secondary fw-bold" name="voc_percentage" id="edit_voc_percentage">
                             </div>
-                            <div class="col-6">
-                                <label class="form-label text-dark small fw-bold mb-1">SPECIFIC GRAVITY (SG)</label>
-                                <input type="number" step="0.001" class="form-control border-secondary fw-bold" name="specific_gravity" id="edit_specific_gravity">
-                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-dark small fw-bold mb-1">SPECIFIC GRAVITY (SG)</label>
+                            <input type="number" step="0.001" class="form-control border-secondary fw-bold" name="specific_gravity" id="edit_specific_gravity">
                         </div>
                     </div>
                     <div class="modal-footer bg-light">
@@ -347,7 +324,6 @@
             document.getElementById('edit_manifest_number').value = log.manifest_number || '';
             document.getElementById('edit_profile_number').value = log.profile_number || '';
             document.getElementById('edit_weight').value = log.gross_weight || 0;
-            document.getElementById('edit_container_type').value = log.container_type || 'End Dump';
             document.getElementById('edit_grid_location').value = log.grid_location || '';
             document.getElementById('edit_voc_percentage').value = log.measured_voc !== null && log.measured_voc !== undefined ? log.measured_voc : 0;
             document.getElementById('edit_specific_gravity').value = log.specific_gravity || '';
