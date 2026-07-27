@@ -154,6 +154,16 @@ def upgrade_db():
                 ELSE 'Bulk Solid'
             END;
         ''')
+        cursor.execute('''
+            UPDATE profiles 
+            SET win_code = 'CBP'
+            WHERE win_code IS NULL OR win_code = '' OR UPPER(win_code) = 'NONE';
+        ''')
+        cursor.execute('''
+            UPDATE truck_logs 
+            SET net_weight = net_weight / 2000.0 
+            WHERE net_weight > 500;
+        ''')
         if not column_exists(cursor, 'profiles', 'state_waste_code'):
             cursor.execute('ALTER TABLE profiles ADD COLUMN state_waste_code TEXT')
         if not column_exists(cursor, 'profiles', 'federal_waste_code'):

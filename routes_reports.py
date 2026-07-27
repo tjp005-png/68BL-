@@ -180,7 +180,7 @@ def reports():
             SELECT 
                 TRIM(UPPER(t.profile_number)) as profile_number, 
                 COUNT(t.id) as total_trucks, 
-                SUM(CASE WHEN t.cell_location LIKE '35%' THEN t.net_weight ELSE 0 END) as total_tons, 
+                SUM(CASE WHEN t.cell_location LIKE '35%' THEN (CASE WHEN t.net_weight > 500 THEN t.net_weight / 2000.0 ELSE t.net_weight END) ELSE 0 END) as total_tons, 
                 MAX(p.voc_percentage) as profile_voc 
             FROM truck_logs t 
             LEFT JOIN profiles p ON TRIM(UPPER(t.profile_number)) = TRIM(UPPER(p.profile_number)) 
@@ -196,7 +196,21 @@ def reports():
             WHERE t.date_received = ? AND t.test_status != 'REJECTED'
             ORDER BY CAST(t.load_number AS INTEGER) ASC
         ''', (selected_date,)).fetchall()
-        truck_logs = [dict(row) for row in truck_logs_raw]
+        
+        truck_logs = []
+        for row in truck_logs_raw:
+            t = dict(row)
+            gross = float(t.get('gross_weight') or 0)
+            tare = float(t.get('exit_weight') or 0)
+            net_val = float(t.get('net_weight') or 0)
+            
+            # Ensure net_weight is always in Tons
+            if net_val > 500:
+                t['net_weight'] = net_val / 2000.0
+            elif net_val == 0 and gross > 0:
+                t['net_weight'] = (gross - tare) / 2000.0
+                
+            truck_logs.append(t)
         
     master_report, grand_trucks, grand_tons = [], 0, 0.0
     
