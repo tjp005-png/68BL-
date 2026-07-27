@@ -600,6 +600,7 @@ def edit_yellow_entry(log_id):
     voc_val = request.form.get('voc_percentage', '').strip()
     date_received = request.form.get('date_received', '').strip() or date.today().isoformat()
     container_type = request.form.get('container_type', 'End Dump').strip()
+    cell_location = request.form.get('cell_location', '').strip().upper()
     grid_location = request.form.get('grid_location', '').strip().upper()
     specific_gravity_val = request.form.get('specific_gravity', '').strip()
     
@@ -634,11 +635,11 @@ def edit_yellow_entry(log_id):
             UPDATE truck_logs 
             SET truck_id = ?, manifest_number = ?, profile_number = ?, load_number = ?,
                 gross_weight = ?, net_weight = ?, date_received = ?, measured_voc = ?,
-                container_type = ?, grid_location = ?, specific_gravity = ?
+                container_type = ?, cell_location = ?, grid_location = ?, specific_gravity = ?
             WHERE id = ?
         ''', (ticket_number, manifest_number, profile_number, load_number,
               gross_weight, gross_weight, date_received, voc_num,
-              container_type, grid_location, sg_num, log_id))
+              container_type, cell_location, grid_location, sg_num, log_id))
         conn.commit()
         
     socketio.emit('truck_update', {'date': date_received})
