@@ -63,15 +63,9 @@
                     <div class="card-body p-4">
                         <form action="/submit_yellow_entry" method="POST" id="yellowEntryForm">
                             
-                            <div class="row mb-3">
-                                <div class="col-7">
-                                    <label class="form-label text-dark small fw-bold mb-1">DATE RECEIVED <span class="text-danger">*</span></label>
-                                    <input type="date" class="form-control border-secondary fw-bold" name="date_received" value="{{ selected_date }}" required>
-                                </div>
-                                <div class="col-5">
-                                    <label class="form-label text-dark small fw-bold mb-1">LOAD #</label>
-                                    <input type="text" class="form-control border-secondary" name="load_number" value="1">
-                                </div>
+                            <div class="mb-3">
+                                <label class="form-label text-dark small fw-bold mb-1">DATE RECEIVED <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control border-secondary fw-bold" name="date_received" value="{{ selected_date }}" required>
                             </div>
 
                             <div class="mb-3">

@@ -557,10 +557,9 @@ def submit_yellow_entry():
     profile_number = request.form.get('profile_number', '').strip().upper()
     weight_val = request.form.get('weight', '').strip()
     weight_unit = request.form.get('weight_unit', 'LBS').strip().upper()
-    voc_percentage = request.form.get('voc_percentage', '').strip()
     date_received = request.form.get('date_received', '').strip() or date.today().isoformat()
     container_type = request.form.get('container_type', 'End Dump').strip()
-    load_number = request.form.get('load_number', '1').strip()
+    load_number = ticket_number  # Load # and Weight Ticket # are the same
     
     if not manifest_number or not profile_number or not weight_val:
         return "Error: Manifest Number, Profile Number, and Weight are required.", 400
