@@ -1,3 +1,4 @@
+import os, glob, re, difflib, openpyxl
 from flask import Blueprint, render_template, request, redirect, url_for, send_file, jsonify
 from datetime import date, datetime, timedelta
 from contextlib import closing
@@ -386,7 +387,7 @@ def reports():
                 MAX(p.voc_percentage) as profile_voc 
             FROM truck_logs t 
             LEFT JOIN profiles p ON TRIM(UPPER(t.profile_number)) = TRIM(UPPER(p.profile_number)) 
-            WHERE t.exit_weight IS NOT NULL AND t.date_received = ? 
+            WHERE t.test_status != 'REJECTED' AND t.date_received = ? 
             GROUP BY TRIM(UPPER(t.profile_number))
         ''', (selected_date,)).fetchall()
         
@@ -620,6 +621,54 @@ def compliance():
     return render_template('compliance.html', start_date=start_date, end_date=end_date)
 
 
+_VOC_FILE_CACHE = {}
+_VOC_CACHE_TIME = None
+
+def get_voc_file_counts():
+    global _VOC_FILE_CACHE, _VOC_CACHE_TIME
+    now = datetime.now()
+    if _VOC_FILE_CACHE and _VOC_CACHE_TIME and (now - _VOC_CACHE_TIME).total_seconds() < 600:
+        return _VOC_FILE_CACHE
+
+    counts_by_date = {}
+    voc_folder = r'I:\Buttonwillow\VOCs and TONNAGE  by YEAR\2026VOC'
+    if os.path.exists(voc_folder):
+        voc_files = glob.glob(os.path.join(voc_folder, '*VOC.xlsx'))
+        for fpath in voc_files:
+            fname = os.path.basename(fpath)
+            match = re.match(r'(\d{2})(\d{2})(\d{4})VOC\.xlsx', fname, re.IGNORECASE)
+            if not match: continue
+            mm, dd, yyyy = match.groups()
+            iso_date = f"{yyyy}-{mm}-{dd}"
+            try:
+                wb = openpyxl.load_workbook(fpath, data_only=True, read_only=True)
+                cnt = 0
+                for sname in ['35', 'NON-VOC']:
+                    if sname not in wb.sheetnames: continue
+                    ws = wb[sname]
+                    h_found = False
+                    app_idx = None
+                    for r in ws.iter_rows(values_only=True):
+                        if not r: continue
+                        r_str = [str(cell or '').strip().upper() for cell in r]
+                        if 'APPROVAL #' in r_str or 'APPROVAL#' in r_str:
+                            h_found = True
+                            app_idx = r_str.index('APPROVAL #') if 'APPROVAL #' in r_str else r_str.index('APPROVAL#')
+                            continue
+                        if h_found and app_idx is not None and len(r) > app_idx:
+                            p = str(r[app_idx] or '').strip().upper()
+                            if is_valid_profile_entry(p):
+                                cnt += 1
+                wb.close()
+                if cnt > 0:
+                    counts_by_date[iso_date] = cnt
+            except Exception:
+                pass
+
+    _VOC_FILE_CACHE = counts_by_date
+    _VOC_CACHE_TIME = now
+    return _VOC_FILE_CACHE
+
 @reports_bp.route('/api/compliance/data')
 def compliance_data():
     report_type = request.args.get('report_type', 'variance')
@@ -657,10 +706,16 @@ def compliance_data():
             actual_rows = conn.execute('''
                 SELECT date_received, COUNT(id) as actual
                 FROM truck_logs
-                WHERE date_received BETWEEN ? AND ? AND test_status != 'REJECTED' AND exit_weight IS NOT NULL
+                WHERE date_received BETWEEN ? AND ? AND test_status != 'REJECTED'
                 GROUP BY date_received
             ''', (start_str, end_str)).fetchall()
             actual_map = {r['date_received']: r['actual'] for r in actual_rows}
+            
+            # Also scan 2026VOC files to populate actual loads for dates where truck_logs has 0
+            voc_file_counts = get_voc_file_counts()
+            for iso_date in date_list:
+                if actual_map.get(iso_date, 0) == 0 and iso_date in voc_file_counts:
+                    actual_map[iso_date] = voc_file_counts[iso_date]
             
             labels = date_list
             scheduled_data = [sched_map.get(d, 0) for d in labels]
