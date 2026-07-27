@@ -1,4 +1,4 @@
-import os, glob, re, difflib, openpyxl
+import os, glob, re, difflib, openpyxl, json
 from flask import Blueprint, render_template, request, redirect, url_for, send_file, jsonify
 from datetime import date, datetime, timedelta
 from contextlib import closing
@@ -621,25 +621,67 @@ def compliance():
     return render_template('compliance.html', start_date=start_date, end_date=end_date)
 
 
+def parse_voc_filename_date(fname):
+    if fname.startswith('~$') or fname.startswith('.'):
+        return None
+    base = re.sub(r'\.+[xX][lL][sS][xX]?$', '', fname).strip().upper()
+    base = re.sub(r'[\s_]*VOC$', '', base).strip()
+    
+    m_emb = re.search(r'(\d{1,2})[\-_/](\d{1,2})[\-_/](20\d{2})', base)
+    if m_emb:
+        m, d, yyyy = m_emb.groups()
+        return f"{yyyy}-{int(m):02d}-{int(d):02d}"
+
+    m_emb8 = re.search(r'(\d{2})(\d{2})(20\d{2})', base)
+    if m_emb8:
+        mm, dd, yyyy = m_emb8.groups()
+        return f"{yyyy}-{mm}-{dd}"
+
+    m2 = re.match(r'^(\d{1})(\d{2})(20\d{2})$', base)
+    if m2:
+        m, dd, yyyy = m2.groups()
+        return f"{yyyy}-0{m}-{dd}"
+        
+    m3 = re.match(r'^(\d{2})(\d{2})(\d{2})$', base)
+    if m3:
+        mm, dd, yy = m3.groups()
+        return f"20{yy}-{mm}-{dd}"
+
+    return None
+
 _VOC_FILE_CACHE = {}
 _VOC_CACHE_TIME = None
 
-def get_voc_file_counts():
+def get_voc_file_counts(force_refresh=False):
     global _VOC_FILE_CACHE, _VOC_CACHE_TIME
     now = datetime.now()
-    if _VOC_FILE_CACHE and _VOC_CACHE_TIME and (now - _VOC_CACHE_TIME).total_seconds() < 600:
+    cache_path = os.path.join(os.path.dirname(__file__), 'voc_cache.json')
+    
+    if not force_refresh and _VOC_FILE_CACHE:
         return _VOC_FILE_CACHE
+        
+    if not force_refresh and os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                _VOC_FILE_CACHE = data.get('counts_by_date', {})
+                _VOC_CACHE_TIME = now
+                if _VOC_FILE_CACHE:
+                    return _VOC_FILE_CACHE
+        except Exception:
+            pass
 
     counts_by_date = {}
     voc_folder = r'I:\Buttonwillow\VOCs and TONNAGE  by YEAR\2026VOC'
     if os.path.exists(voc_folder):
-        voc_files = glob.glob(os.path.join(voc_folder, '*VOC.xlsx'))
+        voc_files = glob.glob(os.path.join(voc_folder, '*'))
         for fpath in voc_files:
             fname = os.path.basename(fpath)
-            match = re.match(r'(\d{2})(\d{2})(\d{4})VOC\.xlsx', fname, re.IGNORECASE)
-            if not match: continue
-            mm, dd, yyyy = match.groups()
-            iso_date = f"{yyyy}-{mm}-{dd}"
+            if fname.startswith('~$') or not (fname.lower().endswith('.xlsx') or fname.lower().endswith('.xls')):
+                continue
+            iso_date = parse_voc_filename_date(fname)
+            if not iso_date:
+                continue
             try:
                 wb = openpyxl.load_workbook(fpath, data_only=True, read_only=True)
                 cnt = 0
@@ -667,6 +709,11 @@ def get_voc_file_counts():
 
     _VOC_FILE_CACHE = counts_by_date
     _VOC_CACHE_TIME = now
+    try:
+        with open(cache_path, 'w', encoding='utf-8') as f:
+            json.dump({'counts_by_date': _VOC_FILE_CACHE, 'last_updated': now.isoformat()}, f, indent=2)
+    except Exception:
+        pass
     return _VOC_FILE_CACHE
 
 @reports_bp.route('/api/compliance/data')
@@ -674,6 +721,8 @@ def compliance_data():
     report_type = request.args.get('report_type', 'variance')
     start_str = request.args.get('start_date')
     end_str = request.args.get('end_date')
+    include_weekends = request.args.get('include_weekends', 'false').lower() == 'true'
+    force_refresh = request.args.get('refresh', 'false').lower() == 'true'
     
     if not start_str or not end_str:
         return jsonify({'error': 'Missing dates'}), 400
@@ -712,7 +761,7 @@ def compliance_data():
             actual_map = {r['date_received']: r['actual'] for r in actual_rows}
             
             # Also scan 2026VOC files to populate actual loads for dates where truck_logs has 0
-            voc_file_counts = get_voc_file_counts()
+            voc_file_counts = get_voc_file_counts(force_refresh=force_refresh)
             for iso_date in date_list:
                 if actual_map.get(iso_date, 0) == 0 and iso_date in voc_file_counts:
                     actual_map[iso_date] = voc_file_counts[iso_date]
@@ -722,17 +771,28 @@ def compliance_data():
             actual_data = [actual_map.get(d, 0) for d in labels]
             variance_data = [actual_data[i] - scheduled_data[i] for i in range(len(labels))]
             
+            # Active operating days math (excluding 0/0 days if include_weekends is false)
+            active_days_cnt = 0
+            for i, d in enumerate(labels):
+                s = scheduled_data[i]
+                a = actual_data[i]
+                if not include_weekends and s == 0 and a == 0:
+                    continue
+                active_days_cnt += 1
+
             # Summary Metrics
             total_sched = sum(scheduled_data)
             total_act = sum(actual_data)
             net_variance = total_act - total_sched
-            avg_variance = round(net_variance / len(labels), 1) if labels else 0
+            
+            divisor = len(labels) if include_weekends else (active_days_cnt if active_days_cnt > 0 else 1)
+            avg_variance = round(net_variance / divisor, 1)
             
             summary = {
                 'kpi1_val': total_sched, 'kpi1_label': 'Total Scheduled',
                 'kpi2_val': total_act, 'kpi2_label': 'Total Actual Weighed',
                 'kpi3_val': f"{net_variance:+d}", 'kpi3_label': 'Net Variance',
-                'kpi4_val': avg_variance, 'kpi4_label': 'Avg Daily Variance'
+                'kpi4_val': avg_variance, 'kpi4_label': 'Avg Daily Variance' + ('' if include_weekends else ' (Active Days)')
             }
             
             # Details table data
