@@ -525,3 +525,92 @@ def chemist_drums_bulk_submit():
         conn.commit()
         socketio.emit('drum_update', {'job_id': job_id})
     return redirect(url_for('stu_bp.stu_hub', view='pipeline'))
+
+
+# --- YELLOW ENTRY (POST-TICKET LOG DATA ENTRY STOP-GAP) ---
+
+@chemist_bp.route('/yellow_entry')
+@chemist_bp.route('/chemist/yellow_entry')
+def yellow_entry():
+    selected_date = request.args.get('date', date.today().isoformat()).strip()
+    with closing(get_db_connection()) as conn:
+        logs_raw = conn.execute('''
+            SELECT t.*, p.generator, p.win_code, p.waste_description, p.shipping_container_type
+            FROM truck_logs t
+            LEFT JOIN profiles p ON TRIM(UPPER(t.profile_number)) = TRIM(UPPER(p.profile_number))
+            WHERE t.date_received = ?
+            ORDER BY t.id DESC
+        ''', (selected_date,)).fetchall()
+        
+        logs = [dict(r) for r in logs_raw]
+        
+    return render_template('yellow_entry.html', 
+                           logs=logs, 
+                           selected_date=selected_date, 
+                           today_str=date.today().isoformat())
+
+
+@chemist_bp.route('/submit_yellow_entry', methods=['POST'])
+def submit_yellow_entry():
+    ticket_number = request.form.get('ticket_number', '').strip()
+    manifest_number = request.form.get('manifest_number', '').strip()
+    profile_number = request.form.get('profile_number', '').strip().upper()
+    weight_val = request.form.get('weight', '').strip()
+    weight_unit = request.form.get('weight_unit', 'LBS').strip().upper()
+    voc_percentage = request.form.get('voc_percentage', '').strip()
+    date_received = request.form.get('date_received', '').strip() or date.today().isoformat()
+    container_type = request.form.get('container_type', 'End Dump').strip()
+    load_number = request.form.get('load_number', '1').strip()
+    
+    if not manifest_number or not profile_number or not weight_val:
+        return "Error: Manifest Number, Profile Number, and Weight are required.", 400
+        
+    try:
+        weight_num = float(weight_val)
+    except ValueError:
+        return "Error: Invalid numeric weight entered.", 400
+        
+    if weight_unit == 'TONS':
+        gross_weight = weight_num * 2000.0
+        net_weight = weight_num * 2000.0
+    else:
+        gross_weight = weight_num
+        net_weight = weight_num
+        
+    with closing(get_db_connection()) as conn:
+        from database import ensure_profile_exists
+        ensure_profile_exists(conn, profile_number)
+        
+        # Pull VOC % directly from master profiles database
+        p_row = conn.execute('SELECT voc_percentage FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (profile_number,)).fetchone()
+        voc_num = None
+        if p_row and p_row['voc_percentage'] is not None:
+            try:
+                voc_num = float(p_row['voc_percentage'])
+            except (ValueError, TypeError):
+                voc_num = None
+        
+        conn.execute('''
+            INSERT INTO truck_logs (
+                truck_id, profile_number, manifest_number, load_number,
+                gross_weight, net_weight, exit_weight, date_received,
+                measured_voc, test_status, container_type, time_in, time_out
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, '12:00', '12:05')
+        ''', (ticket_number, profile_number, manifest_number, load_number,
+              gross_weight, net_weight, 0.0, date_received,
+              voc_num, container_type))
+        conn.commit()
+        
+    socketio.emit('truck_update', {'date': date_received})
+    return redirect(url_for('chemist_bp.yellow_entry', date=date_received))
+
+
+@chemist_bp.route('/delete_yellow_entry/<int:log_id>', methods=['POST'])
+def delete_yellow_entry(log_id):
+    date_received = request.form.get('date_received', date.today().isoformat())
+    with closing(get_db_connection()) as conn:
+        conn.execute('DELETE FROM truck_logs WHERE id = ?', (log_id,))
+        conn.commit()
+    socketio.emit('truck_update', {'date': date_received})
+    return redirect(url_for('chemist_bp.yellow_entry', date=date_received))

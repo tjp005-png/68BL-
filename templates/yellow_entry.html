@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yellow Entry - Post-Ticket Data Entry</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .yellow-header {
+            background-color: #343a40;
+            color: #ffc107;
+            border-bottom: 4px solid #ffc107;
+        }
+        .btn-yellow {
+            background-color: #ffc107;
+            color: #212529;
+            font-weight: bold;
+            border: none;
+        }
+        .btn-yellow:hover {
+            background-color: #e0a800;
+            color: #212529;
+        }
+        .card-yellow-border {
+            border-top: 4px solid #ffc107 !important;
+        }
+        .table-yellow th {
+            background-color: #212529;
+            color: #ffc107;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container-fluid mt-3 px-4 mb-5">
+        
+        <!-- Header -->
+        <div class="card shadow-sm mb-4 border-0">
+            <div class="card-header yellow-header d-flex justify-content-between align-items-center py-3">
+                <div>
+                    <h2 class="mb-0 fw-bold">🟨 YELLOW ENTRY — Post-Ticket Data Entry Log</h2>
+                    <small class="text-light opacity-75">Data Entry Stop-Gap for Completed / Ticketed Out Trucks</small>
+                </div>
+                <div>
+                    <a href="/" class="btn btn-outline-light fw-bold me-2">⬅️ Hub</a>
+                    <a href="/chemist" class="btn btn-outline-warning text-warning fw-bold me-2">🧪 Lab Queue</a>
+                    <a href="/receiving" class="btn btn-outline-light fw-bold me-2">🚚 Receiving Log</a>
+                    <a href="/reports" class="btn btn-outline-light fw-bold">📊 Reports</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            
+            <!-- Left Side: Data Entry Form -->
+            <div class="col-lg-5 col-xl-4">
+                <div class="card shadow-sm border-0 card-yellow-border">
+                    <div class="card-header bg-dark text-warning fw-bold py-2 fs-5">
+                        📝 Enter Ticketed Truck Details
+                    </div>
+                    <div class="card-body p-4">
+                        <form action="/submit_yellow_entry" method="POST" id="yellowEntryForm">
+                            
+                            <div class="row mb-3">
+                                <div class="col-7">
+                                    <label class="form-label text-dark small fw-bold mb-1">DATE RECEIVED <span class="text-danger">*</span></label>
+                                    <input type="date" class="form-control border-secondary fw-bold" name="date_received" value="{{ selected_date }}" required>
+                                </div>
+                                <div class="col-5">
+                                    <label class="form-label text-dark small fw-bold mb-1">LOAD #</label>
+                                    <input type="text" class="form-control border-secondary" name="load_number" value="1">
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label text-dark small fw-bold mb-1">WEIGHT TICKET # <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control border-secondary text-uppercase fw-bold" name="ticket_number" placeholder="e.g. 984521" required autofocus>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label text-dark small fw-bold mb-1">MANIFEST # <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control border-secondary text-uppercase fw-bold" name="manifest_number" placeholder="e.g. 018492041JJK" required>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-7">
+                                    <label class="form-label text-dark small fw-bold mb-1">WEIGHT <span class="text-danger">*</span></label>
+                                    <input type="number" step="0.01" class="form-control border-secondary fw-bold" name="weight" placeholder="e.g. 48520" required>
+                                </div>
+                                <div class="col-5">
+                                    <label class="form-label text-dark small fw-bold mb-1">UNIT</label>
+                                    <select class="form-select border-secondary fw-bold" name="weight_unit">
+                                        <option value="LBS" selected>LBS (Net)</option>
+                                        <option value="TONS">Tons (Net)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label text-dark small fw-bold mb-1">PROFILE # <span class="text-danger">*</span></label>
+                                <select id="profile-search" name="profile_number" placeholder="Search or type Profile..." required></select>
+                            </div>
+
+                            <div id="profile_info_badge" class="alert alert-warning py-2 px-3 small mb-3 d-none shadow-sm">
+                                <!-- Profile info dynamically populated here -->
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label text-dark small fw-bold mb-1">CONTAINER TYPE</label>
+                                <select class="form-select border-secondary" name="container_type">
+                                    <option value="End Dump" selected>End Dump</option>
+                                    <option value="Bin">Bin (Roll-off/Tote)</option>
+                                    <option value="Tanker">Tanker</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="btn btn-yellow w-100 py-3 text-dark fw-bold shadow-sm fs-6 mt-2">
+                                💾 Save Yellow Entry Ticket
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Side: Today's Yellow Entries Log -->
+            <div class="col-lg-7 col-xl-8">
+                <div class="card shadow-sm border-0 card-yellow-border">
+                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
+                        <div class="fw-bold fs-5 text-warning">
+                            📋 Yellow Entries Log — {{ selected_date }}
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="text-light small fw-bold mb-0">Filter Date:</label>
+                            <input type="date" class="form-control form-control-sm border-warning text-dark fw-bold" value="{{ selected_date }}" onchange="location.href='/yellow_entry?date=' + this.value" style="width: 150px;">
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle table-yellow mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Ticket #</th>
+                                        <th>Manifest #</th>
+                                        <th>Profile #</th>
+                                        <th>Generator</th>
+                                        <th class="text-end">Net Weight (Lbs)</th>
+                                        <th class="text-end">Tons</th>
+                                        <th class="text-center">VOC %</th>
+                                        <th class="text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if logs %}
+                                        {% for log in logs %}
+                                            <tr>
+                                                <td class="fw-bold text-dark">{{ log.truck_id or 'N/A' }}</td>
+                                                <td class="fw-bold text-primary">{{ log.manifest_number }}</td>
+                                                <td class="fw-bold font-monospace">{{ log.profile_number }}</td>
+                                                <td class="small text-truncate" style="max-width: 180px;" title="{{ log.generator or '' }}">{{ log.generator or '---' }}</td>
+                                                <td class="text-end fw-bold">{{ "{:,.0f}".format(log.gross_weight or 0) }} lbs</td>
+                                                <td class="text-end fw-bold text-success">{{ "{:,.2f}".format((log.gross_weight or 0) / 2000.0) }} T</td>
+                                                <td class="text-center">
+                                                    {% if log.measured_voc is not none and log.measured_voc is defined %}
+                                                        <span class="badge {% if log.measured_voc >= 50 %}bg-danger{% else %}bg-secondary{% endif %}">{{ log.measured_voc }}%</span>
+                                                    {% else %}
+                                                        <span class="text-muted">0%</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-center">
+                                                    <form action="/delete_yellow_entry/{{ log.id }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete ticket {{ log.truck_id or log.manifest_number }}?');">
+                                                        <input type="hidden" name="date_received" value="{{ selected_date }}">
+                                                        <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-2 fw-bold" style="font-size: 0.75rem;">🗑️ Delete</button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="8" class="text-center text-muted py-4 fs-6">
+                                                No Yellow Entry tickets recorded for {{ selected_date }}. Use the form to add a ticket.
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            new TomSelect('#profile-search', {
+                valueField: 'value',
+                labelField: 'text',
+                searchField: 'text',
+                create: true,
+                placeholder: 'Search or type Profile...',
+                load: function(query, callback) {
+                    if (!query.length) return callback();
+                    fetch('/api/search_profiles?q=' + encodeURIComponent(query))
+                        .then(response => response.json())
+                        .then(json => {
+                            callback(json);
+                        }).catch(() => {
+                            callback();
+                        });
+                },
+                onChange: function(val) {
+                    if (!val) return;
+                    fetch('/api/get_profile_details/' + encodeURIComponent(val))
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data && !data.error) {
+                                if (data.voc_percentage !== undefined && data.voc_percentage !== 'TBD') {
+                                    document.getElementById('voc_percentage').value = data.voc_percentage;
+                                } else {
+                                    document.getElementById('voc_percentage').value = '0';
+                                }
+                                const badge = document.getElementById('profile_info_badge');
+                                if (badge) {
+                                    badge.innerHTML = `<strong>Generator:</strong> ${data.generator || 'N/A'} &nbsp;|&nbsp; <strong>WIN:</strong> ${data.win_code || 'N/A'} &nbsp;|&nbsp; <strong>Master VOC:</strong> ${data.voc_percentage || '0'}%`;
+                                    badge.classList.remove('d-none');
+                                }
+                            }
+                        });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
