@@ -85,11 +85,14 @@ def get_profile_details(profile_number):
     if profile and profile['status'] != 'NOT FOUND':
         p_dict = dict(profile)
         
-        voc_raw = str(p_dict.get('voc_percentage', '')).strip()
-        if voc_raw in ['?', '', 'None']:
-            p_dict['voc_percentage'] = 'TBD'
+        voc_raw = p_dict.get('voc_percentage')
+        if voc_raw is None or str(voc_raw).strip().upper() in ['?', '', 'NONE', 'TBD', 'NAN', 'NULL']:
+            p_dict['voc_percentage'] = 0.0
         else:
-            p_dict['voc_percentage'] = voc_raw
+            try:
+                p_dict['voc_percentage'] = float(voc_raw)
+            except (ValueError, TypeError):
+                p_dict['voc_percentage'] = 0.0
             
         exp_raw = str(p_dict.get('expiration_date', '')).strip().lower()
         if exp_raw == 'none':
@@ -307,7 +310,7 @@ def submit_truck():
                     try:
                         import pandas as pd
                         exp_date = pd.to_datetime(raw_exp, errors='coerce')
-                        if pd.notna(exp_date) and exp_date < datetime.now():
+                        if pd.notna(exp_date) and exp_date.date() < datetime.now().date():
                             is_las_profile = True
                     except: 
                         pass

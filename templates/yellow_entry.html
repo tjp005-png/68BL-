@@ -249,7 +249,11 @@
 
                                 const badge = document.getElementById('profile_info_badge');
                                 if (badge) {
-                                    badge.innerHTML = `<strong>Generator:</strong> ${data.generator || 'N/A'} &nbsp;|&nbsp; <strong>WIN:</strong> ${data.win_code || 'N/A'} &nbsp;|&nbsp; <strong>Master VOC:</strong> ${data.voc_percentage || '0'}%${isLiquidBulk ? ' &nbsp;|&nbsp; <span class="text-danger fw-bold">⚠️ SPECIFIC GRAVITY REQUIRED</span>' : ''}`;
+                                    let masterVoc = data.voc_percentage;
+                                    if (masterVoc === undefined || masterVoc === null || masterVoc === 'TBD' || masterVoc === 'None' || masterVoc === '' || masterVoc === '?') {
+                                        masterVoc = 0;
+                                    }
+                                    badge.innerHTML = `<strong>Generator:</strong> ${data.generator || 'N/A'} &nbsp;|&nbsp; <strong>WIN:</strong> ${data.win_code || 'N/A'} &nbsp;|&nbsp; <strong>Master VOC:</strong> ${masterVoc}%${isLiquidBulk ? ' &nbsp;|&nbsp; <span class="text-danger fw-bold">⚠️ SPECIFIC GRAVITY REQUIRED</span>' : ''}`;
                                     badge.classList.remove('d-none');
                                 }
                             }
