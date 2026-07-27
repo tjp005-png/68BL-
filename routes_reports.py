@@ -214,6 +214,20 @@ def export_excel():
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 
+def is_valid_profile_entry(prof):
+    import re
+    if not prof: return False
+    p = str(prof).strip().upper()
+    if p in ['TOTAL', 'TOTALS', 'APPROVAL #', 'APPROVAL#', 'NONE', 'N/A', '']:
+        return False
+    if any(k in p for k in ['TONNAGE', 'FOAM', 'INFO', 'REPORT', 'RECEIVED', 'PPM', 'MANIFEST', 'WEIGHT', 'POUNDS', 'TONS', 'AVERAGE']):
+        return False
+    if re.match(r'^\d+(\.\d+)?$', p):
+        return False
+    if len(p) < 4:
+        return False
+    return True
+
 @reports_bp.route('/voc_audit')
 def voc_audit():
     import openpyxl, glob, os, re, difflib
@@ -290,13 +304,14 @@ def voc_audit():
                         continue
                     
                     prof_clean = str(raw_prof).strip().upper()
-                    file_actual_counts[prof_clean] = file_actual_counts.get(prof_clean, 0) + 1
+                    if is_valid_profile_entry(prof_clean):
+                        file_actual_counts[prof_clean] = file_actual_counts.get(prof_clean, 0) + 1
 
         wb.close()
         scheduled_for_date = schedule_by_date.get(iso_date, {})
 
         for prof, actual_cnt in file_actual_counts.items():
-            if re.match(r'^\d+\.\d+$', prof) or len(prof) < 4:
+            if not is_valid_profile_entry(prof):
                 continue
 
             if prof in master_profiles:
@@ -399,18 +414,54 @@ def reports():
                 
             truck_logs.append(t)
         
+        # Check for matching 2026VOC file for selected_date to supplement variance tracking
+        voc_actual_dict = {}
+        try:
+            dt_obj = datetime.strptime(selected_date, '%Y-%m-%d')
+            file_pattern = f"{dt_obj.strftime('%m%d%Y')}VOC.xlsx"
+            voc_folder = r'I:\Buttonwillow\VOCs and TONNAGE  by YEAR\2026VOC'
+            target_fpath = os.path.join(voc_folder, file_pattern)
+            if os.path.exists(target_fpath):
+                wb = openpyxl.load_workbook(target_fpath, data_only=True, read_only=True)
+                for sheet_name in ['35', 'NON-VOC']:
+                    if sheet_name not in wb.sheetnames: continue
+                    ws = wb[sheet_name]
+                    header_found = False
+                    approval_col_idx = None
+                    for r_vals in ws.iter_rows(values_only=True):
+                        if not r_vals: continue
+                        r_str = [str(c or '').strip().upper() for c in r_vals]
+                        if 'APPROVAL #' in r_str or 'APPROVAL#' in r_str:
+                            header_found = True
+                            approval_col_idx = r_str.index('APPROVAL #') if 'APPROVAL #' in r_str else r_str.index('APPROVAL#')
+                            continue
+                        if header_found and approval_col_idx is not None and len(r_vals) > approval_col_idx:
+                            raw_prof = r_vals[approval_col_idx]
+                            prof_clean = str(raw_prof or '').strip().upper()
+                            if is_valid_profile_entry(prof_clean):
+                                voc_actual_dict[prof_clean] = voc_actual_dict.get(prof_clean, 0) + 1
+                wb.close()
+        except Exception:
+            pass
+
     master_report, grand_trucks, grand_tons = [], 0, 0.0
     
-    # --- NEW: TONNAGE-WEIGHTED TRACKING VARIABLES ---
+    # --- TONNAGE-WEIGHTED TRACKING VARIABLES ---
     voc_x_tons_sum = 0.0
     unit_35_total_tons = 0.0
     
     actual_profiles = set()
     for a in actual_data:
         prof = str(a['profile_number'] or '').strip().upper()
+        if not is_valid_profile_entry(prof):
+            continue
+
         actual_profiles.add(prof)
         sched = schedule_dict.get(prof, 0)
         
+        # Use truck_logs count or fallback to VOC file count if truck_logs has 0
+        actual_cnt = a['total_trucks'] or voc_actual_dict.get(prof, 0)
+
         try:
             safe_voc = float(a['profile_voc'])
         except (ValueError, TypeError):
@@ -420,25 +471,40 @@ def reports():
         
         master_report.append({
             'profile_number': prof, 
-            'total_trucks': a['total_trucks'], 
+            'total_trucks': actual_cnt, 
             'total_tons': unit_35_tons, 
             'avg_voc_ppm': safe_voc, 
             'scheduled': sched, 
-            'variance': a['total_trucks'] - sched
+            'variance': actual_cnt - sched
         })
         
-        grand_trucks += a['total_trucks']
+        grand_trucks += actual_cnt
         grand_tons += unit_35_tons
         
-        # -------------------------------------------------------------
-        # EXACT EXCEL MATH: (VOC x Tons) / Total Tons
-        # -------------------------------------------------------------
         if unit_35_tons > 0: 
             voc_x_tons_sum += (safe_voc * unit_35_tons) 
             unit_35_total_tons += unit_35_tons
+
+    # Check profiles present in VOC file that were not in truck_logs
+    for prof, voc_cnt in voc_actual_dict.items():
+        if prof not in actual_profiles and is_valid_profile_entry(prof):
+            actual_profiles.add(prof)
+            sched = schedule_dict.get(prof, 0)
+            try: safe_voc = float(voc_dict.get(prof, 0.0))
+            except (ValueError, TypeError): safe_voc = 0.0
+
+            master_report.append({
+                'profile_number': prof,
+                'total_trucks': voc_cnt,
+                'total_tons': 0.0,
+                'avg_voc_ppm': safe_voc,
+                'scheduled': sched,
+                'variance': voc_cnt - sched
+            })
+            grand_trucks += voc_cnt
             
     for prof, sched in schedule_dict.items():
-        if prof not in actual_profiles: 
+        if prof not in actual_profiles and is_valid_profile_entry(prof): 
             try:
                 safe_voc = float(voc_dict.get(prof, 0.0))
             except (ValueError, TypeError):
