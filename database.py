@@ -6,21 +6,22 @@ import re
 _excel_cache = None
 _excel_cache_mtime = None
 
-from shared_state import DB_PATH, MASTER_EXCEL_PATH
+import shared_state
 
-def get_db_connection():
-    conn = sqlite3.connect(DB_PATH, timeout=30)
+def get_db_connection(db_path=None):
+    target_db = db_path or shared_state.DB_PATH
+    conn = sqlite3.connect(target_db, timeout=30)
     conn.row_factory = sqlite3.Row 
     conn.execute('PRAGMA busy_timeout = 30000;')
     
     # Check if database is on a network drive to avoid WAL mode locks/hangs
     is_network = False
-    if DB_PATH.startswith(r'\\'):
+    if target_db.startswith(r'\\'):
         is_network = True
     elif os.name == 'nt':
         try:
             import ctypes
-            drive = os.path.splitdrive(os.path.abspath(DB_PATH))[0]
+            drive = os.path.splitdrive(os.path.abspath(target_db))[0]
             if drive:
                 is_network = (ctypes.windll.kernel32.GetDriveTypeW(drive + "\\") == 4)
         except:
@@ -203,7 +204,7 @@ def ensure_profile_exists(conn, profile_number, excel_path=None):
         return None
         
     clean_profile = str(profile_number).strip().upper()
-    excel_path = excel_path or MASTER_EXCEL_PATH
+    excel_path = excel_path or shared_state.MASTER_EXCEL_PATH
     
     row = conn.execute('SELECT * FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (clean_profile,)).fetchone()
     
@@ -416,6 +417,7 @@ def auto_sanitize_expired_profiles(conn=None):
         close_at_end = True
         
     try:
+        conn.row_factory = sqlite3.Row
         today_date = datetime.now().date()
         rows = conn.execute("SELECT profile_number, status, expiration_date FROM profiles WHERE expiration_date IS NOT NULL AND expiration_date != ''").fetchall()
         

@@ -502,6 +502,7 @@ def export_stu():
     export_filename = f"{clean_category} {date_str}.xlsx"
     return send_file(output, as_attachment=True, download_name=export_filename, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
+@stu_bp.route('/drum_action', methods=['POST'])
 @stu_bp.route('/stu/drum_action', methods=['POST'])
 def drum_action():
     drum_id = request.form.get('drum_id')

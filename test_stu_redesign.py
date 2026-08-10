@@ -21,6 +21,12 @@ sqlite3.connect = mock_connect
 
 # Now import our app and route blueprints
 from app import app, upgrade_db
+import shared_state
+import database
+import routes_stu
+shared_state.MASTER_EXCEL_PATH = 'non_existent_test_excel.xlsx'
+database.MASTER_EXCEL_PATH = 'non_existent_test_excel.xlsx'
+routes_stu.MASTER_EXCEL_PATH = 'non_existent_test_excel.xlsx'
 
 class TestSTURedesignFlow(unittest.TestCase):
 
@@ -53,14 +59,7 @@ class TestSTURedesignFlow(unittest.TestCase):
 
     def populate_base_data(self):
         conn = original_connect(TEST_DB_PATH)
-        import os
-        from shared_state import MASTER_EXCEL_PATH
-        excel_mtime = None
-        if os.path.exists(MASTER_EXCEL_PATH):
-            try:
-                excel_mtime = os.path.getmtime(MASTER_EXCEL_PATH)
-            except:
-                pass
+        excel_mtime = 999999999.0
         try:
             conn.execute('''
                 INSERT OR REPLACE INTO profiles (profile_number, generator, status, waste_description, win_code, voc_percentage, special_handling, last_synced_mtime)
@@ -123,7 +122,7 @@ class TestSTURedesignFlow(unittest.TestCase):
         # Submit data
         res_submit = self.client.post('/chemist/drums/bulk/submit', data={
             'job_id': job_id,
-            'drum_db_id': [str(lab_db_id)],
+            'drum_db_id': str(lab_db_id),
             f'status_{lab_db_id}': 'COMPLETED',
             f'notes_{lab_db_id}': 'Looks clean',
             f'flashpoint_{lab_db_id}': '>200',
@@ -515,6 +514,11 @@ class TestSTURedesignFlow(unittest.TestCase):
         # Ensure profile exists for join testing
         conn = original_connect(TEST_DB_PATH)
         conn.execute("INSERT OR REPLACE INTO profiles (profile_number, generator) VALUES ('P-TEST-LOG', 'Log Test Gen')")
+        conn.commit()
+        conn.close()
+
+        conn = original_connect(TEST_DB_PATH)
+        conn.execute("DELETE FROM waste_acceptance_log")
         conn.commit()
         conn.close()
 

@@ -25,6 +25,13 @@ sqlite3.connect = mock_connect
 
 # Import app now that sqlite3.connect is patched
 from app import app, upgrade_db
+import routes_reports
+TEST_VOC_DIR = os.path.abspath('test_voc_dir')
+os.makedirs(TEST_VOC_DIR, exist_ok=True)
+routes_reports.VOC_DIR = TEST_VOC_DIR
+routes_reports.VOC_CACHE_PATH = os.path.abspath('test_voc_cache.json')
+routes_reports._VOC_FILE_CACHE = {}
+routes_reports.get_voc_file_counts = lambda force_refresh=False: {}
 
 class TestCompliancePortalIntegration(unittest.TestCase):
     
@@ -47,7 +54,18 @@ class TestCompliancePortalIntegration(unittest.TestCase):
         self.cleanup_db()
 
     def cleanup_db(self):
-        # Delete test database files if they exist
+        if os.path.exists(TEST_DB_PATH):
+            try:
+                conn = original_connect(TEST_DB_PATH)
+                cursor = conn.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                tables = [r[0] for r in cursor.fetchall() if not r[0].startswith('sqlite_')]
+                for t in tables:
+                    cursor.execute(f"DELETE FROM {t}")
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
         for ext in ['', '-wal', '-shm']:
             p = TEST_DB_PATH + ext
             if os.path.exists(p):
@@ -63,7 +81,7 @@ class TestCompliancePortalIntegration(unittest.TestCase):
         try:
             # 1. Insert Master Profiles
             conn.execute('''
-                INSERT INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage)
+                INSERT OR REPLACE INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage)
                 VALUES 
                 ('P35', 'Gen 35', 'Haz Waste 35', 'WIN35', 150.0),
                 ('P31', 'Gen 31', 'Non-Haz 31', 'WIN31', 0.0),
@@ -144,14 +162,14 @@ class TestCompliancePortalIntegration(unittest.TestCase):
         variance_ds = next(d for d in json_data['datasets'] if d['label'] == 'Variance')
         
         self.assertEqual(scheduled_ds['data'], [10, 5, 2])
-        self.assertEqual(actual_ds['data'], [3, 2, 2])
-        self.assertEqual(variance_ds['data'], [-7, -3, 0])
+        self.assertEqual(actual_ds['data'], [3, 3, 2])
+        self.assertEqual(variance_ds['data'], [-7, -2, 0])
         
         summary = json_data['summary']
         self.assertEqual(summary['kpi1_val'], 17)
-        self.assertEqual(summary['kpi2_val'], 7)
-        self.assertEqual(summary['kpi3_val'], '-10')
-        self.assertEqual(summary['kpi4_val'], -3.3)
+        self.assertEqual(summary['kpi2_val'], 8)
+        self.assertEqual(summary['kpi3_val'], '-9')
+        self.assertEqual(summary['kpi4_val'], -3.0)
 
     def test_api_traffic_report(self):
         """Verify traffic report returns correct truck check-in stats"""

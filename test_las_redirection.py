@@ -45,6 +45,18 @@ class TestLASRedirection(unittest.TestCase):
         self.cleanup_db()
 
     def cleanup_db(self):
+        if os.path.exists(TEST_DB_PATH):
+            try:
+                conn = original_connect(TEST_DB_PATH)
+                cursor = conn.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                tables = [r[0] for r in cursor.fetchall() if not r[0].startswith('sqlite_')]
+                for t in tables:
+                    cursor.execute(f"DELETE FROM {t}")
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
         for ext in ['', '-wal', '-shm']:
             p = TEST_DB_PATH + ext
             if os.path.exists(p):
@@ -62,7 +74,7 @@ class TestLASRedirection(unittest.TestCase):
             # 2. PCCS: CCS profile that triggers LAS
             # 3. PNORMAL: active profile, standard fingerprint
             conn.execute('''
-                INSERT INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, status, expiration_date)
+                INSERT OR REPLACE INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, status, expiration_date)
                 VALUES 
                 ('PLAS', 'LAS Generator', 'LAS Waste description', 'WINLAS', 10.0, 'INACTIVE', '2020-01-01'),
                 ('PCCS', 'CCS Generator', 'CCS Waste description', 'CCS-WIN', 20.0, 'INACTIVE', '2020-01-01'),

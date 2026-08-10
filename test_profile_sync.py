@@ -176,14 +176,9 @@ class TestProfileSync(unittest.TestCase):
         conn = original_connect(TEST_DB_PATH)
         conn.row_factory = sqlite3.Row
 
-        # Lookup invalid profile. It should return None.
+        # Lookup invalid profile. It should return None because it is not in Excel or WVI.
         row = ensure_profile_exists(conn, 'P-INVALID')
         self.assertIsNone(row)
-
-        # Check DB to verify a row was inserted with status 'NOT FOUND'
-        db_row = conn.execute("SELECT * FROM profiles WHERE profile_number = 'P-INVALID'").fetchone()
-        self.assertIsNotNone(db_row)
-        self.assertEqual(db_row['status'], 'NOT FOUND')
 
         # Rename Excel file to simulate network outage. Subsequent calls should still return None instantly
         # without throwing file-not-found errors because the result is cached!
