@@ -372,7 +372,6 @@
                                 <span class="me-2">📝</span> Master Profile Management
                             </h5>
                             <div class="d-flex gap-2">
-                                <button id="formSyncExcelBtn" class="btn btn-sm btn-light text-primary py-1 fw-bold border-secondary small d-none" onclick="syncActiveProfile()">🔄 Sync Master Profile</button>
                                 <button id="profileAuditExportBtn" class="btn btn-sm btn-light text-success py-1 fw-bold border-secondary small d-none" onclick="exportProfileAuditSummary()">📑 Export Profile Audit</button>
                                 <button id="deleteProfileBtn" class="btn btn-sm btn-light text-danger py-1 fw-bold border-secondary small d-none" onclick="deleteCurrentProfile()">🗑️ Delete</button>
                                 <button id="clearFormBtn" class="btn btn-sm btn-light py-1 fw-bold border-secondary small d-none" onclick="resetEntryForm()">New Profile</button>
@@ -639,7 +638,7 @@
                             <span class="fw-bold text-muted small ms-auto d-flex align-items-center gap-2">
                                 <span>Master Profile Date: <span id="dashSyncTime" class="text-dark">---</span></span>
                                 <button id="btnSyncProfile" class="btn btn-xs btn-outline-primary fw-bold py-0" style="font-size: 0.75rem;" onclick="syncActiveProfile()" title="Fetch fresh profile data from master records (overwrites unsaved form edits)">
-                                    🔄 Sync Master Profile
+                                    🔄 Sync from Master Profile Excel
                                 </button>
                             </span>
                         </div>
