@@ -7,7 +7,7 @@ from contextlib import closing
 
 # Import your database helper and utility functions
 from database import get_db_connection 
-from schedule_utils import calculate_las_status, clean_display_notes
+from schedule_utils import calculate_las_status, calculate_las_tags, clean_display_notes
 
 # Create the Blueprint
 schedule_bp = Blueprint('schedule_bp', __name__)
@@ -28,9 +28,18 @@ def schedule_portal():
         
         # ONE Database Trip!
         daily_loads_raw = conn.execute('''
-            SELECT ds.*, p.expiration_date, p.status AS profile_status, p.special_handling 
+            SELECT ds.*, 
+                   COALESCE(NULLIF(TRIM(w.expiration_date), ''), p.expiration_date) AS expiration_date, 
+                   CASE 
+                       WHEN w.status IN ('Approved', 'Recertified', 'Complete', 'Released', 'ACTIVE') THEN 'ACTIVE'
+                       WHEN w.status IN ('Expired', 'Needs Review', 'Rejected', 'INACTIVE') THEN 'INACTIVE'
+                       ELSE p.status 
+                   END AS profile_status, 
+                   p.special_handling,
+                   p.voc_percentage AS profile_voc_percentage
             FROM daily_schedule ds
-            LEFT JOIN profiles p ON ds.profile_number = p.profile_number
+            LEFT JOIN profiles p ON TRIM(UPPER(ds.profile_number)) = TRIM(UPPER(p.profile_number))
+            LEFT JOIN waste_acceptance_log w ON TRIM(UPPER(ds.profile_number)) = TRIM(UPPER(w.profile_number)) AND COALESCE(w.is_archived, 0) = 0
             WHERE ds.schedule_date = ? 
             ORDER BY ds.order_index ASC, ds.id ASC
         ''', (selected_date,)).fetchall()
@@ -59,11 +68,24 @@ def schedule_portal():
             unit35_loads += count
         
         # --- Clean Logic ---
-        load['is_las'] = calculate_las_status(load)
+        voc_val = str(load.get('voc_level', '')).strip().upper()
+        p_voc = load.get('profile_voc_percentage')
+        p_voc_str = str(p_voc).strip().upper() if p_voc is not None else ''
+
+        if voc_val in ['NONE', '', '?', 'TBD', 'NULL']:
+            if p_voc_str not in ['', 'NONE', 'NAN', 'NULL', 'TBD', '?']:
+                try:
+                    load['voc_level'] = str(int(round(float(p_voc))))
+                except (ValueError, TypeError):
+                    load['voc_level'] = 'TBD'
+            else:
+                load['voc_level'] = 'TBD'
+        else:
+            load['voc_level'] = voc_val
+
+        load['las_tags'] = calculate_las_tags(load)
+        load['is_las'] = len(load['las_tags']) > 0
         load['clean_notes'] = clean_display_notes(load.get('special_notes'))
-        
-        voc_val = str(load.get('voc_level', '')).strip()
-        load['voc_level'] = 'TBD' if voc_val in ['None', '', '?', 'TBD'] else voc_val
         
         daily_loads.append(load)
 
@@ -174,6 +196,12 @@ def add_schedule():
     series_id = uuid.uuid4().hex if len(final_dates) > 1 else None
     
     profile_number = request.form.get('profile_number', '').strip().upper()
+    generator = request.form.get('generator', '').strip().upper()
+    waste_type = request.form.get('waste_type', 'WASTE PICKUP').strip().upper()
+    sales_order = request.form.get('sales_order', '').strip().upper()
+    routing_code = request.form.get('routing_code', '').strip().upper()
+    scheduler_initials = request.form.get('scheduler_initials', '').strip().upper()
+    special_notes = request.form.get('special_notes', '').strip().upper()
 
     with closing(get_db_connection()) as conn:
         from database import ensure_profile_exists
@@ -183,6 +211,19 @@ def add_schedule():
         if not profile or profile['status'] == 'NOT FOUND':
             return f"Error: Profile {profile_number} is not an approved profile in the Master Profile list.", 400
 
+        submitted_voc = str(request.form.get('voc_level', '')).strip().upper()
+        if submitted_voc in ['', 'TBD', 'NONE', '?']:
+            p_voc = profile.get('voc_percentage') if profile else None
+            if p_voc is not None and str(p_voc).strip().upper() not in ['', 'NONE', 'NAN', 'NULL']:
+                try:
+                    calc_voc = str(int(round(float(p_voc))))
+                except (ValueError, TypeError):
+                    calc_voc = 'TBD'
+            else:
+                calc_voc = 'TBD'
+        else:
+            calc_voc = submitted_voc
+
         for date_str in final_dates:
             conn.execute('''
                 INSERT INTO daily_schedule (
@@ -191,11 +232,11 @@ def add_schedule():
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)
             ''', (
                 date_str, 'TBD', 'TBD', 
-                request.form.get('profile_number'), int(request.form.get('load_count', 1)),
-                request.form.get('generator'), request.form.get('waste_type', 'WASTE PICKUP'),
-                request.form.get('sales_order'), request.form.get('routing_code'),
-                request.form.get('scheduler_initials'), request.form.get('special_notes'),
-                request.form.get('voc_level', 0), series_id
+                profile_number, int(request.form.get('load_count', 1)),
+                generator, waste_type,
+                sales_order, routing_code,
+                scheduler_initials, special_notes,
+                calc_voc, series_id
             ))
         for date_str in final_dates:
             SCHEDULE_UPDATES[date_str] = time.time()
@@ -235,14 +276,14 @@ def delete_schedule(schedule_id):
 @schedule_bp.route('/edit_schedule/<int:id>', methods=['POST'])
 def edit_schedule(id):
     new_date = request.form.get('schedule_date')
-    notes = request.form.get('special_notes', '')
-    initials = request.form.get('scheduler_initials', '')
-    voc_level = request.form.get('voc_level', 'TBD') 
+    notes = request.form.get('special_notes', '').strip().upper()
+    initials = request.form.get('scheduler_initials', '').strip().upper()
+    voc_level = request.form.get('voc_level', 'TBD').strip().upper() 
     apply_to_series = request.form.get('apply_to_series') == 'on'
     
-    profile_number = request.form.get('profile_number', '').upper()
-    waste_type = request.form.get('waste_type', '')
-    sales_order = request.form.get('sales_order', '')
+    profile_number = request.form.get('profile_number', '').strip().upper()
+    waste_type = request.form.get('waste_type', '').strip().upper()
+    sales_order = request.form.get('sales_order', '').strip().upper()
     
     try: load_count = int(request.form.get('load_count') or 1)
     except: load_count = 1
@@ -305,9 +346,16 @@ def reset_schedule_sort():
     if date_str:
         with closing(get_db_connection()) as conn:
             daily_loads_raw = conn.execute('''
-                SELECT ds.id, ds.load_count, ds.profile_number, ds.routing_code, ds.order_index, ds.is_pinned, p.expiration_date, p.status AS profile_status 
+                SELECT ds.id, ds.load_count, ds.profile_number, ds.routing_code, ds.order_index, ds.is_pinned, 
+                       COALESCE(NULLIF(TRIM(w.expiration_date), ''), p.expiration_date) AS expiration_date, 
+                       CASE 
+                           WHEN w.status IN ('Approved', 'Recertified', 'Complete', 'Released', 'ACTIVE') THEN 'ACTIVE'
+                           WHEN w.status IN ('Expired', 'Needs Review', 'Rejected', 'INACTIVE') THEN 'INACTIVE'
+                           ELSE p.status 
+                       END AS profile_status 
                 FROM daily_schedule ds
-                LEFT JOIN profiles p ON ds.profile_number = p.profile_number
+                LEFT JOIN profiles p ON TRIM(UPPER(ds.profile_number)) = TRIM(UPPER(p.profile_number))
+                LEFT JOIN waste_acceptance_log w ON TRIM(UPPER(ds.profile_number)) = TRIM(UPPER(w.profile_number)) AND COALESCE(w.is_archived, 0) = 0
                 WHERE ds.schedule_date = ? 
             ''', (date_str,)).fetchall()
             
@@ -320,7 +368,8 @@ def reset_schedule_sort():
                 except: t['order_index'] = 0
                 
                 # Use our clean utility function
-                t['is_las'] = calculate_las_status(t)
+                t['las_tags'] = calculate_las_tags(t)
+                t['is_las'] = len(t['las_tags']) > 0
                 daily_loads.append(t)
                 
             # 1. Sort to match the EXACT current visual layout on screen
@@ -424,50 +473,6 @@ def check_schedule_duplicate():
                 return jsonify({'duplicate': True, 'date': d})
                 
     return jsonify({'duplicate': False})
-
-
-@schedule_bp.route('/refresh_schedule_data', methods=['POST'])
-def refresh_schedule_data():
-    date_str = request.form.get('schedule_date')
-    
-    if date_str:
-        with closing(get_db_connection()) as conn:
-            # 1. Grab all scheduled loads for the current view
-            schedules = conn.execute('SELECT id, profile_number FROM daily_schedule WHERE schedule_date = ?', (date_str,)).fetchall()
-            
-            for s in schedules:
-                prof_num = str(s['profile_number']).strip().upper()
-                
-                # 2. Look up the latest data in the Master Profiles table
-                prof = conn.execute('''
-                    SELECT voc_percentage, generator, win_code 
-                    FROM profiles 
-                    WHERE TRIM(UPPER(profile_number)) = ?
-                ''', (prof_num,)).fetchone()
-                
-                if prof:
-                    # 3. Safely parse the updated VOC using our new logic
-                    try:
-                        val = float(prof['voc_percentage'])
-                        new_voc = str(int(val)) if val > 0 else '0'
-                    except (ValueError, TypeError):
-                        new_voc = 'TBD'
-                        
-                    # 4. Update the existing schedule entry
-                    conn.execute('''
-                        UPDATE daily_schedule 
-                        SET voc_level = ?, generator = ?, routing_code = ?
-                        WHERE id = ?
-                    ''', (new_voc, prof['generator'], prof['win_code'], s['id']))
-                    
-            conn.commit()
-            
-        # 5. Push the visual update to all connected users
-        SCHEDULE_UPDATES[date_str] = time.time()
-        SCHEDULE_UPDATES['GLOBAL'] = time.time()
-        socketio.emit('schedule_update', {'date': date_str})
-        
-    return redirect(url_for('schedule_bp.schedule_portal', date=date_str))
 
 
 @schedule_bp.route('/api/check_schedule_updates')

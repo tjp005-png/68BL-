@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VOC Files vs Schedule Audit — Truck Log App</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            font-family: 'Inter', sans-serif;
+        }
+        .header-card {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            color: #ffffff;
+            border-radius: 12px;
+        }
+        .table-custom th {
+            background-color: #0f172a;
+            color: #38bdf8;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .table-custom td {
+            font-size: 0.9rem;
+            vertical-align: middle;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .card-stat {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container-fluid mt-4 px-4 mb-5">
+        
+        <!-- Header Banner -->
+        <div class="card header-card p-4 shadow-sm mb-4">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div>
+                    <h2 class="fw-bold mb-1">🔍 2026VOC Files vs Schedule Audit</h2>
+                    <p class="text-info-subtle mb-0 small">Cross-Referencing Excel Files in <code class="text-warning">I:\Buttonwillow\VOCs and TONNAGE by YEAR\2026VOC</code> vs Schedule DB & Master Profiles</p>
+                </div>
+                <div>
+                    <a href="/" class="btn btn-outline-light me-2 fw-bold">🏠 Hub</a>
+                    <a href="/reports" class="btn btn-outline-info text-white me-2 fw-bold">📊 Reports</a>
+                    <a href="/yellow_entry" class="btn btn-warning text-dark fw-bold">🟨 Yellow Entry</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stat Cards & Filter Controls -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="card card-stat p-3 bg-white border-start border-4 border-primary">
+                    <small class="text-muted text-uppercase fw-bold">Total VOC Files Processed</small>
+                    <h3 class="fw-bold text-dark mb-0">{{ total_files }} Files</h3>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card card-stat p-3 bg-white border-start border-4 border-danger">
+                    <small class="text-muted text-uppercase fw-bold">Profile Typos / Mismatches</small>
+                    <h3 class="fw-bold text-danger mb-0">{{ total_typos }} Flagged</h3>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card card-stat p-3 bg-white">
+                    <form method="GET" action="/voc_audit" class="row g-2 align-items-center">
+                        <div class="col-sm-5">
+                            <label class="form-label text-dark small fw-bold mb-1">Filter Date:</label>
+                            <input type="date" name="date" class="form-control form-control-sm fw-bold" value="{{ selected_date }}">
+                        </div>
+                        <div class="col-sm-4 pt-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="typos_only" value="true" id="typosCheck" {% if filter_typos_only %}checked{% endif %} onchange="this.form.submit()">
+                                <label class="form-check-label text-dark fw-bold small" for="typosCheck">Show Typos Only</label>
+                            </div>
+                        </div>
+                        <div class="col-sm-3 pt-3">
+                            <button type="submit" class="btn btn-sm btn-primary w-100 fw-bold">🔍 Filter</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Audit Table -->
+        <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-3">
+                <h5 class="fw-bold mb-0 text-info">📋 Profile Audit Details</h5>
+                <span class="badge bg-secondary">{{ records|length }} Records Displayed</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle table-custom mb-0">
+                    <thead>
+                        <tr>
+                            <th>Date & File</th>
+                            <th>VOC File Profile</th>
+                            <th>Master Profile Match</th>
+                            <th>Generator Name</th>
+                            <th class="text-center">VOC File Loads</th>
+                            <th class="text-center">Scheduled Loads</th>
+                            <th class="text-center">Variance / Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if records %}
+                            {% for r in records %}
+                                <tr class="{% if not r.is_exact %}table-warning{% endif %}">
+                                    <td>
+                                        <span class="fw-bold text-dark d-block">{{ r.date }}</span>
+                                        <small class="text-muted font-mono">{{ r.file_name }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold font-mono {% if not r.is_exact %}text-danger{% else %}text-dark{% endif %}">{{ r.file_profile }}</span>
+                                    </td>
+                                    <td>
+                                        {% if r.is_exact %}
+                                            <span class="badge bg-success text-white font-mono">✅ Match: {{ r.file_profile }}</span>
+                                        {% elif r.suggested_master and r.suggested_master != 'UNKNOWN' %}
+                                            <span class="badge bg-danger text-white font-mono">⚠️ Typo: {{ r.suggested_master }}</span>
+                                            <small class="text-dark fw-bold d-block mt-1">({{ r.score }}% similarity)</small>
+                                        {% else %}
+                                            <span class="badge bg-secondary font-mono">❓ Unknown Profile</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="small fw-semibold text-truncate d-inline-block" style="max-width: 200px;" title="{{ r.generator }}">{{ r.generator }}</span>
+                                    </td>
+                                    <td class="text-center fw-bold fs-6 text-primary">{{ r.actual_count }}</td>
+                                    <td class="text-center fw-bold fs-6 text-dark">{{ r.scheduled_count }}</td>
+                                    <td class="text-center">
+                                        {% if not r.is_exact %}
+                                            <span class="badge bg-danger">PROFILE TYPO</span>
+                                        {% elif r.variance > 0 %}
+                                            <span class="badge bg-warning text-dark">+{{ r.variance }} Unscheduled</span>
+                                        {% elif r.variance < 0 %}
+                                            <span class="badge bg-secondary">{{ r.variance }} Pending</span>
+                                        {% else %}
+                                            <span class="badge bg-success">100% Match</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">No audit records found matching the filter criteria.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

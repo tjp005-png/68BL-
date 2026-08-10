@@ -49,6 +49,29 @@
             overflow: hidden;
         }
 
+        /* Sulfide Grid Table Layout Fix */
+        .sulfide-grid-table {
+            width: 100% !important;
+            table-layout: fixed !important;
+            border-collapse: collapse;
+        }
+        .sulfide-grid-table th, .sulfide-grid-table td {
+            padding: 4px 4px !important;
+            vertical-align: middle;
+        }
+        .sulfide-grid-input {
+            padding: 2px 4px !important;
+            font-size: 0.8rem !important;
+            height: 31px !important;
+            box-shadow: none !important;
+            border-color: #cbd5e1 !important;
+        }
+        .sulfide-grid-input[type="date"] {
+            font-size: 0.75rem !important;
+            padding-left: 2px !important;
+            padding-right: 1px !important;
+        }
+
         .premium-card:hover {
             box-shadow: 0 10px 15px -3px rgba(0,0,0,0.04), 0 4px 6px -2px rgba(0,0,0,0.02);
         }
@@ -350,6 +373,7 @@
                             </h5>
                             <div class="d-flex gap-2">
                                 <button id="formSyncExcelBtn" class="btn btn-sm btn-light text-primary py-1 fw-bold border-secondary small d-none" onclick="syncActiveProfile()">🔄 Sync Master Profile</button>
+                                <button id="profileAuditExportBtn" class="btn btn-sm btn-light text-success py-1 fw-bold border-secondary small d-none" onclick="exportProfileAuditSummary()">📑 Export Profile Audit</button>
                                 <button id="deleteProfileBtn" class="btn btn-sm btn-light text-danger py-1 fw-bold border-secondary small d-none" onclick="deleteCurrentProfile()">🗑️ Delete</button>
                                 <button id="clearFormBtn" class="btn btn-sm btn-light py-1 fw-bold border-secondary small d-none" onclick="resetEntryForm()">New Profile</button>
                             </div>
@@ -402,6 +426,18 @@
                                 </div>
 
                                 <div class="row mb-3">
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label text-muted small fw-bold mb-1">Shipping Container Type</label>
+                                        <select class="form-select border-secondary px-2" id="form-shipping-container" name="shipping_container_type" required>
+                                            <option value="Containerized" selected>Containerized (Drum Profile)</option>
+                                            <option value="Bulk Solid">Bulk Solid (Bulk)</option>
+                                            <option value="Bulk Liquid">Bulk Liquid (Bulk)</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
                                     <div class="col-6 col-md-3">
                                         <label class="form-label text-muted small fw-bold mb-1">Physical State</label>
                                         <select class="form-select border-secondary px-2" id="form-state" name="physical_appearance" required>
@@ -423,7 +459,6 @@
                                         <input type="text" class="form-control border-secondary px-2" id="form-color" name="color" placeholder="e.g. Varies">
                                     </div>
                                 </div>
-
                                 <div class="row mb-3">
                                     <div class="col-4">
                                         <label class="form-label text-muted small fw-bold mb-1">Cyanide</label>
@@ -468,14 +503,46 @@
                                     </div>
                                 </div>
 
+                                <div class="row mb-3 d-none" id="ldrOptionContainer">
+                                    <div class="col-12">
+                                        <label class="form-label text-muted small fw-bold mb-1 text-warning">⚡ LDR Certification Option</label>
+                                        <select class="form-select border-warning px-2" id="form-ldr-option" name="ldr_option">
+                                            <option value="" selected>None Selected</option>
+                                            <option value="1">1: Not subject to LDR</option>
+                                            <option value="2">2: This is subject to LDR.</option>
+                                            <option value="3">3: Alternate Debris Standard</option>
+                                            <option value="4">4: Meets LDR Standards</option>
+                                            <option value="5">5: Alternate Soil Std-meets std. (with listed and characteristic hazardous waste)</option>
+                                            <option value="6">6: Alternate Soil Std-meets std. (with characteristic hazardous waste only)</option>
+                                            <option value="7">7: Alternate Soil Std-meets std. (with listed hazardous waste only)</option>
+                                            <option value="8">8: Alternate Soil Std-does not meet std. (with listed and characteristic hazardous waste)</option>
+                                            <option value="9">9: Alternate Soil Std-does not meet std. (with listed hazardous waste only)</option>
+                                            <option value="10">10: Alternate Soil Std-does not meet std. (with characteristic hazardous waste only)</option>
+                                            <option value="11">11: Labpack Alternate Standard</option>
+                                            <option value="12">12: Subject to a variance or exemption</option>
+                                            <option value="13">13: Partially meets LDR standards</option>
+                                            <option value="14">14: Treatment Technology & Process certification</option>
+                                            <option value="15">15: Contaminated Soil Treatment Tech. And Process Cert.</option>
+                                            <option value="16">16: Concentration-based Certification for combustion residues</option>
+                                            <option value="17">17: Waste treated to remove characteristic, but not UHCs</option>
+                                            <option value="18">18: Waste treated to remove characteristic and UHCs</option>
+                                            <option value="19">19: Treated Debris under 268.45</option>
+                                            <option value="20">20: Generator chooses not to make the determination of whether the waste must be treated.</option>
+                                        </select>
+                                    </div>
+                                </div>
+
                                 <div class="row mb-3">
                                     <div class="col-4">
                                         <label class="form-label text-muted small fw-bold mb-1">BL Waste Code</label>
                                         <input type="text" class="form-control border-secondary text-uppercase" id="form-win" name="win_code" placeholder="e.g. CBP, CNO">
                                     </div>
                                     <div class="col-4">
-                                        <label class="form-label text-muted small fw-bold mb-1 text-danger">Total VOC (ppm)</label>
-                                        <input type="number" step="0.01" class="form-control border-danger bg-light" id="form-voc" name="voc_percentage" value="0">
+                                        <label class="form-label text-muted small fw-bold mb-1 text-danger d-flex justify-content-between">
+                                            <span>Total VOC (ppm)</span>
+                                            <a href="javascript:void(0)" onclick="document.getElementById('form-voc').value='TBD'" class="text-danger small text-decoration-none fw-bold" title="Set VOC to TBD">Set TBD</a>
+                                        </label>
+                                        <input type="text" class="form-control border-danger bg-light" id="form-voc" name="voc_percentage" placeholder="e.g. 0 or TBD" value="0">
                                     </div>
                                     <div class="col-4">
                                         <label class="form-label text-muted small fw-bold mb-1">Approval Status</label>
@@ -483,6 +550,7 @@
                                             <option value="ACTIVE">Active</option>
                                             <option value="S" selected>Pending LAS (S)</option>
                                             <option value="NOT APPROVED">Not Approved</option>
+                                            <option value="EXPIRED">Expired</option>
                                         </select>
                                     </div>
                                 </div>
@@ -551,7 +619,10 @@
                     <div class="card premium-card border-0" style="border-left: 6px solid var(--primary-crimson) !important;">
                         <div class="card-body d-flex justify-content-between align-items-start pb-2">
                             <div>
-                                <h3 id="dashProfileNum" class="fw-bold text-primary mb-1">---</h3>
+                                <h3 class="fw-bold text-primary mb-1 d-flex align-items-center flex-wrap gap-2">
+                                    <span id="dashProfileNum">---</span> 
+                                    <span id="dashContainerTypeBadge" class="badge bg-primary text-white fs-6 align-middle">🛢️ Drum Profile</span>
+                                </h3>
                                 <h6 class="text-muted fw-bold mb-0 d-flex align-items-center flex-wrap gap-2">
                                     <span id="dashGenerator" class="text-truncate" style="max-width: 480px; display: inline-block; vertical-align: bottom;" title="">---</span> 
                                     <span id="dashEpaIdBadge" class="badge bg-light text-dark border small fw-bold px-2 py-1">EPA: ---</span>
@@ -567,7 +638,7 @@
                             <span class="fw-bold text-muted small">Lab Number: <span id="dashLab" class="text-dark font-heading">---</span></span>
                             <span class="fw-bold text-muted small ms-auto d-flex align-items-center gap-2">
                                 <span>Master Profile Date: <span id="dashSyncTime" class="text-dark">---</span></span>
-                                <button id="btnSyncProfile" class="btn btn-xs btn-outline-primary fw-bold py-0" style="font-size: 0.75rem;" onclick="syncActiveProfile()">
+                                <button id="btnSyncProfile" class="btn btn-xs btn-outline-primary fw-bold py-0" style="font-size: 0.75rem;" onclick="syncActiveProfile()" title="Fetch fresh profile data from master records (overwrites unsaved form edits)">
                                     🔄 Sync Master Profile
                                 </button>
                             </span>
@@ -635,6 +706,25 @@
                                     <div id="dashDot" class="fw-semibold text-dark text-truncate" title="">---</div>
                                 </div>
                             </div>
+                            <hr class="my-2">
+                            <div class="row g-2">
+                                <div class="col-12 col-md-6">
+                                    <div class="small text-muted fw-bold text-primary">🧪 VERIFICATION PROCEDURES</div>
+                                    <div id="dashVerProc" class="fw-semibold text-dark small">---</div>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <div class="small text-muted fw-bold text-primary">🧫 SAMPLING PROCEDURES</div>
+                                    <div id="dashSampleProc" class="fw-semibold text-dark small">---</div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="small text-muted fw-bold text-dark">🚚 UNLOADING & HANDLING INSTRUCTIONS</div>
+                                    <div id="dashUnloading" class="fw-semibold text-dark small">---</div>
+                                </div>
+                                <div class="col-12 d-none" id="dashNotesContainer">
+                                    <div class="small text-muted fw-bold text-secondary">📝 WVI REVISIONS & LAB NOTES</div>
+                                    <div id="dashWviNotes" class="fw-semibold text-dark small fst-italic">---</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -675,12 +765,13 @@
                                                 <tr>
                                                     <th>Date</th>
                                                     <th>Manifest</th>
-                                                    <th>Load #</th>
-                                                    <th>Weight (lbs)</th>
+                                                    <th>Load / Ticket #</th>
+                                                    <th class="text-end">Weight</th>
+                                                    <th>Source</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="historyTableBody" class="small">
-                                                <tr><td colspan="4" class="text-center text-muted py-4">No historical shipments</td></tr>
+                                                <tr><td colspan="5" class="text-center text-muted py-4">No historical shipments</td></tr>
                                             </tbody>
                                         </table>
                                     </div>
@@ -690,27 +781,212 @@
                     </div>
 
                     <!-- Drum Lab & VOC Audit Trail Panel -->
-                    <div class="card premium-card mt-3 border-secondary">
-                        <div class="card-header card-header-dark py-2">
-                            🧪 VOC & Lab Testing Drum Audit Trail
+                    <div class="card premium-card mt-3 border-secondary" id="drumAuditCard">
+                        <div class="card-header card-header-dark py-2 d-flex justify-content-between align-items-center">
+                            <span>🧪 VOC & Lab Testing Drum Audit Trail</span>
+                            <button class="btn btn-sm btn-outline-light py-0 px-2 fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#drumAuditCollapse" aria-expanded="false">
+                                🔽 Toggle Audit Trail
+                            </button>
                         </div>
-                        <div class="card-body p-0">
-                            <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
-                                <table class="table table-hover table-sm table-striped align-middle mb-0 text-nowrap">
-                                    <thead class="sticky-top small">
-                                        <tr class="table-dark">
-                                            <th>Date Received</th>
-                                            <th>Drum ID</th>
-                                            <th>Manifest</th>
-                                            <th>Load (Job ID)</th>
-                                            <th>Testing Requirement</th>
-                                            <th>Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="drumHistoryTableBody" class="small">
-                                        <tr><td colspan="6" class="text-center text-muted py-4">No drum testing logs found for this profile.</td></tr>
-                                    </tbody>
-                                </table>
+                        <div class="collapse" id="drumAuditCollapse">
+                            <div class="card-body p-0">
+                                <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
+                                    <table class="table table-hover table-sm table-striped align-middle mb-0 text-nowrap">
+                                        <thead class="sticky-top small">
+                                            <tr class="table-dark">
+                                                <th>Date Received</th>
+                                                <th>Drum ID</th>
+                                                <th>Manifest</th>
+                                                <th>Load (Job ID)</th>
+                                                <th>Testing Requirement</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="drumHistoryTableBody" class="small">
+                                            <tr><td colspan="6" class="text-center text-muted py-4">No drum testing logs found for this profile.</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VOC Analyzer Log Card (Required if VOC >= 50 ppm) -->
+                    <div class="card premium-card mt-3 border-warning d-none" id="vocAnalyzerCard">
+                        <div class="card-header bg-warning text-dark fw-bold py-2 d-flex justify-content-between align-items-center">
+                            <span>⚡ VOC Analyzer Test Log (CP1 Reference & Separate Analyzer Reading)</span>
+                            <span class="badge bg-dark text-warning px-2 py-1" id="vocAnalyzerBadge">Required for VOC &ge; 50 ppm</span>
+                        </div>
+                        <div class="card-body p-3 bg-light">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label small fw-bold text-dark mb-1">CP1 Lab Number <span class="text-danger">*</span></label>
+                                    <input type="text" id="vocCp1Number" class="form-control form-control-sm border-secondary text-uppercase" placeholder="e.g. CP1-98765">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small fw-bold text-dark mb-1">VOC Analyzer Value (ppm) <span class="text-danger">*</span></label>
+                                    <input type="number" step="0.1" id="vocAnalyzerValue" class="form-control form-control-sm border-secondary" placeholder="e.g. 125.0">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-bold text-dark mb-1">Tester / Notes</label>
+                                    <input type="text" id="vocAnalyzerNotes" class="form-control form-control-sm border-secondary" placeholder="Optional testing notes...">
+                                </div>
+                                <div class="col-md-2 d-flex align-items-end">
+                                    <button class="btn btn-sm btn-warning text-dark fw-bold w-100 shadow-sm" onclick="saveVocAnalyzerLog()">
+                                        💾 Record VOC Test
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3">
+                                <h6 class="fw-bold text-dark small mb-2 border-bottom pb-1">Historical VOC Analyzer Readings:</h6>
+                                <div class="table-responsive" style="max-height: 200px;">
+                                    <table class="table table-sm table-bordered table-hover bg-white mb-0 text-nowrap align-middle">
+                                        <thead class="table-dark small">
+                                            <tr>
+                                                <th>Date / Time</th>
+                                                <th>CP1 Number</th>
+                                                <th>Analyzer VOC (ppm)</th>
+                                                <th>Recorded Profile VOC</th>
+                                                <th>Tested By</th>
+                                                <th>Notes</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="vocAnalyzerHistoryBody" class="small">
+                                            <tr><td colspan="6" class="text-center text-muted py-3">No analyzer readings recorded</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sulfide Total & Reactive Statistical 90% Confidence Level Suite -->
+                    <div class="card premium-card mt-3 border-danger d-none" id="sulfideSuiteCard">
+                        <div class="card-header bg-dark text-white fw-bold py-2 d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center gap-2">
+                                <span>🧪 Sulfide Total & Reactive Daily Testing Suite</span>
+                                <span class="badge bg-danger text-white px-2 py-1">Limit: ≤ 500 mg/kg Reactive</span>
+                            </div>
+                            <button class="btn btn-sm btn-outline-light py-0 px-2 fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#sulfideSuiteCollapse" aria-expanded="true">
+                                🔽 Toggle Sulfide Suite
+                            </button>
+                        </div>
+                        <div class="collapse show" id="sulfideSuiteCollapse">
+                            <div class="card-body p-3 bg-light">
+                                
+                                <!-- Cumulative Statistical Evaluation Header -->
+                                <div class="border rounded p-3 bg-white mb-3 shadow-sm">
+                                    <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                                        <h6 class="fw-bold text-dark mb-0">📊 Cumulative Statistical Evaluation (90% Confidence Level)</h6>
+                                        <span id="sulfideProgressBadge" class="badge bg-secondary fs-6">0 / 5 Samples Logged</span>
+                                    </div>
+                                    <div class="table-responsive mb-2">
+                                        <table class="table table-sm table-bordered align-middle text-nowrap mb-0">
+                                            <tbody class="small font-monospace">
+                                                <tr>
+                                                    <td class="fw-bold text-muted" style="width: 35%;">MEAN x</td>
+                                                    <td id="calcTotMean" class="fw-bold text-end text-primary" style="width: 32%;">0.00</td>
+                                                    <td id="calcReactMean" class="fw-bold text-end text-danger" style="width: 33%;">0.00</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-bold text-muted">STDDEV</td>
+                                                    <td id="calcTotStddev" class="fw-bold text-end">0.00</td>
+                                                    <td id="calcReactStddev" class="fw-bold text-end">0.00</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-bold text-muted">Degrees of Freedom (df = n-1)</td>
+                                                    <td id="calcTotDf" class="fw-bold text-end">0</td>
+                                                    <td id="calcReactDf" class="fw-bold text-end">0</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-bold text-muted">"t" Values (90% Confidence)</td>
+                                                    <td id="calcTotTval" class="fw-bold text-end">1.638</td>
+                                                    <td id="calcReactTval" class="fw-bold text-end">1.638</td>
+                                                </tr>
+                                                <tr class="table-light">
+                                                    <td class="fw-bold text-dark">Total Sulfide 90% CI = Mean + (Stddev * t)</td>
+                                                    <td colspan="2" id="calcTot90CI" class="fw-bold text-end fs-6 text-primary">0.00 mg/kg</td>
+                                                </tr>
+                                                <tr class="table-light">
+                                                    <td class="fw-bold text-dark">Reactive Sulfide 90% CI = Mean + (Stddev * t)</td>
+                                                    <td colspan="2" id="calcReact90CI" class="fw-bold text-end fs-6 text-danger">0.00 mg/kg</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-bold text-dark">Approval Status:</td>
+                                                    <td colspan="2" id="calcConclusion" class="fw-bold text-center">
+                                                        <span class="badge bg-secondary fs-6">Awaiting Sample Data</span>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- Single Daily Sample Input Form -->
+                                <div class="border rounded p-3 bg-white mb-3 shadow-sm">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="fw-bold text-danger mb-0" id="sulfideFormTitle">➕ Enter Daily Sample Test Result</h6>
+                                        <button class="btn btn-xs btn-outline-secondary d-none" id="btnCancelSulfideEdit" onclick="resetSulfideSampleForm()">❌ Cancel Edit</button>
+                                    </div>
+                                    <input type="hidden" id="sulfideEditingLogId" value="">
+                                    
+                                    <div class="row g-2">
+                                        <div class="col-md-2">
+                                            <label class="form-label small fw-bold mb-1">Test Date</label>
+                                            <input type="date" id="sulfideSampleDate" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label small fw-bold mb-1">Lab / CP1 #</label>
+                                            <input type="text" id="sulfideSampleLab" class="form-control form-control-sm text-uppercase" placeholder="e.g. 133823">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label small fw-bold mb-1">Weight Ticket #</label>
+                                            <input type="text" id="sulfideSampleWt" class="form-control form-control-sm text-uppercase" placeholder="e.g. WT-101">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small fw-bold mb-1 text-primary">Total Sulfide (mg/kg) *</label>
+                                            <input type="number" step="0.01" id="sulfideSampleTot" class="form-control form-control-sm fw-bold border-primary" placeholder="Total mg/kg" oninput="onSingleTotInputChange()">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small fw-bold mb-1 text-danger">Reactive Sulfide (mg/kg)</label>
+                                            <input type="number" step="0.01" id="sulfideSampleReact" class="form-control form-control-sm fw-bold border-danger bg-secondary bg-opacity-10 text-muted" disabled placeholder="N/A (≤1000)">
+                                        </div>
+                                        <div class="col-md-9 mt-2">
+                                            <input type="text" id="sulfideSampleNotes" class="form-control form-control-sm" placeholder="Testing notes / observations...">
+                                        </div>
+                                        <div class="col-md-3 mt-2">
+                                            <button class="btn btn-sm btn-crimson fw-bold w-100 shadow-sm" id="btnSaveSulfideSample" onclick="submitSingleSulfideSample()">
+                                                ➕ Save Sample Log
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Historical Sample Logs Table with Edit & Delete -->
+                                <div class="mt-3">
+                                    <h6 class="fw-bold text-dark small mb-2 border-bottom pb-1">📋 Logged Daily Test Samples (<span id="sulfideLoggedCountText">0</span> Entries Recorded):</h6>
+                                    <div class="table-responsive" style="max-height: 280px;">
+                                        <table class="table table-sm table-bordered table-hover bg-white mb-0 text-nowrap align-middle">
+                                            <thead class="table-dark small text-center">
+                                                <tr>
+                                                    <th>#</th>
+                                                    <th>Test Date</th>
+                                                    <th>Lab / CP1 #</th>
+                                                    <th>Weight Ticket</th>
+                                                    <th>Total Sulfide</th>
+                                                    <th>Reactive Sulfide</th>
+                                                    <th>Tested By</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="sulfideHistoryBody" class="small text-center">
+                                                <tr><td colspan="8" class="text-center text-muted py-3">No sample logs recorded</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
                     </div>
@@ -797,6 +1073,10 @@
                     setAndHighlight('form-ph', data.ph_range);
                     setAndHighlight('form-fp', data.flash_point);
                     setAndHighlight('form-ldr', data.ldr_required);
+                    toggleLdrOption();
+                    if (data.shipping_container_type) {
+                        setAndHighlight('form-shipping-container', data.shipping_container_type);
+                    }
                     setAndHighlight('form-color', data.color);
                     
                     // Handle physical state select & dispatch its change listener
@@ -848,6 +1128,22 @@
         const dashboard = document.getElementById('profileDashboard');
         const noSelectionCard = document.getElementById('noSelectionCard');
 
+        function getProfileContainerType(p) {
+            if (p && p.shipping_container_type && p.shipping_container_type.trim() !== '') {
+                return p.shipping_container_type;
+            }
+            const c = (p && p.comments ? p.comments : '').toString().toUpperCase();
+            const w = (p && p.win_code ? p.win_code : '').toString().trim().toUpperCase();
+            const s = (p && p.physical_appearance ? p.physical_appearance : '').toString().trim().toUpperCase();
+            
+            if (c.includes('SIP') || c.includes('TREA')) {
+                return 'Containerized';
+            } else if (['CNOS', 'CBPS'].includes(w) || s === 'LIQUID') {
+                return 'Bulk Liquid';
+            }
+            return 'Bulk Solid';
+        }
+
         // Dynamic Search
         searchInput.addEventListener('input', function() {
             clearTimeout(searchTimeout);
@@ -866,12 +1162,21 @@
                             searchResults.innerHTML = '<div class="list-group-item text-muted p-3">No matching profiles found in database.</div>';
                         } else {
                             data.forEach(p => {
+                                const cType = getProfileContainerType(p);
+                                const isDrum = cType === 'Containerized';
+                                const tagBadge = isDrum
+                                    ? `<span class="badge bg-primary text-white ms-2" style="font-size: 0.7rem;">🛢️ Drum Profile</span>`
+                                    : `<span class="badge bg-secondary text-white ms-2" style="font-size: 0.7rem;">📦 ${cType}</span>`;
+
+                                const statusClass = p.status === 'ACTIVE' ? 'text-success' : (p.status === 'S' ? 'text-warning' : (p.status === 'EXPIRED' ? 'text-danger fw-bold' : (p.status === 'NOT APPROVED' ? 'text-danger' : 'text-muted')));
+                                const statusLabel = p.status === 'S' ? 'PENDING LAS (S)' : (p.status === 'EXPIRED' ? 'EXPIRED' : (p.status || 'UNKNOWN'));
+
                                 const btn = document.createElement('button');
                                 btn.className = 'list-group-item list-group-item-action py-2 search-item';
                                 btn.innerHTML = `
                                     <div class="d-flex w-100 justify-content-between align-items-center">
-                                        <h6 class="mb-0 fw-bold text-primary">${p.profile_number}</h6>
-                                        <small class="${p.status === 'ACTIVE' ? 'text-success' : (p.status === 'S' ? 'text-warning' : (p.status === 'NOT APPROVED' ? 'text-danger' : 'text-muted'))} fw-bold me-3">${p.status === 'S' ? 'PENDING LAS (S)' : (p.status || 'UNKNOWN')}</small>
+                                        <h6 class="mb-0 fw-bold text-primary">${p.profile_number} ${tagBadge}</h6>
+                                        <small class="${statusClass} me-3">${statusLabel}</small>
                                     </div>
                                     <p class="mb-1 mt-1 small text-truncate w-100" style="color: var(--text-main); font-weight: 500;" title="${p.generator || 'No Generator'}">${p.generator || 'No Generator'}</p>
                                     <small class="text-muted d-block text-truncate w-100">Desc: ${p.waste_description || '---'} | Lab: ${p.lab_number || '---'} | WIN: ${p.win_code || '---'}</small>
@@ -940,11 +1245,13 @@
             if (p.status === 'S') statusText = 'PENDING LAS (S)';
             else if (p.status === 'ACTIVE') statusText = 'ACTIVE';
             else if (p.status === 'NOT APPROVED') statusText = 'NOT APPROVED';
+            else if (p.status === 'EXPIRED') statusText = 'EXPIRED';
 
             let badgeClass = 'bg-secondary';
             if (p.status === 'ACTIVE') badgeClass = 'bg-success';
             else if (p.status === 'S') badgeClass = 'bg-warning text-dark';
             else if (p.status === 'NOT APPROVED') badgeClass = 'bg-danger';
+            else if (p.status === 'EXPIRED') badgeClass = 'bg-dark text-white border border-light';
 
             document.getElementById('dashStatus').innerText = statusText;
             document.getElementById('dashStatus').className = `badge mb-1 px-3 py-2 fs-6 ${badgeClass}`;
@@ -958,7 +1265,7 @@
             document.getElementById('dashColor').innerText = p.color || '---';
             document.getElementById('dashPh').innerText = p.ph_range || '---';
             document.getElementById('dashFp').innerText = p.flash_point || '---';
-            document.getElementById('dashVoc').innerText = p.voc_percentage !== undefined ? p.voc_percentage : '---';
+            document.getElementById('dashVoc').innerText = (p.voc_percentage !== null && p.voc_percentage !== undefined && String(p.voc_percentage).trim() !== '') ? p.voc_percentage : 'TBD';
             document.getElementById('dashCyanide').innerText = p.cyanide || '---';
             document.getElementById('dashSulfide').innerText = p.sulfide || '---';
             document.getElementById('dashFreeLiquids').innerText = p.free_liquids || '---';
@@ -967,6 +1274,16 @@
             document.getElementById('dashFederalCode').innerText = p.federal_waste_code || '---';
             document.getElementById('dashDot').innerText = p.dot_description || '---';
             document.getElementById('dashDot').title = p.dot_description || '';
+
+            // Populate WVI Qualitative Procedures dynamically based on Win Code & Lab Number
+            updateWviDashboardProcedures(p.win_code, p.lab_number || p.lab_num, p);
+
+            if (p.notes_revisions && p.notes_revisions.trim() !== '') {
+                document.getElementById('dashWviNotes').innerText = p.notes_revisions;
+                document.getElementById('dashNotesContainer').classList.remove('d-none');
+            } else {
+                document.getElementById('dashNotesContainer').classList.add('d-none');
+            }
             
             // Populate and update EPA badge
             const badge = document.getElementById('dashEpaIdBadge');
@@ -990,7 +1307,7 @@
             document.getElementById('form-state').value = p.physical_appearance || '';
             document.getElementById('form-ph').value = p.ph_range || '';
             document.getElementById('form-fp').value = p.flash_point || '';
-            document.getElementById('form-voc').value = p.voc_percentage || 0;
+            document.getElementById('form-voc').value = (p.voc_percentage !== null && p.voc_percentage !== undefined && String(p.voc_percentage).trim() !== '') ? p.voc_percentage : 'TBD';
             document.getElementById('form-handling').value = p.special_handling || '';
             if (document.getElementById('form-color')) { document.getElementById('form-color').value = p.color || ''; }
             if (document.getElementById('form-expiration')) { document.getElementById('form-expiration').value = p.expiration_date || ''; }
@@ -1000,6 +1317,7 @@
             document.getElementById('form-sulfide').value = p.sulfide || 'No';
             document.getElementById('form-free-liquids').value = p.free_liquids || 'No';
             document.getElementById('form-ldr').value = p.ldr_required || 'No';
+            document.getElementById('form-ldr-option').value = p.ldr_option || '';
             document.getElementById('form-state-code').value = p.state_waste_code || '';
             document.getElementById('form-federal-code').value = p.federal_waste_code || '';
             document.getElementById('form-dot').value = p.dot_description || '';
@@ -1008,19 +1326,68 @@
             if (document.getElementById('form-treatment-recipe')) { 
                 document.getElementById('form-treatment-recipe').value = p.treatment_recipe || ''; 
             }
-            toggleTreatmentRecipe();
+            // Helper to get Container Type with fallback to comments (SIP / TREA)
+            const cType = getProfileContainerType(p);
+            const isDrum = cType === 'Containerized';
+            
+            if (document.getElementById('form-shipping-container')) {
+                document.getElementById('form-shipping-container').value = cType;
+            }
 
-            document.getElementById('form-profile').readOnly = true;
+            // Update Container Type Badge & Drum Audit Trail visibility
+            const typeBadge = document.getElementById('dashContainerTypeBadge');
+            if (typeBadge) {
+                if (isDrum) {
+                    typeBadge.className = 'badge bg-primary text-white fs-6 align-middle';
+                    typeBadge.innerText = '🛢️ Drum Profile';
+                } else {
+                    typeBadge.className = 'badge bg-secondary text-white fs-6 align-middle';
+                    typeBadge.innerText = `📦 ${cType}`;
+                }
+            }
+
+            const drumAuditCard = document.getElementById('drumAuditCard');
+            if (drumAuditCard) {
+                if (isDrum) {
+                    drumAuditCard.classList.remove('d-none');
+                } else {
+                    drumAuditCard.classList.add('d-none');
+                }
+            }
+
+            toggleTreatmentRecipe();
+            toggleLdrOption();
+
+            document.getElementById('form-profile').readOnly = false;
             document.getElementById('clearFormBtn').classList.remove('d-none');
             document.getElementById('deleteProfileBtn').classList.remove('d-none');
             if (document.getElementById('formSyncExcelBtn')) {
                 document.getElementById('formSyncExcelBtn').classList.remove('d-none');
+            }
+            if (document.getElementById('profileAuditExportBtn')) {
+                document.getElementById('profileAuditExportBtn').classList.remove('d-none');
             }
             document.getElementById('formSubmitBtn').innerHTML = '<span>🔄 Save Changes / Update Profile</span>';
 
             loadHistory();
             loadAttachments();
             loadDrumHistory();
+            
+            // Conditional Log Cards Toggle (VOC >= 50 ppm & Sulfide = Yes/Quant Required/No Quant Required)
+            toggleConditionalLogCards();
+            
+            // Pre-fill Sulfide per-sample metadata defaults
+            const todayStr = new Date().toISOString().split('T')[0];
+            const dateInputs = document.querySelectorAll('.sulfide-date');
+            dateInputs.forEach(inp => { if (!inp.value) inp.value = todayStr; });
+            
+            const labInputs = document.querySelectorAll('.sulfide-lab');
+            if (labInputs.length > 0 && (p.lab_number || p.lab_num) && !labInputs[0].value) {
+                labInputs[0].value = p.lab_number || p.lab_num;
+            }
+
+            loadVocAnalyzerHistory(p.profile_number);
+            loadSulfideHistory(p.profile_number);
         }
 
         function showNewProfileWorkspace() {
@@ -1046,6 +1413,9 @@
             if (document.getElementById('formSyncExcelBtn')) {
                 document.getElementById('formSyncExcelBtn').classList.add('d-none');
             }
+            if (document.getElementById('profileAuditExportBtn')) {
+                document.getElementById('profileAuditExportBtn').classList.add('d-none');
+            }
             document.getElementById('formSubmitBtn').innerHTML = '<span>💾 Save to Master Registry</span>';
             
             dashboard.classList.add('d-none');
@@ -1060,6 +1430,15 @@
                 return;
             }
             window.location.href = '/api/profile/' + encodeURIComponent(prof) + '/wvi';
+        }
+
+        function exportProfileAuditSummary() {
+            const prof = currentProfile || document.getElementById('form-profile').value.trim();
+            if(!prof) {
+                alert("Please select or save a profile first.");
+                return;
+            }
+            window.open('/api/profile/' + encodeURIComponent(prof) + '/audit_export?format=html', '_blank');
         }
 
         function deleteCurrentProfile() {
@@ -1092,22 +1471,28 @@
 
         function loadHistory() {
             const tbody = document.getElementById('historyTableBody');
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">Loading historical data...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Loading historical data...</td></tr>';
             
-            fetch(`/api/profile/${currentProfile}/history?_t=${Date.now()}`)
+            fetch(`/api/profile/${encodeURIComponent(currentProfile)}/history?_t=${Date.now()}`)
                 .then(r => r.json())
                 .then(data => {
                     if (data.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">No historical shipments found for this profile.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No historical shipments found for this profile.</td></tr>';
                         return;
                     }
                     tbody.innerHTML = '';
                     data.forEach(load => {
+                        const isYellow = (load.load_source && load.load_source.includes('Yellow'));
+                        const badge = isYellow
+                            ? `<span class="badge bg-warning text-dark me-1" title="Yellow Entry Ticket">🟨 Yellow</span>`
+                            : `<span class="badge bg-primary me-1" title="Drum Trailer Upload">📦 Drum</span>`;
+                        
                         const row = `<tr>
                             <td class="text-muted fw-bold">${load.import_date || '---'}</td>
                             <td class="fw-semibold text-dark">${load.manifest || '---'}</td>
                             <td>${load.job_id || '---'}</td>
-                            <td class="text-end fw-bold">${load.weight ? parseFloat(load.weight).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0}) : '0'}</td>
+                            <td class="text-end fw-bold">${load.weight ? parseFloat(load.weight).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2}) : '0'}</td>
+                            <td>${badge}</td>
                         </tr>`;
                         tbody.innerHTML += row;
                     });
@@ -1298,12 +1683,10 @@
         window.activeLogData = []; // cached log records
 
         function loadReviewLog(force = false) {
-            // Check if any element inside reviewLogBody has focus to avoid losing user input
             const tbody = document.getElementById('reviewLogBody');
             if (tbody && !force) {
                 const activeEl = document.activeElement;
                 if (activeEl && tbody.contains(activeEl)) {
-                    // Skip refresh only if user is currently editing a text input
                     if (activeEl.tagName === 'INPUT' && activeEl.type === 'text') {
                         return;
                     }
@@ -1311,10 +1694,19 @@
             }
 
             fetch(`/api/waste_acceptance/log?archived=${currentArchivedMode}`)
-                .then(r => r.json())
+                .then(r => {
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    return r.json();
+                })
                 .then(data => {
-                    window.activeLogData = data;
+                    window.activeLogData = data || [];
                     applyLogFilters();
+                })
+                .catch(err => {
+                    console.error("Error loading waste acceptance log:", err);
+                    if (tbody) {
+                        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">⚠️ Error loading review log: ${err.message}. <button class="btn btn-xs btn-outline-danger ms-2" onclick="loadReviewLog(true)">Retry</button></td></tr>`;
+                    }
                 });
         }
 
@@ -1322,7 +1714,8 @@
             const searchText = (document.getElementById('logFilterSearch')?.value || '').toLowerCase().trim();
             const statusFilter = document.getElementById('logFilterStatus')?.value || 'ALL';
 
-            const filtered = window.activeLogData.filter(log => {
+            const filtered = (window.activeLogData || []).filter(log => {
+                if (!log) return false;
                 // 1. Filter by Status
                 if (statusFilter !== 'ALL' && log.status !== statusFilter) {
                     return false;
@@ -1353,7 +1746,7 @@
             if (!tbody) return;
 
             // 1. Sort the list
-            let sortedList = [...dataList];
+            let sortedList = [...(dataList || [])];
             if (currentSortKey) {
                 sortedList.sort((a, b) => {
                     let valA = '';
@@ -1400,26 +1793,44 @@
                 else if(log.status === 'Need Info') statusColor = 'text-info';
                 else if(log.status === 'Needs Review') statusColor = 'text-primary';
                 
-                const hasNotes = log.notes && log.notes.trim() !== '';
-                const escapedNotesForTitle = (log.notes || '').replace(/"/g, '&quot;');
-                const escapedNotesForJS = (log.notes || '').replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+                const safeNotes = (log.notes || '').toString();
+                const hasNotes = safeNotes.trim() !== '';
+                const escapedNotesForTitle = safeNotes.replace(/"/g, '&quot;');
                 const notesBtn = hasNotes
-                    ? `<button class="btn btn-sm btn-warning border p-1 position-relative" title="${escapedNotesForTitle}" onclick="openReviewNotes(${log.id}, \`${escapedNotesForJS}\`)">📝<span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle" style="font-size: 0px;"></span></button>`
-                    : `<button class="btn btn-sm btn-light border p-1" title="Add notes" onclick="openReviewNotes(${log.id}, '')">✏️</button>`;
+                    ? `<button class="btn btn-sm btn-warning border p-1 position-relative" title="${escapedNotesForTitle}" onclick="openReviewNotes(${log.id})">📝<span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle" style="font-size: 0px;"></span></button>`
+                    : `<button class="btn btn-sm btn-light border p-1" title="Add notes" onclick="openReviewNotes(${log.id})">✏️</button>`;
 
-                const upProf = log.profile_number.toUpperCase().trim();
-                const isPlaceholder = upProf === 'PENDING' || upProf === 'TBD' || upProf.startsWith('PENDING') || upProf.startsWith('TBD');
-                
+                const rawProf = (log.profile_number || '').toString().trim();
+                const upProf = rawProf.toUpperCase();
+                const isPlaceholder = !rawProf || upProf === 'PENDING' || upProf === 'TBD' || upProf.startsWith('PENDING') || upProf.startsWith('TBD');
+                const safeProfForJS = rawProf.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                const escapedProfForTitle = rawProf.replace(/"/g, '&quot;');
+                const escapedGenForTitle = (log.generator || '').toString().replace(/"/g, '&quot;');
+
                 const linkBtn = isPlaceholder
                     ? ''
-                    : `<a href="#" onclick="searchAndSelect('${log.profile_number}'); return false;" class="text-decoration-none ms-1" style="font-size: 1rem;" title="Open Profile">📑</a>`;
+                    : `<a href="#" onclick="searchAndSelect('${safeProfForJS}'); return false;" class="text-decoration-none ms-1" style="font-size: 1rem;" title="Open Profile">📑</a>`;
 
                 const disabledAttr = currentArchivedMode === 1 ? 'disabled style="pointer-events: none;"' : '';
+
+                function parseDateStr(str) {
+                    if (!str) return '---';
+                    try {
+                        const isoStr = String(str).replace(' ', 'T');
+                        const d = new Date(isoStr.endsWith('Z') ? isoStr : isoStr + 'Z');
+                        return isNaN(d.getTime()) ? String(str).split(' ')[0] : d.toLocaleDateString();
+                    } catch(e) {
+                        return String(str).split(' ')[0] || '---';
+                    }
+                }
+
+                const dateAddedDisplay = parseDateStr(log.date_added);
+                const lastUpdatedDisplay = parseDateStr(log.last_updated);
 
                 const profileCell = `
                     <div class="d-flex align-items-center">
                         <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold ${isPlaceholder ? 'text-muted' : 'text-primary'}" 
-                               value="${log.profile_number}" title="${log.profile_number}" placeholder="Profile..." style="width: 170px; text-overflow: ellipsis;"
+                               value="${escapedProfForTitle}" title="${escapedProfForTitle}" placeholder="Profile..." style="width: 170px; text-overflow: ellipsis;"
                                onfocus="this.dataset.oldVal = this.value"
                                onblur="if(this.value.toUpperCase().trim() !== (this.dataset.oldVal || '').toUpperCase().trim()) { this.title = this.value; updateReviewLog(${log.id}, 'profile_number', this.value.toUpperCase().trim()); }"
                                ${disabledAttr}>
@@ -1433,12 +1844,12 @@
 
                 tbody.innerHTML += `
                     <tr>
-                        <td class="text-muted small">${log.date_added ? new Date(log.date_added + 'Z').toLocaleDateString() : '---'}</td>
+                        <td class="text-muted small">${dateAddedDisplay}</td>
                         <td>${profileCell}</td>
                         <td>
                             <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" 
-                                   value="${log.generator || ''}" 
-                                   title="${log.generator || ''}"
+                                   value="${escapedGenForTitle}" 
+                                   title="${escapedGenForTitle}"
                                    placeholder="Generator..." 
                                    style="min-width: 280px; text-overflow: ellipsis;"
                                    onfocus="this.dataset.oldVal = this.value"
@@ -1457,12 +1868,12 @@
                             </select>
                         </td>
                         <td>
-                            <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" value="${log.assigned_to || ''}" placeholder="Unassigned" 
+                            <input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold" value="${(log.assigned_to || '').toString().replace(/"/g, '&quot;')}" placeholder="Unassigned" 
                                    onfocus="this.dataset.oldVal = this.value"
                                    onblur="if(this.value.trim() !== (this.dataset.oldVal || '').trim()) { updateReviewLog(${log.id}, 'assigned_to', this.value.trim()); }"
                                    ${disabledAttr}>
                         </td>
-                        <td class="text-muted small">${log.last_updated ? new Date(log.last_updated + 'Z').toLocaleDateString() : '---'}</td>
+                        <td class="text-muted small">${lastUpdatedDisplay}</td>
                         <td>
                             ${notesBtn}
                             ${archiveBtn}
@@ -1594,7 +2005,9 @@
             });
         }
 
-        function openReviewNotes(id, currentNotes) {
+        function openReviewNotes(id) {
+            const item = (window.activeLogData || []).find(x => x.id == id);
+            const currentNotes = item ? (item.notes || '') : '';
             document.getElementById('modalLogId').value = id;
             document.getElementById('modalLogNotes').value = currentNotes;
             const modal = new bootstrap.Modal(document.getElementById('reviewNotesModal'));
@@ -1663,6 +2076,11 @@
                     nextYear.setFullYear(nextYear.getFullYear() + 1);
                     expField.value = nextYear.toISOString().split('T')[0];
                 }
+            } else if (this.value === 'EXPIRED') {
+                if (!expField.value) {
+                    const today = new Date().toISOString().split('T')[0];
+                    expField.value = today;
+                }
             } else {
                 expField.value = '';
             }
@@ -1682,7 +2100,115 @@
                 if (recipeInput) recipeInput.value = '';
             }
         }
-        document.getElementById('form-win').addEventListener('input', toggleTreatmentRecipe);
+        
+        // Toggle LDR Certification Option when LDR Required is Yes
+        function toggleLdrOption() {
+            const ldrSelect = document.getElementById('form-ldr');
+            const container = document.getElementById('ldrOptionContainer');
+            if (!ldrSelect || !container) return;
+            const ldrVal = ldrSelect.value.trim();
+            if (ldrVal === 'Yes') {
+                container.classList.remove('d-none');
+            } else {
+                container.classList.add('d-none');
+                const ldrOptInput = document.getElementById('form-ldr-option');
+                if (ldrOptInput) ldrOptInput.value = '';
+            }
+        }
+
+        // Toggle VOC Analyzer Card (>= 50 ppm) & Sulfide Suite Card (Yes, Quant Required, No Quant Required)
+        function toggleConditionalLogCards() {
+            // 1. VOC Analyzer Card toggle (>= 50 ppm)
+            const vocInp = document.getElementById('form-voc');
+            const vocCard = document.getElementById('vocAnalyzerCard');
+            if (vocCard) {
+                const vocVal = vocInp ? parseFloat(vocInp.value || 0) : 0;
+                if (vocVal >= 50.0) {
+                    vocCard.classList.remove('d-none');
+                } else {
+                    vocCard.classList.add('d-none');
+                }
+            }
+
+            // 2. Sulfide Suite Card toggle ('Yes', 'Quant Required', 'No Quant Required')
+            const sulfideSelect = document.getElementById('form-sulfide');
+            const sulfideCard = document.getElementById('sulfideSuiteCard');
+            if (sulfideCard) {
+                const sulfideVal = sulfideSelect ? sulfideSelect.value.trim() : '';
+                const allowedSulfide = ['Yes', 'Quant Required', 'No Quant Required'];
+                if (allowedSulfide.includes(sulfideVal)) {
+                    sulfideCard.classList.remove('d-none');
+                } else {
+                    sulfideCard.classList.add('d-none');
+                }
+            }
+        }
+
+        // Dynamically update WVI Qualitative Procedures on dashboard
+        function updateWviDashboardProcedures(winCodeOverride, labNumOverride, pDataOverride) {
+            const winInp = document.getElementById('form-win');
+            const labInp = document.getElementById('form-lab');
+            
+            const winCode = (winCodeOverride !== undefined ? winCodeOverride : (winInp ? winInp.value : '')).toString().trim().toUpperCase();
+            const labNum = (labNumOverride !== undefined ? labNumOverride : (labInp ? labInp.value : '')).toString().trim().toUpperCase();
+            const isMonolith = labNum.includes('MONOLITH') || labNum.includes('MONO');
+            
+            const p = pDataOverride || {};
+
+            // 1. Verification Procedures
+            let verProc = p.verification_procedures;
+            if (!verProc || verProc.toUpperCase().includes('FINGER')) {
+                if (winCode === 'CNIA' || isMonolith) {
+                    verProc = 'Visual';
+                } else {
+                    verProc = 'VERIFY FINGERPRINT RESULTS AND PHYSICAL DESCRIPTION WITH PROFILE';
+                }
+            }
+            if (document.getElementById('dashVerProc')) {
+                document.getElementById('dashVerProc').innerText = verProc;
+            }
+
+            // 2. Sampling Procedures
+            let sampleProc = p.sample_procedures;
+            if (!sampleProc) {
+                if (winCode === 'CNIA') {
+                    sampleProc = 'NO SAMPLE REQUIRED';
+                } else if (['CBPS', 'CNOS'].includes(winCode)) {
+                    sampleProc = 'COLLECT SAMPLE WITH COLIWASA';
+                } else {
+                    sampleProc = 'Collect Sample With Scoop';
+                }
+            }
+            if (document.getElementById('dashSampleProc')) {
+                document.getElementById('dashSampleProc').innerText = sampleProc;
+            }
+
+            // 3. Unloading & Handling Instructions
+            let unloadingInst = p.unloading_instructions || p.special_handling;
+            if (!unloadingInst) {
+                if (winCode === 'CNIA') {
+                    unloadingInst = 'CONTAINS ASBESTOS DO NOT SAMPLE';
+                } else if (['CCS', 'CCSM'].includes(winCode) || winCode.startsWith('CCS')) {
+                    unloadingInst = 'Follow Red Folder';
+                } else {
+                    unloadingInst = 'Direct Waste to Landfill';
+                }
+            }
+            if (document.getElementById('dashUnloading')) {
+                document.getElementById('dashUnloading').innerText = unloadingInst;
+            }
+        }
+
+        document.getElementById('form-win').addEventListener('input', () => {
+            toggleTreatmentRecipe();
+            updateWviDashboardProcedures();
+        });
+        if (document.getElementById('form-lab')) {
+            document.getElementById('form-lab').addEventListener('input', updateWviDashboardProcedures);
+        }
+        document.getElementById('form-ldr').addEventListener('change', toggleLdrOption);
+        if (document.getElementById('form-voc')) document.getElementById('form-voc').addEventListener('input', toggleConditionalLogCards);
+        if (document.getElementById('form-sulfide')) document.getElementById('form-sulfide').addEventListener('change', toggleConditionalLogCards);
 
         // Handle browser back/forward buttons
         window.addEventListener('popstate', () => {
@@ -1772,6 +2298,364 @@
                 }
             }
         });
+
+        // ==========================================
+        // VOC ANALYZER & SULFIDE STATISTICAL TESTING JS
+        // ==========================================
+        const T_TABLE_90_MAP = { 1: 3.078, 2: 1.886, 3: 1.638, 4: 1.533 };
+
+
+        let currentSulfideLogs = [];
+
+        function onSingleTotInputChange() {
+            const totInp = document.getElementById('sulfideSampleTot');
+            const reactInp = document.getElementById('sulfideSampleReact');
+            if (!totInp || !reactInp) return;
+            
+            const val = parseFloat(totInp.value);
+            if (!isNaN(val) && val > 1000) {
+                reactInp.disabled = false;
+                reactInp.classList.remove('bg-secondary', 'bg-opacity-10', 'text-muted');
+                reactInp.placeholder = 'Reactive mg/kg';
+            } else {
+                reactInp.disabled = true;
+                reactInp.value = '';
+                reactInp.classList.add('bg-secondary', 'bg-opacity-10', 'text-muted');
+                reactInp.placeholder = 'N/A (≤1000)';
+            }
+        }
+
+        function resetSulfideSampleForm() {
+            const idInp = document.getElementById('sulfideEditingLogId');
+            if (idInp) idInp.value = '';
+            
+            const dateInp = document.getElementById('sulfideSampleDate');
+            if (dateInp) dateInp.value = new Date().toISOString().split('T')[0];
+            
+            const labInp = document.getElementById('sulfideSampleLab');
+            if (labInp) labInp.value = '';
+            
+            const wtInp = document.getElementById('sulfideSampleWt');
+            if (wtInp) wtInp.value = '';
+            
+            const totInp = document.getElementById('sulfideSampleTot');
+            if (totInp) totInp.value = '';
+            
+            const reactInp = document.getElementById('sulfideSampleReact');
+            if (reactInp) reactInp.value = '';
+            
+            const notesInp = document.getElementById('sulfideSampleNotes');
+            if (notesInp) notesInp.value = '';
+            
+            onSingleTotInputChange();
+            
+            const titleEl = document.getElementById('sulfideFormTitle');
+            if (titleEl) titleEl.innerHTML = '➕ Enter Daily Sample Test Result';
+            
+            const saveBtn = document.getElementById('btnSaveSulfideSample');
+            if (saveBtn) saveBtn.innerHTML = '➕ Save Sample Log';
+            
+            const cancelBtn = document.getElementById('btnCancelSulfideEdit');
+            if (cancelBtn) cancelBtn.classList.add('d-none');
+        }
+
+        function updateSulfideStatsHeader(stats) {
+            if (!stats) return;
+            
+            const totMeanEl = document.getElementById('calcTotMean');
+            if (totMeanEl) totMeanEl.innerText = stats.total_sulfide.mean.toFixed(2);
+            
+            const reactMeanEl = document.getElementById('calcReactMean');
+            if (reactMeanEl) reactMeanEl.innerText = stats.reactive_sulfide.mean > 0 ? stats.reactive_sulfide.mean.toFixed(2) : 'N/A (≤1000)';
+            
+            const totStdEl = document.getElementById('calcTotStddev');
+            if (totStdEl) totStdEl.innerText = stats.total_sulfide.stddev.toFixed(2);
+            
+            const reactStdEl = document.getElementById('calcReactStddev');
+            if (reactStdEl) reactStdEl.innerText = stats.reactive_sulfide.mean > 0 ? stats.reactive_sulfide.stddev.toFixed(2) : '0.00';
+            
+            const totDfEl = document.getElementById('calcTotDf');
+            if (totDfEl) totDfEl.innerText = stats.df;
+            
+            const reactDfEl = document.getElementById('calcReactDf');
+            if (reactDfEl) reactDfEl.innerText = stats.df;
+            
+            const totTvalEl = document.getElementById('calcTotTval');
+            if (totTvalEl) totTvalEl.innerText = stats.t_value.toFixed(3);
+            
+            const reactTvalEl = document.getElementById('calcReactTval');
+            if (reactTvalEl) reactTvalEl.innerText = stats.t_value.toFixed(3);
+            
+            const tot90El = document.getElementById('calcTot90CI');
+            if (tot90El) tot90El.innerText = stats.total_sulfide.ci90.toFixed(2) + ' mg/kg';
+            
+            const react90El = document.getElementById('calcReact90CI');
+            if (react90El) react90El.innerText = stats.reactive_sulfide.mean > 0 ? stats.reactive_sulfide.ci90.toFixed(2) + ' mg/kg' : 'N/A (≤1000 mg/kg)';
+            
+            const badgeEl = document.getElementById('sulfideProgressBadge');
+            if (badgeEl) {
+                if (stats.n >= 5) {
+                    badgeEl.className = 'badge bg-success fs-6';
+                    badgeEl.innerText = `${stats.n} / 5 Samples Logged (Complete)`;
+                } else {
+                    badgeEl.className = 'badge bg-warning text-dark fs-6';
+                    badgeEl.innerText = `${stats.n} / 5 Samples Logged (${stats.tests_remaining} Needed)`;
+                }
+            }
+            
+            const conclusionEl = document.getElementById('calcConclusion');
+            if (conclusionEl) {
+                if (stats.n === 0) {
+                    conclusionEl.innerHTML = '<span class="badge bg-secondary fs-6">Awaiting Sample Data</span>';
+                } else if (stats.n < 5) {
+                    conclusionEl.innerHTML = `<span class="badge bg-warning text-dark fs-6">💾 ${stats.n}/5 Samples Logged — ${stats.tests_remaining} More Required Before Approval</span>`;
+                } else if (stats.reactive_pass) {
+                    conclusionEl.innerHTML = `<span class="badge bg-success fs-6">✅ APPROVED: 5/5 Samples Logged — No Further Sulfide Testing Required</span>`;
+                } else {
+                    conclusionEl.innerHTML = `<span class="badge bg-danger fs-6">⚠️ FAIL: ${stats.reactive_sulfide.ci90.toFixed(2)} mg/kg EXCEEDS 500 mg/kg LIMIT!</span>`;
+                }
+            }
+        }
+
+        function submitSingleSulfideSample() {
+            if (!currentProfile) {
+                alert('Please select a profile first.');
+                return;
+            }
+            
+            const editingId = document.getElementById('sulfideEditingLogId').value.trim();
+            const dateVal = document.getElementById('sulfideSampleDate').value || new Date().toISOString().split('T')[0];
+            const labVal = document.getElementById('sulfideSampleLab').value.trim();
+            const wtVal = document.getElementById('sulfideSampleWt').value.trim();
+            const totVal = document.getElementById('sulfideSampleTot').value.trim();
+            const reactVal = document.getElementById('sulfideSampleReact').value.trim();
+            const notesVal = document.getElementById('sulfideSampleNotes').value.trim();
+            
+            if (!totVal || isNaN(parseFloat(totVal))) {
+                alert('Please enter a valid numeric Total Sulfide value.');
+                document.getElementById('sulfideSampleTot').focus();
+                return;
+            }
+            
+            const totNum = parseFloat(totVal);
+            if (totNum > 1000 && (!reactVal || isNaN(parseFloat(reactVal)))) {
+                alert('Total Sulfide exceeds 1000 mg/kg. Please enter the Reactive Sulfide test measurement.');
+                document.getElementById('sulfideSampleReact').focus();
+                return;
+            }
+            
+            const payload = {
+                test_date: dateVal,
+                lab_number: labVal,
+                cp1_number: labVal,
+                weight_ticket: wtVal,
+                total_sulfide: totNum,
+                reactive_sulfide: reactVal !== '' ? parseFloat(reactVal) : null,
+                notes: notesVal,
+                tested_by: 'Lab Chemist'
+            };
+            
+            const url = editingId 
+                ? `/api/profile/sulfide_log/${editingId}` 
+                : `/api/profile/${encodeURIComponent(currentProfile)}/sulfide_log`;
+            const method = editingId ? 'PUT' : 'POST';
+            
+            fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    currentSulfideLogs = data.logs || [];
+                    updateSulfideStatsHeader(data.stats);
+                    renderSulfideHistoryTable(data.logs);
+                    resetSulfideSampleForm();
+                    
+                    if (editingId) {
+                        alert('Sample log entry updated successfully!');
+                    } else {
+                        const statusMsg = data.stats.approval_status === 'APPROVED'
+                            ? '✅ APPROVED (5/5 Samples Logged - No Further Testing Required)'
+                            : `💾 Saved (${data.stats.n}/5 Samples Logged - ${data.stats.tests_remaining} More Required)`;
+                        alert(`Sample Log Saved Successfully!\nStatus: ${statusMsg}`);
+                    }
+                } else {
+                    alert('Error saving sample log: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(err => alert('Network error while saving sample log.'));
+        }
+
+        function editSulfideSample(logId) {
+            const item = currentSulfideLogs.find(l => l.id == logId);
+            if (!item) return;
+            
+            document.getElementById('sulfideEditingLogId').value = item.id;
+            document.getElementById('sulfideSampleDate').value = item.test_date ? item.test_date.split('T')[0].split(' ')[0] : new Date().toISOString().split('T')[0];
+            document.getElementById('sulfideSampleLab').value = item.lab_number || item.cp1_number || '';
+            document.getElementById('sulfideSampleWt').value = item.weight_ticket || '';
+            document.getElementById('sulfideSampleTot').value = item.total_sulfide !== null && item.total_sulfide !== undefined ? item.total_sulfide : '';
+            
+            onSingleTotInputChange();
+            
+            if (item.reactive_sulfide !== null && item.reactive_sulfide !== undefined) {
+                document.getElementById('sulfideSampleReact').value = item.reactive_sulfide;
+            }
+            document.getElementById('sulfideSampleNotes').value = item.notes || '';
+            
+            document.getElementById('sulfideFormTitle').innerHTML = `✏️ Edit Sample Log Entry (ID #${item.id})`;
+            document.getElementById('btnSaveSulfideSample').innerHTML = '💾 Update Sample Log';
+            document.getElementById('btnCancelSulfideEdit').classList.remove('d-none');
+            document.getElementById('sulfideSampleTot').focus();
+        }
+
+        function deleteSulfideSample(logId) {
+            if (!confirm(`Are you sure you want to delete sample log entry #${logId}?`)) return;
+            
+            fetch(`/api/profile/sulfide_log/${logId}`, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        currentSulfideLogs = data.logs || [];
+                        updateSulfideStatsHeader(data.stats);
+                        renderSulfideHistoryTable(data.logs);
+                        resetSulfideSampleForm();
+                        alert('Sample log entry deleted successfully.');
+                    } else {
+                        alert('Error deleting log: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(err => alert('Network error while deleting log.'));
+        }
+
+        function renderSulfideHistoryTable(logs) {
+            const tbody = document.getElementById('sulfideHistoryBody');
+            const countText = document.getElementById('sulfideLoggedCountText');
+            if (!tbody) return;
+            
+            if (countText) countText.innerText = logs ? logs.length : 0;
+            
+            if (!logs || logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">No sample logs recorded for this profile</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = '';
+            logs.forEach((l, idx) => {
+                const dateStr = l.test_date ? l.test_date.split('T')[0].split(' ')[0] : '---';
+                const labStr = l.lab_number || l.cp1_number || '---';
+                const wtStr = l.weight_ticket || '---';
+                const totStr = l.total_sulfide !== null && l.total_sulfide !== undefined ? `${l.total_sulfide} mg/kg` : (l.total_sulfide_90ci ? `${l.total_sulfide_90ci} mg/kg (90% CI)` : '---');
+                const reactStr = l.reactive_sulfide !== null && l.reactive_sulfide !== undefined ? `${l.reactive_sulfide} mg/kg` : '<span class="text-muted fst-italic">N/A (≤1000)</span>';
+                
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="fw-bold text-muted">${idx + 1}</td>
+                        <td>${dateStr}</td>
+                        <td class="fw-bold text-dark">${labStr}</td>
+                        <td class="fw-bold text-primary">${wtStr}</td>
+                        <td class="fw-bold text-primary">${totStr}</td>
+                        <td class="fw-bold text-danger">${reactStr}</td>
+                        <td>${l.tested_by || 'Lab Chemist'}</td>
+                        <td>
+                            <button class="btn btn-xs btn-outline-primary py-0 px-2 me-1" onclick="editSulfideSample(${l.id})" title="Edit Sample Entry">✏️ Edit</button>
+                            <button class="btn btn-xs btn-outline-danger py-0 px-2" onclick="deleteSulfideSample(${l.id})" title="Delete Sample Entry">🗑️ Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function loadSulfideHistory(profNum) {
+            if (!profNum) return;
+            resetSulfideSampleForm();
+            fetch(`/api/profile/${encodeURIComponent(profNum)}/sulfide_log?_t=${Date.now()}`)
+                .then(r => r.json())
+                .then(res => {
+                    currentSulfideLogs = res.logs || [];
+                    updateSulfideStatsHeader(res.stats);
+                    renderSulfideHistoryTable(res.logs);
+                })
+                .catch(err => console.error('Error loading sulfide history:', err));
+        }
+
+        function saveVocAnalyzerLog() {
+            if (!currentProfile) {
+                alert('Please select a profile first.');
+                return;
+            }
+            const cp1 = document.getElementById('vocCp1Number').value.trim();
+            const vocVal = document.getElementById('vocAnalyzerValue').value.trim();
+            const notes = document.getElementById('vocAnalyzerNotes').value.trim();
+            
+            if (!cp1) {
+                alert('Please enter a CP1 Lab Number.');
+                document.getElementById('vocCp1Number').focus();
+                return;
+            }
+            if (!vocVal || isNaN(parseFloat(vocVal))) {
+                alert('Please enter a valid numeric VOC Analyzer Reading.');
+                document.getElementById('vocAnalyzerValue').focus();
+                return;
+            }
+            
+            const origVoc = parseFloat(document.getElementById('dashVoc')?.innerText || 0);
+            
+            fetch(`/api/profile/${encodeURIComponent(currentProfile)}/voc_analyzer`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cp1_number: cp1,
+                    voc_analyzer_value: parseFloat(vocVal),
+                    original_voc_value: origVoc,
+                    notes: notes,
+                    tested_by: 'Lab Chemist'
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('vocCp1Number').value = '';
+                    document.getElementById('vocAnalyzerValue').value = '';
+                    document.getElementById('vocAnalyzerNotes').value = '';
+                    loadVocAnalyzerHistory(currentProfile);
+                    alert('VOC Analyzer log saved successfully!');
+                } else {
+                    alert('Error saving VOC Analyzer log: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(err => alert('Network error while saving VOC Analyzer log.'));
+        }
+
+        function loadVocAnalyzerHistory(profNum) {
+            if (!profNum) return;
+            const tbody = document.getElementById('vocAnalyzerHistoryBody');
+            if (!tbody) return;
+            
+            fetch(`/api/profile/${encodeURIComponent(profNum)}/voc_analyzer?_t=${Date.now()}`)
+                .then(r => r.json())
+                .then(logs => {
+                    if (logs.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No analyzer readings recorded</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = '';
+                    logs.forEach(l => {
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${l.test_date ? l.test_date.split('.')[0] : '---'}</td>
+                                <td class="fw-bold text-primary">${l.cp1_number || '---'}</td>
+                                <td class="fw-bold text-dark">${l.voc_analyzer_value} ppm</td>
+                                <td class="text-muted">${l.original_voc_value !== null ? l.original_voc_value + ' ppm' : '---'}</td>
+                                <td>${l.tested_by || 'Lab Chemist'}</td>
+                                <td class="text-muted fst-italic">${l.notes || '---'}</td>
+                            </tr>
+                        `;
+                    });
+                });
+        }
 
     </script>
 </body>

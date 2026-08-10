@@ -63,7 +63,7 @@
             
             body { font-family: sans-serif; }
             .card { border: none !important; box-shadow: none !important; }
-            .d-print-none { display: none !important; }
+            .d-print-none, .no-pdf, .screen-card { display: none !important; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
             
             .table-print {
@@ -103,14 +103,14 @@
                     <img src="{{ url_for('static', filename='CLH_BIG.png') }}" alt="Clean Harbors Logo" style="height: 45px; margin-right: 15px; background-color: white; padding: 4px; border-radius: 5px;">
                     <h2 class="mb-0 fw-bold">📊 DAILY REPORTS</h2>
                 </div>
-                <div>
+                <div class="no-pdf">
                     <a href="/compliance" class="btn btn-warning fw-bold shadow-sm text-dark me-2">📋 Compliance Portal</a>
                     <a href="/" class="btn btn-light fw-bold shadow-sm text-dark me-2">⬅️ Hub</a>
                 </div>
             </div>
         </div>
 
-        <div class="card shadow-sm border-0 mb-4 bg-white d-print-none">
+        <div class="card shadow-sm border-0 mb-4 bg-white no-pdf d-print-none">
             <div class="card-body p-3 d-flex justify-content-between align-items-center">
                 <form action="/reports" method="GET" class="d-flex align-items-center m-0">
                     <h5 class="mb-0 fw-bold text-dark me-3">Viewing Report For:</h5>
@@ -122,15 +122,16 @@
                 </form>
                 
                 <div class="d-flex align-items-center">
+                    <a href="/voc_audit?date={{ selected_date }}" class="btn btn-outline-info text-dark fw-bold shadow-sm me-2">🔍 VOC Audit</a>
                     <a href="/export?date={{ selected_date }}" class="btn btn-outline-success fw-bold shadow-sm me-2">📥 Export Excel</a>
-                    <button class="btn btn-outline-danger fw-bold shadow-sm me-2" onclick="downloadPDFReport()">📄 Save PDF Report</button>
+                    <a href="/export_daily_styled_excel?date={{ selected_date }}" class="btn btn-outline-danger fw-bold shadow-sm me-2">📊 Save Styled Excel Report</a>
                     <button class="btn btn-outline-secondary fw-bold shadow-sm" onclick="window.print()">🖨️ Print Ticket Log</button>
                 </div>
             </div>
         </div>
 
         <!-- 🔍 ADVANCED FILTER PANEL -->
-        <div class="card shadow-sm border-0 mb-4 bg-white d-print-none">
+        <div class="card shadow-sm border-0 mb-4 bg-white no-pdf d-print-none">
             <div class="card-body p-3">
                 <div class="row align-items-center g-3">
                     <div class="col-md-5">
@@ -157,7 +158,7 @@
             </div>
         </div>
 
-        <div class="card shadow-sm mb-4 d-print-none">
+        <div class="card shadow-sm mb-4 screen-card">
     <div class="card-header text-white" style="background-color: #00126b;">
         <h4 class="mb-0 fw-bold">Performance Summary</h4>
     </div>
@@ -184,7 +185,7 @@
 </div>
 
         <!-- 🗂️ REPORTS NAVIGATION TABS -->
-        <ul class="nav nav-pills nav-justified mb-4 d-print-none" id="reportsTab" role="tablist" style="border: 1px solid #dee2e6; padding: 5px; border-radius: 50px; background-color: #f8f9fa;">
+        <ul class="nav nav-pills nav-justified mb-4 no-pdf d-print-none" id="reportsTab" role="tablist" style="border: 1px solid #dee2e6; padding: 5px; border-radius: 50px; background-color: #f8f9fa;">
             <li class="nav-item" role="presentation">
                 <button class="nav-link active fw-bold text-uppercase px-4 py-2" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary-tab-pane" type="button" role="tab" aria-controls="summary-tab-pane" aria-selected="true" style="border-radius: 50px;">📊 Summary Table</button>
             </li>
@@ -198,7 +199,7 @@
 
         <div class="tab-content" id="reportsTabContent">
             <div class="tab-pane fade show active" id="summary-tab-pane" role="tabpanel" aria-labelledby="summary-tab">
-                <div class="card shadow-sm mt-2 mb-5 d-print-none">
+                <div class="card shadow-sm mt-2 mb-5 screen-card">
                     <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0 fw-bold">Variance by Profile & Detailed Logs</h5>
                 <span class="badge bg-light text-dark small shadow-sm">CLICK A ROW TO VIEW TRUCKS</span>
@@ -224,7 +225,9 @@
                         {% for t in trucks %}
                             {% set wmu = t.cell_location | string | trim %}
                             {% set grid = t.grid_location | string | trim | upper %}
-                            {% if wmu != '31' and (not grid or grid == 'TBD' or grid == 'NONE') %}
+                            {% set t_status = t.test_status | string | trim | upper %}
+                            {% set is_t_void = (t_status == 'VOID' or t_status == 'VOIDED') %}
+                            {% if not is_t_void and wmu != '31' and (not grid or grid == 'TBD' or grid == 'NONE') %}
                                 {% set ns.has_grid_issue = true %}
                             {% endif %}
                         {% endfor %}
@@ -276,9 +279,11 @@
                                             
                                             {% set wmu = truck.cell_location | string | trim %}
                                             {% set grid = truck.grid_location | string | trim | upper %}
-                                            {% set grid_issue = wmu != '31' and (not grid or grid == 'TBD' or grid == 'NONE') %}
+                                            {% set t_status = truck.test_status | string | trim | upper %}
+                                            {% set is_void = (t_status == 'VOID' or t_status == 'VOIDED') %}
+                                            {% set grid_issue = not is_void and wmu != '31' and (not grid or grid == 'TBD' or grid == 'NONE') %}
                                             
-                                            <tr class="clickable-row border-bottom {% if grid_issue %}table-danger{% endif %}" style="cursor: pointer;"
+                                            <tr class="clickable-row border-bottom {% if grid_issue %}table-danger{% endif %}{% if is_void %} opacity-75{% endif %}" style="cursor: pointer;"
                                                 data-id="{{ truck.id }}"
                                                 data-date="{{ selected_date }}"
                                                 data-profile="{{ truck.profile_number }}"
@@ -316,6 +321,8 @@
                                                         <span class="badge bg-info text-dark">LAB DONE</span>
                                                     {% elif truck.test_status == 'WEIGHED IN' %}
                                                         <span class="badge bg-warning text-dark">ON SITE</span>
+                                                    {% elif is_void %}
+                                                        <span class="badge bg-secondary">VOID</span>
                                                     {% else %}
                                                         <span class="badge bg-secondary">{{ truck.test_status }}</span>
                                                     {% endif %}
@@ -337,6 +344,8 @@
                                                     
                                                     {% if wmu == '31' %}
                                                         <span class="text-muted small ms-1">/ N/A</span>
+                                                    {% elif is_void %}
+                                                        <br><span class="badge bg-secondary mt-1" style="font-size: 0.65rem;">VOIDED TICKET</span>
                                                     {% elif grid_issue %}
                                                         <br><span class="badge bg-danger pulse shadow-sm mt-1" style="font-size: 0.65rem;">⚠️ NO GRID</span>
                                                     {% else %}
@@ -361,7 +370,7 @@
 
             <!-- Tab 2 Pane: Flat Detailed Logs -->
             <div class="tab-pane fade" id="logs-tab-pane" role="tabpanel" aria-labelledby="logs-tab">
-                <div class="card shadow-sm mb-4">
+                <div class="card shadow-sm mb-4 screen-card">
                     <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                         <h5 class="mb-0 fw-bold">Detailed Truck Logs</h5>
                     </div>
@@ -1119,21 +1128,41 @@
 
         // --- CLIENT SIDE PDF EXPORT ---
         function downloadPDFReport() {
-            const activePane = document.querySelector('.tab-pane.active');
-            let element = activePane;
+            if (typeof html2pdf === 'undefined') {
+                alert("PDF library loading. Switching to browser print dialog...");
+                window.print();
+                return;
+            }
+
+            const activePane = document.querySelector('.tab-pane.active') || document.querySelector('#summary-tab-pane');
+            let element;
             let filename = 'Daily_Report_' + '{{ selected_date }}' + '.pdf';
             let orientation = 'landscape';
             
-            if (activePane.id === 'summary-tab-pane') {
-                element = document.querySelector('.container');
-                filename = 'Daily_Report_Summary_' + '{{ selected_date }}' + '.pdf';
-            } else if (activePane.id === 'logs-tab-pane') {
-                element = document.querySelector('#flatLogsTable');
+            if (activePane && activePane.id === 'logs-tab-pane') {
+                element = document.querySelector('#flatLogsTable') || activePane;
                 filename = 'Daily_Report_Detailed_' + '{{ selected_date }}' + '.pdf';
-            } else if (activePane.id === 'charts-tab-pane') {
-                element = document.querySelector('#charts-tab-pane');
+            } else if (activePane && activePane.id === 'charts-tab-pane') {
+                element = document.querySelector('#charts-tab-pane') || activePane;
                 filename = 'Daily_Report_Visuals_' + '{{ selected_date }}' + '.pdf';
+            } else {
+                element = document.querySelector('.container') || activePane;
+                filename = 'Daily_Report_Summary_' + '{{ selected_date }}' + '.pdf';
             }
+
+            // Hide non-printable elements temporarily
+            const hiddenElements = [];
+            document.querySelectorAll('.no-pdf, .d-print-none, button, .live-badge, form, input, select, .input-group').forEach(el => {
+                hiddenElements.push({ el: el, display: el.style.display });
+                el.style.setProperty('display', 'none', 'important');
+            });
+
+            // Expand collapsed rows temporarily for full output
+            const collapsedRows = [];
+            document.querySelectorAll('.collapse:not(.show)').forEach(el => {
+                collapsedRows.push(el);
+                el.classList.add('show');
+            });
 
             const opt = {
                 margin:       [0.3, 0.3, 0.3, 0.3],
@@ -1143,17 +1172,22 @@
                 jsPDF:        { unit: 'in', format: 'letter', orientation: orientation }
             };
 
-            // Hide non-printable widgets
-            const hideList = document.querySelectorAll('.d-print-none, #reportsTab, .card.bg-white.d-print-none');
-            hideList.forEach(el => el.style.setProperty('display', 'none', 'important'));
+            const cleanup = () => {
+                hiddenElements.forEach(item => {
+                    item.el.style.display = item.display;
+                });
+                collapsedRows.forEach(el => {
+                    el.classList.remove('show');
+                });
+            };
 
-            // Generate
             html2pdf().set(opt).from(element).save().then(() => {
-                hideList.forEach(el => el.style.setProperty('display', '', ''));
-                applyFilters();
+                cleanup();
             }).catch(err => {
                 console.error("PDF download error:", err);
-                hideList.forEach(el => el.style.setProperty('display', '', ''));
+                cleanup();
+                alert("An error occurred generating the PDF. Opening browser print dialog instead.");
+                window.print();
             });
         }
     </script>

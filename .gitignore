@@ -32,3 +32,13 @@ backups/
 # Raw data and project reference folders
 Tonnage Base Project/
 uploads/
+
+# Generated logs and cache
+*.log
+*.xlsx
+*.lnk
+*.exe
+_internal/
+patch.diff
+voc_cache.json
+voc_profile_cache.json

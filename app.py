@@ -39,6 +39,13 @@ app.secret_key = 'clh-secret-session-key-2026'
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 socketio.init_app(app)
 
+@app.after_request
+def add_header(response):
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '-1'
+    return response
+
 
 # Register Blueprints
 app.register_blueprint(receiving_bp)
@@ -57,30 +64,7 @@ TARGET_ROUTING_CODE = "BL"
 PERMITTED_CODES = {'CBP', 'CNO', 'CBPS', 'CNOS', 'CNIA', 'CCS', 'CCSS', 'D23', 'D80L', 'LLF'}
 
 from shared_state import socketio, DB_PATH
-
-def get_db_connection():
-    conn = sqlite3.connect(DB_PATH, timeout=15)
-    conn.row_factory = sqlite3.Row 
-    
-    # Check if database is on a network drive to avoid WAL mode locks/hangs
-    is_network = False
-    if DB_PATH.startswith(r'\\'):
-        is_network = True
-    elif os.name == 'nt':
-        try:
-            import ctypes
-            drive = os.path.splitdrive(os.path.abspath(DB_PATH))[0]
-            if drive:
-                is_network = (ctypes.windll.kernel32.GetDriveTypeW(drive + "\\") == 4)
-        except:
-            pass
-            
-    if is_network:
-        conn.execute('PRAGMA journal_mode=DELETE;')
-    else:
-        conn.execute('PRAGMA journal_mode=WAL;')
-        
-    return conn
+from database import get_db_connection
 
 def column_exists(cursor, table_name, column_name):
     cursor.execute(f"PRAGMA table_info({table_name})")
@@ -157,6 +141,29 @@ def upgrade_db():
             cursor.execute('ALTER TABLE profiles ADD COLUMN comments TEXT')
         if not column_exists(cursor, 'profiles', 'ldr_required'):
             cursor.execute('ALTER TABLE profiles ADD COLUMN ldr_required TEXT DEFAULT "No"')
+        if not column_exists(cursor, 'profiles', 'ldr_option'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN ldr_option INTEGER')
+        if not column_exists(cursor, 'profiles', 'shipping_container_type'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN shipping_container_type TEXT')
+            
+        cursor.execute('''
+            UPDATE profiles 
+            SET shipping_container_type = CASE 
+                WHEN UPPER(COALESCE(comments, '')) LIKE '%SIP%' OR UPPER(COALESCE(comments, '')) LIKE '%TREA%' THEN 'Containerized'
+                WHEN UPPER(COALESCE(win_code, '')) IN ('CNOS', 'CBPS') OR UPPER(COALESCE(physical_appearance, '')) LIKE '%LIQUID%' THEN 'Bulk Liquid'
+                ELSE 'Bulk Solid'
+            END;
+        ''')
+        cursor.execute('''
+            UPDATE profiles 
+            SET win_code = 'CBP'
+            WHERE win_code IS NULL OR win_code = '' OR UPPER(win_code) = 'NONE';
+        ''')
+        cursor.execute('''
+            UPDATE truck_logs 
+            SET net_weight = net_weight / 2000.0 
+            WHERE net_weight > 500;
+        ''')
         if not column_exists(cursor, 'profiles', 'state_waste_code'):
             cursor.execute('ALTER TABLE profiles ADD COLUMN state_waste_code TEXT')
         if not column_exists(cursor, 'profiles', 'federal_waste_code'):
@@ -316,10 +323,82 @@ def upgrade_db():
         if not column_exists(cursor, 'waste_acceptance_log', 'cp1_lab_number'):
             cursor.execute('ALTER TABLE waste_acceptance_log ADD COLUMN cp1_lab_number TEXT')
         
+        # 9. PROFILE ATTACHMENTS TABLE
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS profile_attachments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_number TEXT,
+                filename TEXT,
+                file_path TEXT,
+                upload_date DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # 10. VOC ANALYZER LOGS TABLE (> 50 PPM)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS voc_analyzer_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_number TEXT,
+                cp1_number TEXT,
+                voc_analyzer_value REAL,
+                original_voc_value REAL,
+                tested_by TEXT,
+                test_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                notes TEXT
+            )
+        ''')
+
+        # Automated Priority Task: Enforce EXPIRED status on all profiles whose expiration date has passed
+        try:
+            from database import auto_sanitize_expired_profiles
+            auto_sanitize_expired_profiles(conn)
+        except Exception as auto_exp_e:
+            print(f"Startup auto_sanitize_expired_profiles warning: {auto_exp_e}")
+
+        # 11. SULFIDE TESTING LOGS TABLE (5-SAMPLE 90% CI STATISTICAL SUITE)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sulfide_testing_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_number TEXT,
+                cp1_number TEXT,
+                lab_number TEXT,
+                weight_ticket TEXT,
+                sample_count INTEGER,
+                total_sulfide_samples TEXT,
+                reactive_sulfide_samples TEXT,
+                total_sulfide_mean REAL,
+                total_sulfide_stddev REAL,
+                total_sulfide_90ci REAL,
+                reactive_sulfide_mean REAL,
+                reactive_sulfide_stddev REAL,
+                reactive_sulfide_90ci REAL,
+                degrees_of_freedom INTEGER,
+                t_value REAL,
+                reactive_pass INTEGER,
+                tested_by TEXT,
+                test_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                notes TEXT
+            )
+        ''')
+        if not column_exists(cursor, 'sulfide_testing_logs', 'sample_metadata'):
+            cursor.execute('ALTER TABLE sulfide_testing_logs ADD COLUMN sample_metadata TEXT')
+        if not column_exists(cursor, 'sulfide_testing_logs', 'total_sulfide'):
+            cursor.execute('ALTER TABLE sulfide_testing_logs ADD COLUMN total_sulfide REAL')
+        if not column_exists(cursor, 'sulfide_testing_logs', 'reactive_sulfide'):
+            cursor.execute('ALTER TABLE sulfide_testing_logs ADD COLUMN reactive_sulfide REAL')
+        if not column_exists(cursor, 'sulfide_testing_logs', 'tested_by'):
+            cursor.execute("ALTER TABLE sulfide_testing_logs ADD COLUMN tested_by TEXT DEFAULT 'Lab Chemist'")
+
         # Add performance indexes
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_profiles_win_code ON profiles (win_code)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_truck_logs_profile_number ON truck_logs (profile_number)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_truck_logs_date_received ON truck_logs (date_received)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_daily_schedule_schedule_date ON daily_schedule (schedule_date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_daily_schedule_profile_number ON daily_schedule (profile_number)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_profile_wvi_profile ON profile_wvi (profile)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_profile_attachments_profile ON profile_attachments (profile_number)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_voc_analyzer_profile ON voc_analyzer_logs (profile_number)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sulfide_logs_profile ON sulfide_testing_logs (profile_number)")
         
         conn.commit()
 
@@ -489,21 +568,22 @@ if __name__ == '__main__':
                     print(f"  Local version:   {time.ctime(local_mtime) if local_exists else 'None (New Install)'}")
                     print("="*70)
                     
-                    # Auto-sync on new install (local_exists is False) or when running non-interactively
+                    # Auto-sync ONLY on new installation (local_exists is False).
+                    # If a local database already exists, NEVER auto-overwrite in non-interactive mode to protect local data.
                     is_interactive = sys.stdin and sys.stdin.isatty()
                     
                     choice = "n"
                     if not local_exists:
                         choice = "y"
                         print("  [DATABASE SYNC] New installation detected. Auto-syncing from network...")
-                    elif not is_interactive:
-                        choice = "y"
-                        print("  [DATABASE SYNC] Non-interactive environment. Auto-syncing newer network database...")
-                    else:
+                    elif is_interactive:
                         try:
                             choice = input("  Would you like to sync the latest database from I: drive locally? (y/n) [default: n]: ").strip().lower()
                         except (KeyboardInterrupt, EOFError):
                             choice = "n"
+                    else:
+                        print("  [DATABASE SYNC] Local database exists. Auto-sync skipped in non-interactive mode to prevent overwriting local data.")
+                        choice = "n"
                         
                     if choice in ['y', 'yes']:
                         print("  Syncing database from I: drive... please wait...")

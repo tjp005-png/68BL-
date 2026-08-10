@@ -82,30 +82,52 @@ def get_profile_details(profile_number):
         ensure_profile_exists(conn, clean_profile)
         profile = conn.execute('SELECT * FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (clean_profile,)).fetchone()
     
-    if profile and profile['status'] != 'NOT FOUND':
-        p_dict = dict(profile)
-        
-        voc_raw = str(p_dict.get('voc_percentage', '')).strip()
-        if voc_raw in ['?', '', 'None']:
-            p_dict['voc_percentage'] = 'TBD'
-        else:
-            p_dict['voc_percentage'] = voc_raw
+        if profile and profile['status'] != 'NOT FOUND' and 'HISTORIC' not in str(profile['generator'] or '').upper():
+            p_dict = dict(profile)
             
-        exp_raw = str(p_dict.get('expiration_date', '')).strip().lower()
-        if exp_raw == 'none':
-            p_dict['expiration_date'] = ''
+            voc_raw = p_dict.get('voc_percentage')
+            if voc_raw is None or str(voc_raw).strip().upper() in ['?', '', 'NONE', 'TBD', 'NAN', 'NULL']:
+                p_dict['voc_percentage'] = 0.0
+            else:
+                try:
+                    p_dict['voc_percentage'] = float(voc_raw)
+                except (ValueError, TypeError):
+                    p_dict['voc_percentage'] = 0.0
+                
+            win_raw = str(p_dict.get('win_code', '') or '').strip()
+            if not win_raw or win_raw.upper() in ['NONE', 'N/A', 'NULL', '']:
+                wvi = conn.execute('SELECT unloading_instructions, handling_instruction, sample_procedures FROM profile_wvi WHERE TRIM(UPPER(profile)) = ?', (clean_profile,)).fetchone()
+                if wvi:
+                    unloading = str(wvi['unloading_instructions'] or '').upper()
+                    handling = str(wvi['handling_instruction'] or '').upper()
+                    sample = str(wvi['sample_procedures'] or '').upper()
+                    if 'ASBESTOS' in handling or 'ASBESTOS' in unloading:
+                        win_raw = 'CNIA'
+                    elif 'UNIT 31' in unloading or 'COLIWASA' in sample:
+                        win_raw = 'CBPS'
+                    elif 'BAYS' in unloading or 'RED FOLDER' in handling:
+                        win_raw = 'CCS'
+                    else:
+                        win_raw = 'CBP'
+                else:
+                    win_raw = 'CBP'
+            p_dict['win_code'] = win_raw
+
+            exp_raw = str(p_dict.get('expiration_date', '')).strip().lower()
+            if exp_raw == 'none':
+                p_dict['expiration_date'] = ''
+                
+            notes = p_dict.get('special_handling') or ""
+            notes = re.sub(r'(?i)\bNOT CERCLA\b', '', notes)
+            notes = re.sub(r'(?i)\bCERCLA\b', '', notes)
+            notes = re.sub(r'^[,\s]+|[,\s]+$', '', notes) 
+            p_dict['special_handling'] = notes.strip()
             
-        notes = p_dict.get('special_handling') or ""
-        notes = re.sub(r'(?i)\bNOT CERCLA\b', '', notes)
-        notes = re.sub(r'(?i)\bCERCLA\b', '', notes)
-        notes = re.sub(r'^[,\s]+|[,\s]+$', '', notes) 
-        p_dict['special_handling'] = notes.strip()
-        
-        gen = p_dict.get('generator')
-        p_dict['generator'] = str(gen).strip() if gen and str(gen).strip().lower() != 'none' else ''
+            gen = p_dict.get('generator')
+            p_dict['generator'] = str(gen).strip() if gen and str(gen).strip().lower() != 'none' else ''
+                
+            return jsonify(p_dict)
             
-        return jsonify(p_dict)
-        
     return jsonify({'error': 'Profile not found'}), 404
 
 @receiving_bp.route('/api/check_truck_duplicate')
@@ -292,7 +314,7 @@ def submit_truck():
             
             # 1. No Date -> Check the Status!
             if clean_exp in ['nodate', '', 'blank']:
-                if prof_status.startswith('A'):
+                if prof_status.startswith('A') or 'HISTORICAL' in prof_status or prof_status == 'ACTIVE':
                     is_las_profile = False  # Active + No Date = Safe
                 else:
                     is_las_profile = True   # Not Active + No Date = LAS
@@ -307,7 +329,7 @@ def submit_truck():
                     try:
                         import pandas as pd
                         exp_date = pd.to_datetime(raw_exp, errors='coerce')
-                        if pd.notna(exp_date) and exp_date < datetime.now():
+                        if pd.notna(exp_date) and exp_date.date() < datetime.now().date():
                             is_las_profile = True
                     except: 
                         pass
@@ -371,18 +393,28 @@ def submit_truck():
             if not time_out:
                 time_out = datetime.now().strftime('%H:%M')
                 
+            specific_gravity_val = request.form.get('specific_gravity', '').strip()
+            sg_num = None
+            if specific_gravity_val:
+                try:
+                    sg_num = float(specific_gravity_val)
+                except ValueError:
+                    sg_num = None
+
             conn.execute('''
                 INSERT INTO truck_logs (
                     truck_id, profile_number, manifest_number, load_number, 
                     gross_weight, exit_weight, net_weight, cell_location, grid_location,
                     manifest_weight, manifest_units, extra_fees, test_assigned, test_status, 
-                    date_received, sales_order, time_in, time_out, shipping_mode, job_type, container_type
+                    date_received, sales_order, time_in, time_out, shipping_mode, job_type, container_type,
+                    measured_voc, specific_gravity
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (truck_id, profile_number, manifest_number, load_number, 
                   gross_weight, exit_weight, net_weight_tons, cell_location, grid_location,
                   manifest_weight, manifest_units, extra_fees, test_assigned, 
-                  received_date, sales_order, time_in, time_out, shipping_mode, job_type, container_type))
+                  received_date, sales_order, time_in, time_out, shipping_mode, job_type, container_type,
+                  voc_percentage, sg_num))
         else:
             # Added sales_order and time_in to the INSERT statement
             conn.execute('''

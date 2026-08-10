@@ -292,7 +292,7 @@ def chemist_dashboard():
             if truck.get('voc_ppm') is None and truck.get('p_voc_percentage') is not None:
                 try:
                     val = float(truck['p_voc_percentage'])
-                    truck['voc_ppm'] = val * 10000 if val < 10 else val
+                    truck['voc_ppm'] = val
                 except:
                     pass
             if not truck.get('sulfides') and truck.get('p_sulfide'):
@@ -525,3 +525,259 @@ def chemist_drums_bulk_submit():
         conn.commit()
         socketio.emit('drum_update', {'job_id': job_id})
     return redirect(url_for('stu_bp.stu_hub', view='pipeline'))
+
+
+# --- YELLOW ENTRY LOG ---
+
+@chemist_bp.route('/yellow_entry')
+@chemist_bp.route('/chemist/yellow_entry')
+def yellow_entry():
+    selected_date = request.args.get('date', date.today().isoformat()).strip()
+    sort_mode = request.args.get('sort', 'entry').strip()
+    
+    with closing(get_db_connection()) as conn:
+        logs_raw = conn.execute('''
+            SELECT * FROM truck_logs 
+            WHERE date_received = ?
+            ORDER BY id DESC
+        ''', (selected_date,)).fetchall()
+        
+        logs = [dict(r) for r in logs_raw]
+        
+        # Batch lookup profile details & testing approvals for distinct profile numbers
+        profile_nums = list({str(log.get('profile_number') or '').strip().upper() for log in logs if log.get('profile_number')})
+        profile_map = {}
+        wa_map = {}
+        if profile_nums:
+            placeholders = ','.join(['?'] * len(profile_nums))
+            p_rows = conn.execute(f'''
+                SELECT profile_number, generator, win_code, waste_description, shipping_container_type, status, expiration_date, special_handling, voc_percentage
+                FROM profiles
+                WHERE TRIM(UPPER(profile_number)) IN ({placeholders})
+            ''', profile_nums).fetchall()
+            for pr in p_rows:
+                p_dict = dict(pr)
+                key = str(p_dict.get('profile_number') or '').strip().upper()
+                profile_map[key] = p_dict
+
+            wa_rows = conn.execute(f'''
+                SELECT profile_number, status 
+                FROM waste_acceptance_log
+                WHERE TRIM(UPPER(profile_number)) IN ({placeholders}) AND COALESCE(is_archived, 0) = 0
+            ''', profile_nums).fetchall()
+            for wa in wa_rows:
+                key = str(wa['profile_number']).strip().upper()
+                wa_map[key] = wa['status']
+
+        from schedule_utils import calculate_las_tags, evaluate_untested_las
+
+        for log in logs:
+            p_key = str(log.get('profile_number') or '').strip().upper()
+            p_info = profile_map.get(p_key, {})
+            log['generator'] = p_info.get('generator')
+            log['win_code'] = p_info.get('win_code')
+            log['waste_description'] = p_info.get('waste_description')
+            log['shipping_container_type'] = p_info.get('shipping_container_type')
+
+            eval_load = {
+                'profile_number': p_key,
+                'routing_code': p_info.get('win_code', log.get('win_code', '')),
+                'special_notes': log.get('notes', ''),
+                'special_handling': p_info.get('special_handling', ''),
+                'profile_status': p_info.get('status', ''),
+                'expiration_date': p_info.get('expiration_date', ''),
+                'voc_level': str(log.get('voc_percentage', '')),
+                'profile_voc_percentage': p_info.get('voc_percentage')
+            }
+            las_tags = calculate_las_tags(eval_load)
+            log['las_tags'] = las_tags
+
+            wa_info = wa_map.get(p_key)
+            is_void = str(log.get('test_status', '')).upper() in ['VOID', 'VOIDED']
+            is_untested = evaluate_untested_las(las_tags, p_info, wa_info, measured_voc=log.get('measured_voc'))
+            log['is_untested_las'] = is_untested and (not is_void)
+
+        if sort_mode in ('ticket', 'ticket_asc'):
+            def ticket_sort_key(log):
+                tid = str(log.get('truck_id') or log.get('load_number') or '0').strip()
+                digits = re.findall(r'\d+', tid)
+                num = int(digits[0]) if digits else 0
+                return (num, tid)
+            logs.sort(key=ticket_sort_key)
+        elif sort_mode == 'ticket_desc':
+            def ticket_sort_key_desc(log):
+                tid = str(log.get('truck_id') or log.get('load_number') or '0').strip()
+                digits = re.findall(r'\d+', tid)
+                num = int(digits[0]) if digits else 0
+                return (num, tid)
+            logs.sort(key=ticket_sort_key_desc, reverse=True)
+        elif sort_mode == 'manifest':
+            logs.sort(key=lambda log: str(log.get('manifest_number') or '').upper())
+        
+    error_msg = request.args.get('error', '').strip()
+    return render_template('yellow_entry.html', 
+                           logs=logs, 
+                           selected_date=selected_date,
+                           sort_mode=sort_mode,
+                           error_msg=error_msg,
+                           today_str=date.today().isoformat())
+
+
+@chemist_bp.route('/submit_yellow_entry', methods=['POST'])
+def submit_yellow_entry():
+    from routes_receiving import submit_truck
+    
+    ticket_number = request.form.get('ticket_number', '').strip()
+    weight_val = request.form.get('weight', '').strip()
+    weight_unit = request.form.get('weight_unit', 'LBS').strip().upper()
+    date_received = request.form.get('date_received', '').strip() or date.today().isoformat()
+    sort_mode = request.form.get('sort_mode', 'entry').strip()
+    
+    try:
+        weight_num = float(weight_val)
+    except ValueError:
+        weight_num = 0.0
+        
+    gross_lbs = weight_num * 2000.0 if weight_unit == 'TONS' else weight_num
+
+    # Mutate request.form to include receiving log retroactive fields
+    form_data = request.form.copy()
+    form_data['truck_id'] = ticket_number
+    form_data['load_number'] = ticket_number
+    form_data['gross_weight'] = str(gross_lbs)
+    form_data['exit_weight'] = '0'
+    form_data['is_retroactive'] = 'true'
+    form_data['container_type'] = request.form.get('container_type', 'End Dump')
+    request.form = form_data
+    
+    res = submit_truck()
+    if isinstance(res, tuple) and res[1] == 400:
+        err_msg = res[0]
+        return redirect(url_for('chemist_bp.yellow_entry', date=date_received, sort=sort_mode, error=err_msg))
+
+    # Instant alert check for new Yellow Entry
+    try:
+        prof_num = str(request.form.get('profile_number', '')).strip().upper()
+        if prof_num and ticket_number:
+            from schedule_utils import calculate_las_tags, evaluate_untested_las
+            with closing(get_db_connection()) as conn:
+                p_info = conn.execute('SELECT * FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (prof_num,)).fetchone()
+                wa_info = conn.execute('SELECT * FROM waste_acceptance_log WHERE TRIM(UPPER(profile_number)) = ? AND COALESCE(is_archived, 0) = 0', (prof_num,)).fetchone()
+
+                p_dict = dict(p_info) if p_info else {}
+                wa_dict = dict(wa_info) if wa_info else {}
+                eval_load = {
+                    'profile_number': prof_num,
+                    'routing_code': request.form.get('routing_code', p_dict.get('win_code', '')),
+                    'special_notes': request.form.get('notes', ''),
+                    'special_handling': p_dict.get('special_handling', ''),
+                    'profile_status': p_dict.get('status', ''),
+                    'expiration_date': p_dict.get('expiration_date', ''),
+                    'voc_level': str(request.form.get('voc_percentage', '')),
+                    'profile_voc_percentage': p_dict.get('voc_percentage')
+                }
+                las_tags = calculate_las_tags(eval_load)
+                is_untested = evaluate_untested_las(las_tags, p_dict, wa_dict, measured_voc=request.form.get('measured_voc'))
+
+                if is_untested:
+                    from email_utils import send_email_alert
+                    subj = f"[LAS ALERT] UNTESTED LAS TRUCK RECEIVED - Profile {prof_num} (Ticket #{ticket_number})"
+                    body = f"""UNTESTED LAS TRUCK RECEIVED AT SCALE
+
+Ticket #: {ticket_number}
+Manifest #: {request.form.get('manifest_number', 'N/A')}
+Profile #: {prof_num}
+Generator: {request.form.get('generator', p_dict.get('generator', 'N/A'))}
+WIN Code: {request.form.get('routing_code', p_dict.get('win_code', 'N/A'))}
+Date Received: {date_received}
+LAS Tags: {', '.join(las_tags)}
+
+Note: This truck requires Load Acceptance Sampling / profile recertification / approval verification before processing.
+"""
+                    send_email_alert(subj, body, recipients=['pereira.taylor@cleanharbors.com'])
+    except Exception as alert_err:
+        print(f"Error checking instant LAS alert: {alert_err}")
+        
+    return redirect(url_for('chemist_bp.yellow_entry', date=date_received, sort=sort_mode))
+
+
+@chemist_bp.route('/edit_yellow_entry/<int:log_id>', methods=['POST'])
+def edit_yellow_entry(log_id):
+    ticket_number = request.form.get('ticket_number', '').strip()
+    manifest_number = request.form.get('manifest_number', '').strip()
+    profile_number = request.form.get('profile_number', '').strip().upper()
+    weight_val = request.form.get('weight', '').strip()
+    weight_unit = request.form.get('weight_unit', 'LBS').strip().upper()
+    voc_val = request.form.get('voc_percentage', '').strip()
+    date_received = request.form.get('date_received', '').strip() or date.today().isoformat()
+    container_type = request.form.get('container_type', 'End Dump').strip()
+    cell_location = request.form.get('cell_location', '').strip().upper()
+    grid_location = request.form.get('grid_location', '').strip().upper()
+    specific_gravity_val = request.form.get('specific_gravity', '').strip()
+    sort_mode = request.form.get('sort_mode', 'entry').strip()
+    
+    load_number = ticket_number
+    
+    try:
+        weight_num = float(weight_val)
+    except ValueError:
+        weight_num = 0.0
+        
+    gross_lbs = weight_num * 2000.0 if weight_unit == 'TONS' else weight_num
+    net_tons = gross_lbs / 2000.0
+        
+    voc_num = 0.0
+    if voc_val != '':
+        try:
+            voc_num = float(voc_val)
+        except ValueError:
+            voc_num = 0.0
+            
+    sg_num = None
+    if specific_gravity_val:
+        try:
+            sg_num = float(specific_gravity_val)
+        except ValueError:
+            sg_num = None
+            
+    with closing(get_db_connection()) as conn:
+        conn.execute('''
+            UPDATE truck_logs 
+            SET truck_id = ?, manifest_number = ?, profile_number = ?, load_number = ?,
+                gross_weight = ?, net_weight = ?, date_received = ?, measured_voc = ?,
+                container_type = ?, cell_location = ?, grid_location = ?, specific_gravity = ?
+            WHERE id = ?
+        ''', (ticket_number, manifest_number, profile_number, load_number,
+              gross_lbs, net_tons, date_received, voc_num,
+              container_type, cell_location, grid_location, sg_num, log_id))
+        conn.commit()
+        
+    socketio.emit('truck_update', {'date': date_received})
+    return redirect(url_for('chemist_bp.yellow_entry', date=date_received, sort=sort_mode))
+
+
+@chemist_bp.route('/void_yellow_entry/<int:log_id>', methods=['POST'])
+def void_yellow_entry(log_id):
+    date_received = request.form.get('date_received', date.today().isoformat())
+    sort_mode = request.form.get('sort_mode', 'entry').strip()
+    with closing(get_db_connection()) as conn:
+        current_status = conn.execute('SELECT test_status FROM truck_logs WHERE id = ?', (log_id,)).fetchone()
+        if current_status and current_status['test_status'] == 'VOID':
+            conn.execute("UPDATE truck_logs SET test_status = 'COMPLETED' WHERE id = ?", (log_id,))
+        else:
+            conn.execute("UPDATE truck_logs SET test_status = 'VOID' WHERE id = ?", (log_id,))
+        conn.commit()
+    socketio.emit('truck_update', {'date': date_received})
+    return redirect(url_for('chemist_bp.yellow_entry', date=date_received, sort=sort_mode))
+
+
+@chemist_bp.route('/delete_yellow_entry/<int:log_id>', methods=['POST'])
+def delete_yellow_entry(log_id):
+    date_received = request.form.get('date_received', date.today().isoformat())
+    sort_mode = request.form.get('sort_mode', 'entry').strip()
+    with closing(get_db_connection()) as conn:
+        conn.execute('DELETE FROM truck_logs WHERE id = ?', (log_id,))
+        conn.commit()
+    socketio.emit('truck_update', {'date': date_received})
+    return redirect(url_for('chemist_bp.yellow_entry', date=date_received, sort=sort_mode))
+

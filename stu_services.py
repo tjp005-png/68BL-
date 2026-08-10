@@ -197,19 +197,24 @@ def parse_drum_labels_from_pdf(file_stream):
                         profile_val = orig_profile 
 
                 manifest_str, min_x0 = "N/A", page.width 
-                IGNORE_LIST = ['WEIGHT', 'PROFILE', 'FACILITY', 'GENERATOR', 'WASTE', 'UN/NA', 'INVENTORY', 'CUSTOMER', 'DRUM', 'MGT', 'NUMBER', 'SHIPPER', 'DATE', 'TRACKING', 'ADDRESS', 'TELEPHONE', 'ZIP', 'CAR', 'EPA', 'CLASS', 'HAZARD', 'ACCUMULATION']
+                IGNORE_LIST = ['WEIGHT', 'PROFILE', 'FACILITY', 'GENERATOR', 'WASTE', 'UN/NA', 'INVENTORY', 'CUSTOMER', 'DRUM', 'MGT', 'NUMBER', 'SHIPPER', 'DATE', 'TRACKING', 'ADDRESS', 'TELEPHONE', 'ZIP', 'CAR', 'EPA', 'CLASS', 'HAZARD', 'ACCUMULATION', 'CONTROL', 'CUST']
 
-                for word in words:
-                    # Split by whitespace to handle combined words caused by keep_blank_chars=True
-                    parts = word['text'].split()
-                    for part in parts:
-                        clean_part = re.sub(r'[^\w\-]', '', part).upper()
-                        if (len(clean_part) >= 5 and any(c.isdigit() for c in clean_part) and 
-                            re.match(r'^[A-Z0-9-]+$', clean_part) and clean_part not in excluded_values and 
-                            not any(x in clean_part for x in IGNORE_LIST)):
-                            if word['x0'] < min_x0:
-                                min_x0 = word['x0']
-                                manifest_str = clean_part
+                # Explicit regex check for Manifest Tracking / Shipping Document #
+                manifest_explicit = re.search(r'(?:MANIFEST\s*(?:TRACKING)?\s*(?:/\s*SHIPPING\s*DOCUMENT)?\s*#?\s*:?\s*)([A-Z0-9-]+)', text, re.IGNORECASE)
+                if manifest_explicit:
+                    manifest_str = manifest_explicit.group(1).upper()
+                else:
+                    for word in words:
+                        # Split by whitespace to handle combined words caused by keep_blank_chars=True
+                        parts = word['text'].split()
+                        for part in parts:
+                            clean_part = re.sub(r'[^\w\-]', '', part).upper()
+                            if (len(clean_part) >= 5 and any(c.isdigit() for c in clean_part) and 
+                                re.match(r'^[A-Z0-9-]+$', clean_part) and clean_part not in excluded_values and 
+                                not any(x in clean_part for x in IGNORE_LIST)):
+                                if word['x0'] < min_x0:
+                                    min_x0 = word['x0']
+                                    manifest_str = clean_part
 
                 is_asbestos, manifest_line_num, container_size, waste_code = False, "N/A", "N/A", "N/A"
                 
@@ -247,6 +252,11 @@ def parse_drum_labels_from_pdf(file_stream):
                             except Exception as ex: 
                                 print(f"Error parsing detail lines: {ex}")
                             break 
+
+                if manifest_line_num == "N/A":
+                    line_num_fallback = re.search(r'\bLINE\s*#?\s*:\s*([0-9]+[A-Z]?)', text, re.IGNORECASE)
+                    if line_num_fallback:
+                        manifest_line_num = line_num_fallback.group(1)
                 
                 # Fallback searches if container size or waste code are not found on the manifest line
                 if container_size == "N/A":
@@ -263,11 +273,21 @@ def parse_drum_labels_from_pdf(file_stream):
                 # UPGRADED: Never delete asbestos drums just because they lack a waste code
                 if waste_code not in PERMITTED_CODES and not is_asbestos: 
                     continue
+
+                accumulation_match = re.search(r'(?:ACCUMULATION\s*(?:START)?\s*DATE|ACCUM\s*DATE)\s*:?\s*(\d{1,2}/\d{1,2}/\d{2,4})', text, re.IGNORECASE)
+                if accumulation_match and accumulation_match.group(1):
+                    accumulation_date = accumulation_match.group(1)
+                    was_date_blank = False
+                else:
+                    accumulation_date = datetime.now().strftime("%m/%d/%Y")
+                    was_date_blank = True
                 
                 all_drums.append({
                     "drum_id": drum_id_val if drum_id_val else "UNKNOWN",
                     "profile": profile_val if profile_val else "N/A", "display_profile": display_profile,
                     "manifest": manifest_str, "manifest_line": manifest_line_num,
+                    "accumulation_date": accumulation_date,
+                    "was_date_blank": was_date_blank,
                     "is_asbestos": is_asbestos, "container_size": container_size,
                     "waste_code": waste_code, "page_index": page_num, 
                     "coord_x": drum_x, "coord_y": drum_y,
@@ -371,40 +391,102 @@ def create_lab_sheet_pdf(output_buffer, job_name, picklist_data):
     doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
 
 def create_annotated_pdf(original_pdf_stream, output_buffer, picklist_data):
-    items_to_stamp = [d for d in picklist_data if d['is_sampled'] == "Yes" and d.get('page_index', -1) != -1]
-    if not items_to_stamp: return
+    if not picklist_data: return
 
-    reader, writer = PdfReader(original_pdf_stream), PdfWriter()
-    stamps_by_page = defaultdict(list)
-    for item in items_to_stamp: stamps_by_page[item['page_index']].append(item)
+    if hasattr(original_pdf_stream, 'seek'):
+        original_pdf_stream.seek(0)
+    
+    stream_bytes = original_pdf_stream.read() if hasattr(original_pdf_stream, 'read') else original_pdf_stream
+    reader = PdfReader(io.BytesIO(stream_bytes))
+    writer = PdfWriter()
+
+    drums_by_page = defaultdict(list)
+    for item in picklist_data:
+        if item.get('page_index', -1) != -1:
+            drums_by_page[item['page_index']].append(item)
+
+    if not drums_by_page: return
+
+    pdf_plumber_doc = None
+    try:
+        pdf_plumber_doc = pdfplumber.open(io.BytesIO(stream_bytes))
+    except Exception:
+        pdf_plumber_doc = None
 
     for page_num, page in enumerate(reader.pages):
-        if page_num in stamps_by_page:
+        has_annotations = False
+        if page_num in drums_by_page:
             packet = io.BytesIO()
-            w, h = stamps_by_page[page_num][0]['page_width'], stamps_by_page[page_num][0]['page_height']
+            w = float(page.mediabox.width)
+            h = float(page.mediabox.height)
             can = canvas.Canvas(packet, pagesize=(w, h))
-            for item in stamps_by_page[page_num]:
-                x, y, text = item['coord_x'], item['coord_y'], item['sample_num']
-                
-                # Position stamp in lower right quadrant if it is a new landscape format label, otherwise use original coordinates
-                if w > h:
-                    cx, cy = w - 80, 70
-                else:
-                    cx, cy = x - 15, y + 25
-                    
-                is_double = len(text) > 2
-                radius, font_size = (35, 34) if is_double else (30, 36)
 
-                can.setFillColor(colors.white); can.setStrokeColor(colors.white)
-                can.circle(cx, cy + 5, radius, stroke=1, fill=1)
-                can.setStrokeColor(colors.black); can.setLineWidth(4)
-                can.circle(cx, cy + 5, radius, stroke=1, fill=0)
-                can.setFillColor(colors.black); can.setFont("Helvetica-Bold", font_size)
-                can.drawCentredString(cx, cy - (font_size/3) + 5, text)
-            
-            can.save(); packet.seek(0)
-            page.merge_page(PdfReader(packet).pages[0])
+            page_words = []
+            if pdf_plumber_doc and page_num < len(pdf_plumber_doc.pages):
+                try:
+                    page_words = pdf_plumber_doc.pages[page_num].extract_words(x_tolerance=1, y_tolerance=3, keep_blank_chars=True)
+                except Exception:
+                    page_words = []
+
+            for item in drums_by_page[page_num]:
+                acc_date = item.get('accumulation_date', '')
+                was_blank = item.get('was_date_blank', False)
+                
+                # ONLY print the date onto the label PDF if it was blank on the original label
+                if acc_date and was_blank:
+                    date_x, date_y = None, None
+                    for w_obj in page_words:
+                        w_text = w_obj['text'].upper()
+                        if 'ACCUMULATION' in w_text or 'ACCUM' in w_text:
+                            date_x = w_obj['x1'] + 4
+                            date_y = h - w_obj['bottom'] + 1
+                            break
+                        elif 'START' in w_text and 'DATE' in w_text:
+                            date_x = w_obj['x1'] + 4
+                            date_y = h - w_obj['bottom'] + 1
+                            break
+
+                    if date_x is None or date_y is None:
+                        if w > h:
+                            date_x, date_y = 195, h - 74
+                        else:
+                            date_x, date_y = 140, h - 90
+
+                    can.setFillColor(colors.black)
+                    can.setFont("Helvetica-Bold", 9)
+                    can.drawString(date_x, date_y, acc_date)
+                    has_annotations = True
+
+                if item.get('is_sampled') == "Yes":
+                    x, y, text = item.get('coord_x', 100), item.get('coord_y', 700), item.get('sample_num', '')
+                    if w > h:
+                        cx, cy = w - 75, 45
+                    else:
+                        cx, cy = x - 15, y + 5
+
+                    is_double = len(text) > 2
+                    radius, font_size = (32, 30) if is_double else (28, 32)
+
+                    can.setFillColor(colors.white); can.setStrokeColor(colors.white)
+                    can.circle(cx, cy, radius, stroke=1, fill=1)
+                    can.setStrokeColor(colors.black); can.setLineWidth(4)
+                    can.circle(cx, cy, radius, stroke=1, fill=0)
+                    can.setFillColor(colors.black); can.setFont("Helvetica-Bold", font_size)
+                    can.drawCentredString(cx, cy - (font_size / 3), text)
+                    has_annotations = True
+
+            if has_annotations:
+                can.save()
+                packet.seek(0)
+                ann_reader = PdfReader(packet)
+                if len(ann_reader.pages) > 0:
+                    page.merge_page(ann_reader.pages[0])
+
         writer.add_page(page)
+
+    if pdf_plumber_doc:
+        try: pdf_plumber_doc.close()
+        except Exception: pass
 
     writer.write(output_buffer)
 

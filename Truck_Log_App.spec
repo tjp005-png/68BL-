@@ -5,7 +5,7 @@ a = Analysis(
     ['app.py'],
     pathex=[],
     binaries=[],
-    datas=[('templates', 'templates'), ('static', 'static')],
+    datas=[('templates', 'templates'), ('static', 'static'), ('ldr_options.json', '.'), ('voc_cache.json', '.'), ('voc_profile_cache.json', '.')],
     hiddenimports=['openpyxl', 'pandas', 'engineio.async_drivers.threading'],
     hookspath=[],
     hooksconfig={},

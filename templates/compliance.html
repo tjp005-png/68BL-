@@ -257,7 +257,7 @@
         <div class="card glass-card border-0 mb-4">
             <div class="card-body p-4">
                 <div class="row g-3 align-items-end">
-                    <div class="col-md-5">
+                    <div class="col-md-3">
                         <label for="report-type" class="form-label fw-bold text-muted small text-uppercase">Select Analysis Report</label>
                         <select id="report-type" class="form-select form-select-custom">
                             <option value="variance" selected>📊 Variance Tracker (Scheduled vs. Actual)</option>
@@ -267,13 +267,28 @@
                             <option value="norm">☢️ CNON Tracker ( Radioactive Material Profiles)</option>
                         </select>
                     </div>
-                    <div class="col-md-5">
+                    <div class="col-md-3">
                         <label for="date-range" class="form-label fw-bold text-muted small text-uppercase">Select Date Range</label>
                         <input type="text" id="date-range" class="form-control form-input-custom" placeholder="Select date range...">
                     </div>
                     <div class="col-md-2">
-                        <button id="btn-refresh" class="btn btn-ch-red w-100 d-flex justify-content-center align-items-center gap-2" style="height: 48px;">
-                            🔄 Refresh
+                        <div class="form-check form-switch mb-1 mt-2">
+                            <input class="form-check-input" type="checkbox" id="toggle-include-weekends" onchange="fetchData(false)">
+                            <label class="form-check-label fw-bold text-dark small" for="toggle-include-weekends" title="Toggle including weekends/0-0 non-operating days">📅 0/0 Weekends</label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="toggle-exclude-holidays" onchange="fetchData(false)">
+                            <label class="form-check-label fw-bold text-dark small" for="toggle-exclude-holidays" title="Exclude facility holidays from chart and averages">🏖️ Holidays</label>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button id="btn-refresh" class="btn btn-ch-red w-100 d-flex justify-content-center align-items-center gap-2" style="height: 48px;" onclick="fetchData(true)">
+                            🔄 Refresh Data
+                        </button>
+                    </div>
+                    <div class="col-md-2">
+                        <button id="btn-export" class="btn btn-success w-100 d-flex justify-content-center align-items-center gap-2" style="height: 48px; background-color: #15803d; border-color: #166534;" onclick="exportExcel()">
+                            📊 Export Excel
                         </button>
                     </div>
                 </div>
@@ -426,9 +441,11 @@
             }
         }
 
-        function fetchData() {
+        function fetchData(forceRefresh = false) {
             const reportType = document.getElementById("report-type").value;
             const dateRange = document.getElementById("date-range").value;
+            const includeWeekends = document.getElementById("toggle-include-weekends") ? document.getElementById("toggle-include-weekends").checked : false;
+            const excludeHolidays = document.getElementById("toggle-exclude-holidays") ? document.getElementById("toggle-exclude-holidays").checked : false;
             
             // Split range to dates
             let start = "{{ start_date }}";
@@ -445,7 +462,8 @@
 
             showLoaders(true);
 
-            fetch(`/api/compliance/data?report_type=${reportType}&start_date=${start}&end_date=${end}`)
+            const refreshParam = forceRefresh ? '&refresh=true' : '';
+            fetch(`/api/compliance/data?report_type=${reportType}&start_date=${start}&end_date=${end}&include_weekends=${includeWeekends}&exclude_holidays=${excludeHolidays}${refreshParam}`)
                 .then(res => {
                     if (!res.ok) throw new Error("API response error");
                     return res.json();
@@ -460,6 +478,27 @@
                     console.error("Error loading compliance data:", err);
                     showLoaders(false);
                 });
+        }
+
+        function exportExcel() {
+            const reportType = document.getElementById("report-type").value;
+            const dateRange = document.getElementById("date-range").value;
+            const includeWeekends = document.getElementById("toggle-include-weekends") ? document.getElementById("toggle-include-weekends").checked : false;
+            const excludeHolidays = document.getElementById("toggle-exclude-holidays") ? document.getElementById("toggle-exclude-holidays").checked : false;
+            
+            let start = "{{ start_date }}";
+            let end = "{{ end_date }}";
+            if (dateRange && dateRange.includes(" to ")) {
+                const parts = dateRange.split(" to ");
+                start = parts[0].trim();
+                end = parts[1].trim();
+            } else if (dateRange && dateRange.length === 10) {
+                start = dateRange;
+                end = dateRange;
+            }
+
+            const url = `/api/compliance/export_excel?report_type=${reportType}&start_date=${start}&end_date=${end}&include_weekends=${includeWeekends}&exclude_holidays=${excludeHolidays}`;
+            window.location.href = url;
         }
 
         function updateSummaryKPIs(summary, type) {
