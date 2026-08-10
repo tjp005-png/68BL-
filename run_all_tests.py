@@ -250,6 +250,18 @@ class TestPortalCoreSuite(unittest.TestCase):
         except Exception as e:
             self.fail(f"generate_and_send_las_digest raised exception: {e}")
 
+    # -------------------------------------------------------------
+    # 9. ON-DEMAND WVI FILE SYNC & CACHING TESTS
+    # -------------------------------------------------------------
+    def test_09_wvi_on_demand_sync_and_caching(self):
+        """Verify WVI per-profile file sync and is_synced caching for missing files"""
+        conn = get_db_connection()
+        res = sync_profile_from_wvi_file(conn, 'TEST-WVI-NONE')
+        row = conn.execute("SELECT is_synced FROM profile_wvi WHERE TRIM(UPPER(profile)) = 'TEST-WVI-NONE'").fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(row['is_synced'], 1, "Missing WVI profile must be cached with is_synced = 1")
+        conn.close()
+
 if __name__ == '__main__':
     print("=" * 70)
     print(" [QA-TEST] TRUCK LOG & WASTE OPERATIONS PORTAL PRE-LEAVE QA SUITE")
