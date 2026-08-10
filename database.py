@@ -84,9 +84,235 @@ def extract_color_from_text(text):
     matched = [c for c in colors if c in t]
     return "/".join(matched) if matched else None
 
-def enrich_profile_from_wvi(conn, clean_profile):
-    """Enriches a profile in the 'profiles' table with WVI pH, color, and physical details if missing."""
+def sync_profile_from_wvi_file(conn, profile_number):
+    """
+    On-demand WVI File Sync (Per-Profile).
+    Reads from I:\Buttonwillow\WAP\WVI\<PROFILE>.xls / .xlsx
+    Caches parsed specs in SQLite profile_wvi table.
+    If no WVI file is found, caches is_synced = 1 in profile_wvi to prevent repeated network searches.
+    """
+    if not profile_number:
+        return None
+        
+    profile_clean = str(profile_number).strip().upper()
+
+    # Fast cached check: if already in profile_wvi with is_synced = 1, return cached record
     try:
+        w_row = conn.execute("SELECT * FROM profile_wvi WHERE TRIM(UPPER(profile)) = ?", (profile_clean,)).fetchone()
+        if w_row and w_row['is_synced'] == 1:
+            return dict(w_row)
+    except Exception:
+        w_row = None
+        
+    wvi_dir = r"I:\Buttonwillow\WAP\WVI"
+    if not os.path.exists(wvi_dir):
+        return dict(w_row) if w_row else None
+        
+    # Search for files matching the profile number
+    file_path = None
+    for name in [profile_clean, profile_clean.lower()]:
+        for ext in ['.xls', '.xlsx', '.XLS', '.XLSX']:
+            p = os.path.join(wvi_dir, f"{name}{ext}")
+            if os.path.exists(p):
+                file_path = p
+                break
+        if file_path:
+            break
+            
+    if not file_path:
+        # Cache that no WVI file was found on network so we don't repeat network searches
+        try:
+            conn.execute("INSERT OR IGNORE INTO profile_wvi (profile, is_synced) VALUES (?, 1)", (profile_clean,))
+            conn.execute("UPDATE profile_wvi SET is_synced = 1 WHERE TRIM(UPPER(profile)) = ?", (profile_clean,))
+            conn.commit()
+        except Exception as ex:
+            print(f"Error caching missing WVI for profile {profile_clean}: {ex}")
+        return dict(w_row) if w_row else None
+        
+    try:
+        import pandas as pd
+        if file_path.lower().endswith('.xlsx'):
+            df = pd.read_excel(file_path, header=None, engine='openpyxl')
+        else:
+            df = pd.read_excel(file_path, header=None, engine='xlrd')
+            
+        data = {
+            'profile': profile_clean, 'filename': os.path.basename(file_path),
+            'generator_name': None, 'waste_name': None, 'physical_description': None,
+            'ldr': None, 'state_waste_codes': None, 'federal_waste_codes': None,
+            'dot_description': None, 'handling_instruction': None, 'sample_procedures': None,
+            'verification_procedures': None, 'ph_min': None, 'ph_max': None, 'sulfides': None,
+            'cyanide': None, 'free_liquids': None, 'flashpoint': None, 'unloading_instructions': None,
+            'reactivity_codes': None, 'approved_date': None, 'expiration_date': None, 'lab_num': None,
+            'voc_ppm': None, 'treatment_information': None, 'notes_revisions': None, 'color': None, 'is_synced': 1
+        }
+        
+        # Clean boolean helper
+        def clean_bool(val):
+            if pd.isna(val): return None
+            val_str = str(val).replace('*', '').strip().upper()
+            if val_str in ['YES', 'TRUE', 'POS', 'POSITIVE', 'Y']: return 'Yes'
+            if val_str in ['NO', 'FALSE', 'NEG', 'NEGATIVE', 'NONE', 'ND', 'N', '<0.1']: return 'No'
+            return val_str.title()
+            
+        # Clean sulfides helper
+        def clean_sulf(val):
+            if pd.isna(val): return None
+            raw_str = str(val).replace('*', ' ').strip()
+            raw_str = re.sub(r'\s+', ' ', raw_str)
+            val_upper = raw_str.upper()
+            base = None
+            if 'NEG' in val_upper and 'POS' in val_upper: base = "Neg or Pos"
+            elif 'NEG' in val_upper: base = "Negative"
+            elif 'POS' in val_upper: base = "Positive"
+            if not base: return raw_str
+            note_text = raw_str
+            for word in ['NEG', 'POS', 'OR', 'NEGATIVE', 'POSITIVE']:
+                note_text = re.sub(word, '', note_text, flags=re.IGNORECASE)
+            note_text = note_text.strip(' -/,')
+            return f"{base} - {note_text}" if note_text else base
+
+        # Clean date helper
+        def clean_date_val(val):
+            if pd.isna(val): return None
+            val_str = str(val).strip()
+            if '00:00:00' in val_str:
+                val_str = val_str.split()[0]
+            try:
+                serial = float(val_str)
+                dt = pd.to_datetime(serial, unit='D', origin='1899-12-30')
+                return dt.strftime('%Y-%m-%d')
+            except ValueError:
+                return val_str
+
+        def join_row_values(row_data):
+            vals = []
+            for v in row_data:
+                if pd.isna(v): continue
+                v_str = str(v).strip()
+                if not v_str: continue
+                if v_str.endswith('.0') and v_str[:-2].isdigit():
+                    v_str = v_str[:-2]
+                vals.append(v_str)
+            return ' '.join(vals).strip() if vals else None
+                
+        capturing_notes = False
+        notes_lines = []
+        
+        for index, row in df.iterrows():
+            col0 = row.iloc[0] if len(row) > 0 else None
+            col1 = row.iloc[1] if len(row) > 1 else None
+            col2 = row.iloc[2] if len(row) > 2 else None
+            col3 = row.iloc[3] if len(row) > 3 else None
+            col4 = row.iloc[4] if len(row) > 4 else None
+            
+            label0 = str(col0).strip().upper() if pd.notna(col0) else ""
+            label1 = str(col1).strip().upper() if pd.notna(col1) else ""
+            
+            if label0 and label0 != 'NOTES/REVISIONS':
+                capturing_notes = False
+                
+            if label0 == 'PROFILE':
+                data['profile'] = str(col1).strip().upper() if pd.notna(col1) else profile_clean
+            elif label0 == 'GENERATOR NAME':
+                data['generator_name'] = join_row_values(row.iloc[1:])
+            elif label0 == 'WASTE NAME':
+                data['waste_name'] = join_row_values(row.iloc[1:])
+            elif label0 == 'PHYSICAL DESCRIPTION':
+                data['physical_description'] = join_row_values(row.iloc[1:])
+                data['color'] = extract_color_from_text(data['physical_description'])
+            elif label0 == 'LDR':
+                data['ldr'] = join_row_values(row.iloc[1:])
+            elif label0 == 'STATE WASTE CODES':
+                data['state_waste_codes'] = join_row_values(row.iloc[1:])
+            elif label0 == 'FEDERAL WASTE CODES':
+                data['federal_waste_codes'] = join_row_values(row.iloc[1:])
+            elif label0 == 'DOT DESCRIPTION':
+                data['dot_description'] = join_row_values(row.iloc[1:])
+            elif label0 == 'HANDLING INSTRUCTION':
+                data['handling_instruction'] = join_row_values(row.iloc[1:])
+            elif label0 == 'SAMPLE PROCEDURES':
+                data['sample_procedures'] = join_row_values(row.iloc[1:])
+            elif label0 == 'VERIFICATION PROCEDURES':
+                data['verification_procedures'] = join_row_values(row.iloc[1:])
+            elif label0 == 'UNLOADING INSTRUCTIONS':
+                data['unloading_instructions'] = join_row_values(row.iloc[1:])
+            elif label0 == 'REACTIVITY CODES':
+                data['reactivity_codes'] = join_row_values(row.iloc[1:])
+            elif label0 == 'APPROVED DATE':
+                data['approved_date'] = clean_date_val(col1)
+            elif label0 == 'EXPIRATION DATE':
+                data['expiration_date'] = clean_date_val(col1)
+            elif label0 == 'TREATMENT INFORMATION':
+                data['treatment_information'] = join_row_values(row.iloc[1:])
+            
+            if label0 == 'NOTES/REVISIONS':
+                capturing_notes = True
+                val = join_row_values(row.iloc[1:])
+                if val:
+                    notes_lines.append(val)
+            elif capturing_notes and not label0:
+                val = join_row_values(row.iloc[1:])
+                if val:
+                    notes_lines.append(val)
+                
+            if 'PH RANGE' in label1:
+                try:
+                    data['ph_min'] = float(col2) if pd.notna(col2) else None
+                    data['ph_max'] = float(col4) if pd.notna(col4) else None
+                except:
+                    pass
+            elif 'SULFIDES' in label1:
+                data['sulfides'] = clean_sulf(col2)
+            elif 'CYANIDE' in label1:
+                data['cyanide'] = clean_bool(col2)
+            elif 'FREE LIQUIDS' in label1:
+                data['free_liquids'] = clean_bool(col2)
+            elif 'FLASHPOINT' in label1 or 'FLASH POINT' in label1:
+                data['flashpoint'] = str(col2).strip().upper() if pd.notna(col2) else None
+            elif 'LAB.' in label1 or 'LAB #' in label1:
+                data['lab_num'] = str(col2).strip() if pd.notna(col2) else None
+            elif 'VOC' in label1:
+                try:
+                    data['voc_ppm'] = float(col2) if pd.notna(col2) else None
+                except:
+                    pass
+                    
+        if notes_lines:
+            data['notes_revisions'] = '; '.join(notes_lines)
+            if not data['color']:
+                data['color'] = extract_color_from_text(data['notes_revisions'])
+                    
+        cols_order = [
+            'profile', 'filename', 'generator_name', 'waste_name', 'physical_description',
+            'ldr', 'state_waste_codes', 'federal_waste_codes', 'dot_description',
+            'handling_instruction', 'sample_procedures', 'verification_procedures',
+            'ph_min', 'ph_max', 'sulfides', 'cyanide', 'free_liquids', 'flashpoint',
+            'unloading_instructions', 'reactivity_codes', 'approved_date',
+            'expiration_date', 'lab_num', 'voc_ppm', 'treatment_information',
+            'notes_revisions', 'color', 'is_synced'
+        ]
+        
+        placeholders = ', '.join(['?'] * len(cols_order))
+        cols_str = ', '.join(cols_order)
+        vals_tuple = tuple(data[c] for c in cols_order)
+        
+        conn.execute(f'''
+            INSERT OR REPLACE INTO profile_wvi ({cols_str})
+            VALUES ({placeholders})
+        ''', vals_tuple)
+        conn.commit()
+        return data
+    except Exception as e:
+        print(f"Error parsing WVI file {file_path} for {profile_clean}: {e}")
+        return dict(w_row) if w_row else None
+
+def enrich_profile_from_wvi(conn, clean_profile):
+    """Enriches a profile in the 'profiles' table with WVI specs (pH, color, sulfides, cyanide, etc.)."""
+    try:
+        # Trigger on-demand sync from WVI file if not already cached
+        sync_profile_from_wvi_file(conn, clean_profile)
+
         p_row = conn.execute("SELECT * FROM profiles WHERE TRIM(UPPER(profile_number)) = ?", (clean_profile,)).fetchone()
         w_row = conn.execute("SELECT * FROM profile_wvi WHERE TRIM(UPPER(profile)) = ?", (clean_profile,)).fetchone()
         
@@ -131,6 +357,29 @@ def enrich_profile_from_wvi(conn, clean_profile):
             if not p_row['special_handling'] and w_row['handling_instruction']:
                 updates.append("special_handling = ?")
                 params.append(w_row['handling_instruction'])
+
+            # 6. Flashpoint
+            if not p_row['flash_point'] and w_row['flashpoint']:
+                updates.append("flash_point = ?")
+                params.append(w_row['flashpoint'])
+
+            # 7. VOC percentage
+            if (p_row['voc_percentage'] is None or p_row['voc_percentage'] == 0.0) and w_row['voc_ppm'] is not None:
+                updates.append("voc_percentage = ?")
+                params.append(w_row['voc_ppm'])
+
+            # 8. State / Federal Waste Codes
+            if not p_row['state_waste_code'] and w_row['state_waste_codes']:
+                updates.append("state_waste_code = ?")
+                params.append(w_row['state_waste_codes'])
+            if not p_row['federal_waste_code'] and w_row['federal_waste_codes']:
+                updates.append("federal_waste_code = ?")
+                params.append(w_row['federal_waste_codes'])
+
+            # 9. Treatment Recipe / Information
+            if not p_row['treatment_recipe'] and w_row['treatment_information']:
+                updates.append("treatment_recipe = ?")
+                params.append(w_row['treatment_information'])
 
             if updates:
                 sql = f"UPDATE profiles SET {', '.join(updates)} WHERE TRIM(UPPER(profile_number)) = ?"
