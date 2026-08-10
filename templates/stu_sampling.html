@@ -74,6 +74,7 @@
                                 <th>Line</th>
                                 <th>Size</th>
                                 <th>Waste Code</th>
+                                <th>Accum. Date</th>
                             </tr>
                         </thead>
                         <tbody id="drumTableBody">
@@ -88,6 +89,7 @@
                                 <td>{{ drum.manifest_line }}</td>
                                 <td>{{ drum.container_size }}</td>
                                 <td><span class="badge bg-secondary">{{ drum.waste_code }}</span></td>
+                                <td class="small text-muted">{{ drum.accumulation_date }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

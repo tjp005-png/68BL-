@@ -348,6 +348,13 @@ def upgrade_db():
             )
         ''')
 
+        # Automated Priority Task: Enforce EXPIRED status on all profiles whose expiration date has passed
+        try:
+            from database import auto_sanitize_expired_profiles
+            auto_sanitize_expired_profiles(conn)
+        except Exception as auto_exp_e:
+            print(f"Startup auto_sanitize_expired_profiles warning: {auto_exp_e}")
+
         # 11. SULFIDE TESTING LOGS TABLE (5-SAMPLE 90% CI STATISTICAL SUITE)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS sulfide_testing_logs (
@@ -368,6 +375,7 @@ def upgrade_db():
                 degrees_of_freedom INTEGER,
                 t_value REAL,
                 reactive_pass INTEGER,
+                tested_by TEXT,
                 test_date DATETIME DEFAULT CURRENT_TIMESTAMP,
                 notes TEXT
             )
@@ -378,6 +386,8 @@ def upgrade_db():
             cursor.execute('ALTER TABLE sulfide_testing_logs ADD COLUMN total_sulfide REAL')
         if not column_exists(cursor, 'sulfide_testing_logs', 'reactive_sulfide'):
             cursor.execute('ALTER TABLE sulfide_testing_logs ADD COLUMN reactive_sulfide REAL')
+        if not column_exists(cursor, 'sulfide_testing_logs', 'tested_by'):
+            cursor.execute("ALTER TABLE sulfide_testing_logs ADD COLUMN tested_by TEXT DEFAULT 'Lab Chemist'")
 
         # Add performance indexes
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_profiles_win_code ON profiles (win_code)")
@@ -558,21 +568,22 @@ if __name__ == '__main__':
                     print(f"  Local version:   {time.ctime(local_mtime) if local_exists else 'None (New Install)'}")
                     print("="*70)
                     
-                    # Auto-sync on new install (local_exists is False) or when running non-interactively
+                    # Auto-sync ONLY on new installation (local_exists is False).
+                    # If a local database already exists, NEVER auto-overwrite in non-interactive mode to protect local data.
                     is_interactive = sys.stdin and sys.stdin.isatty()
                     
                     choice = "n"
                     if not local_exists:
                         choice = "y"
                         print("  [DATABASE SYNC] New installation detected. Auto-syncing from network...")
-                    elif not is_interactive:
-                        choice = "y"
-                        print("  [DATABASE SYNC] Non-interactive environment. Auto-syncing newer network database...")
-                    else:
+                    elif is_interactive:
                         try:
                             choice = input("  Would you like to sync the latest database from I: drive locally? (y/n) [default: n]: ").strip().lower()
                         except (KeyboardInterrupt, EOFError):
                             choice = "n"
+                    else:
+                        print("  [DATABASE SYNC] Local database exists. Auto-sync skipped in non-interactive mode to prevent overwriting local data.")
+                        choice = "n"
                         
                     if choice in ['y', 'yes']:
                         print("  Syncing database from I: drive... please wait...")

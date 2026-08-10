@@ -9,8 +9,9 @@ _excel_cache_mtime = None
 from shared_state import DB_PATH, MASTER_EXCEL_PATH
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH, timeout=15)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row 
+    conn.execute('PRAGMA busy_timeout = 30000;')
     
     # Check if database is on a network drive to avoid WAL mode locks/hangs
     is_network = False
@@ -141,6 +142,7 @@ def _load_excel_dataframe(excel_path):
     global _excel_cache, _excel_cache_mtime
     import pandas as pd
     import shutil
+    import io
     
     try:
         mtime = os.path.getmtime(excel_path)
@@ -152,8 +154,24 @@ def _load_excel_dataframe(excel_path):
     if _excel_cache is not None and _excel_cache_mtime == mtime:
         return _excel_cache
     
+    def _read_file(target_path):
+        with open(target_path, 'rb') as f:
+            file_bytes = io.BytesIO(f.read())
+        with pd.ExcelFile(file_bytes, engine='openpyxl') as xl:
+            sheet_to_use = 'Data' if 'Data' in xl.sheet_names else 0
+            if sheet_to_use == 0 and len(xl.sheet_names) > 1:
+                for sname in xl.sheet_names:
+                    sample_df = pd.read_excel(xl, sheet_name=sname, nrows=5)
+                    for col in sample_df.columns:
+                        if str(col).strip().upper() in ['PROFILE', 'PROFILE #', 'PROFILE_NUMBER', 'PROFILE NUMBER']:
+                            sheet_to_use = sname
+                            break
+                    if sheet_to_use != 0:
+                        break
+            return pd.read_excel(xl, sheet_name=sheet_to_use)
+
     try:
-        df = pd.read_excel(excel_path, engine='openpyxl')
+        df = _read_file(excel_path)
         _excel_cache = df
         _excel_cache_mtime = mtime
         return df
@@ -161,9 +179,10 @@ def _load_excel_dataframe(excel_path):
         temp_copy = excel_path + ".tmp"
         try:
             shutil.copy2(excel_path, temp_copy)
-            df = pd.read_excel(temp_copy, engine='openpyxl')
+            df = _read_file(temp_copy)
             if os.path.exists(temp_copy):
-                os.remove(temp_copy)
+                try: os.remove(temp_copy)
+                except: pass
             _excel_cache = df
             _excel_cache_mtime = mtime
             return df
@@ -235,32 +254,59 @@ def ensure_profile_exists(conn, profile_number, excel_path=None):
         if 'EXP DATE' in df.columns:
             val = row_data.get('EXP DATE')
             import pandas as pd
+            from datetime import datetime
             if not pd.isna(val):
                 try:
                     exp_date = pd.to_datetime(val, errors='coerce').strftime('%Y-%m-%d')
                     if not exp_date or pd.isna(exp_date):
-                        exp_date = 'No Date'
+                        exp_date = str(val)
                 except:
-                    exp_date = 'No Date'
+                    exp_date = str(val)
+
+        # PRIORITY RULE: Expiration date in the past automatically overrides status to 'EXPIRED'
+        if exp_date and exp_date != 'No Date':
+            try:
+                import pandas as pd
+                from datetime import datetime
+                dt = pd.to_datetime(exp_date, errors='coerce')
+                if pd.notna(dt) and dt.date() < datetime.now().date():
+                    status_val = 'EXPIRED'
+            except Exception:
+                pass
                     
         waste_name = str(row_data.get('WASTE NAME', '')).strip()
         
-        voc_percentage = None
+        voc_percentage = 0.0
         if 'VOC #' in df.columns:
             voc_str = str(row_data.get('VOC #', '')).strip()
-            voc_match = re.search(r'(\d+\.?\d*)', voc_str)
-            if voc_match:
-                try:
-                    voc_percentage = float(voc_match.group(1))
-                except:
-                    pass
+            if voc_str.upper() in ['TBD', '?']:
+                voc_percentage = None
+            else:
+                voc_match = re.search(r'(\d+\.?\d*)', voc_str)
+                if voc_match:
+                    try:
+                        voc_percentage = float(voc_match.group(1))
+                    except:
+                        voc_percentage = 0.0
+                else:
+                    voc_percentage = 0.0
                     
         win_code = str(row_data.get('WIN CODE', '')).strip()
         lab_number = str(row_data.get('LAB #', '')).strip()
+        if lab_number.lower() in ['nan', 'none']:
+            lab_number = ''
         haz = str(row_data.get('HAZ', '')).strip()
         rcra = str(row_data.get('RCRA', '')).strip()
         comments = str(row_data.get('COMMENTS', '')).strip()
         
+        # Preserve user-edited CP1/lab_number in SQLite if Excel lab_number is blank
+        if row and row['lab_number'] and str(row['lab_number']).strip() and not lab_number:
+            lab_number = str(row['lab_number']).strip()
+
+        # Preserve user-edited status in SQLite if Excel status is blank/nan
+        if row and row['status'] and str(row['status']).strip() and status_val.lower() in ['', 'nan', 'none']:
+            status_val = str(row['status']).strip()
+
         epa_id = ''
         if 'EPA ID' in df.columns:
             epa_id = str(row_data.get('EPA ID', '')).strip()
@@ -275,6 +321,17 @@ def ensure_profile_exists(conn, profile_number, excel_path=None):
             container_type = 'Bulk Liquid'
         else:
             container_type = 'Bulk Solid'
+
+        # Waste Acceptance Log override check (Waste Acceptance Log is HIGHEST PRIORITY)
+        wa_override = conn.execute('''
+            SELECT expiration_date, status FROM waste_acceptance_log 
+            WHERE TRIM(UPPER(profile_number)) = ? AND COALESCE(is_archived, 0) = 0
+        ''', (clean_profile,)).fetchone()
+        if wa_override:
+            if wa_override['expiration_date'] and str(wa_override['expiration_date']).strip():
+                exp_date = str(wa_override['expiration_date']).strip()
+            if wa_override['status'] in ['Recertified', 'Complete', 'Released', 'ACTIVE']:
+                status_val = 'ACTIVE'
 
         if row:
             conn.execute('''
@@ -332,4 +389,48 @@ def ensure_profile_exists(conn, profile_number, excel_path=None):
                 return conn.execute('SELECT * FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (clean_profile,)).fetchone()
         except Exception as wvi_e:
             print(f"Error querying profile_wvi for {clean_profile}: {wvi_e}")
-        return row if (row and row['status'] != 'NOT FOUND') else None
+        return row if (row and row['status'] != 'NOT FOUND' and 'HISTORIC' not in str(row['generator'] or '').upper()) else None
+
+def auto_sanitize_expired_profiles(conn=None):
+    """
+    Automated Priority Task: Enforces EXPIRED status on all database profiles whose expiration_date has passed.
+    Overrides any legacy or Excel 'ACTIVE' statuses.
+    """
+    import pandas as pd
+    from datetime import datetime
+    
+    close_at_end = False
+    if conn is None:
+        conn = get_db_connection()
+        close_at_end = True
+        
+    try:
+        today_date = datetime.now().date()
+        rows = conn.execute("SELECT profile_number, status, expiration_date FROM profiles WHERE expiration_date IS NOT NULL AND expiration_date != ''").fetchall()
+        
+        expired_profiles = []
+        for r in rows:
+            p_num = r['profile_number']
+            exp_str = str(r['expiration_date']).strip()
+            curr_status = str(r['status']).strip().upper()
+            try:
+                dt = pd.to_datetime(exp_str, errors='coerce')
+                if pd.notna(dt) and dt.date() < today_date:
+                    if curr_status not in ['EXPIRED', 'EXPIRED (AUTO)']:
+                        expired_profiles.append(p_num)
+            except Exception:
+                pass
+
+        if expired_profiles:
+            batch_size = 500
+            for i in range(0, len(expired_profiles), batch_size):
+                batch = expired_profiles[i:i+batch_size]
+                placeholders = ','.join(['?'] * len(batch))
+                conn.execute(f"UPDATE profiles SET status = 'EXPIRED' WHERE profile_number IN ({placeholders})", batch)
+            conn.commit()
+            print(f"Auto-sanitized {len(expired_profiles)} expired profiles in database.")
+    except Exception as e:
+        print(f"Error during auto_sanitize_expired_profiles: {e}")
+    finally:
+        if close_at_end:
+            conn.close()

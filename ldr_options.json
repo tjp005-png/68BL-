@@ -1,0 +1,102 @@
+[
+  {
+    "id": 1,
+    "description": "Not subject to LDR",
+    "certification": "This waste is not restricted as specified in 40 CFR 268 Subpart D."
+  },
+  {
+    "id": 2,
+    "description": "This is subject to LDR.",
+    "certification": "Pursuant to 40 CFR 268.7(a), I hereby notify that this shipment contains waste restricted under 40 CFR Part 268."
+  },
+  {
+    "id": 3,
+    "description": "Alternate Debris Standard",
+    "certification": "This hazardous debris is subject to the Alternate Treatment Standards of 40 CFR 268.45."
+  },
+  {
+    "id": 4,
+    "description": "Meets LDR Standards",
+    "certification": "I certify under penalty of law that I personally have examined and am familiar with the waste through analysis and testing or through knowledge of the waste to support this certification that the waste complies with the treatment standards specified in 40 CFR part 268 subpart D. I believe that the information I submitted is true, accurate, and complete. I am aware that there are significant penalties for submitting a false certification, including the possibility of a fine and imprisonment."
+  },
+  {
+    "id": 5,
+    "description": "Alternate Soil Std-meets std. (with listed and characteristic hazardous waste)",
+    "certification": "This contaminated soil does contain listed hazardous waste and does exhibit a characteristic of hazardous waste and complies with the soil treatment standards as provided by 40 CFR 268.49(c) or the universal treatment standards. I certify under penalty of law that I personally have examined and am familiar with the waste through analysis and testing or through knowledge of the waste to support this certification that the waste complies with the treatment standards specified in 40 CFR part 268 subpart D. I believe that the information I submitted is true, accurate, and complete. I am aware that there are significant penalties for submitting a false certification, including the possibility of a fine and imprisonment."
+  },
+  {
+    "id": 6,
+    "description": "Alternate Soil Std-meets std. (with characteristic hazardous waste only)",
+    "certification": "This contaminated soil does not contain listed hazardous waste and does exhibit a characteristic of hazardous waste and complies with the soil treatment standards as provided by 40 CFR 268.49(c) or the universal treatment standards. I certify under penalty of law that I personally have examined and am familiar with the waste through analysis and testing or through knowledge of the waste to support this certification that the waste complies with the treatment standards specified in 40 CFR part 268 subpart D. I believe that the information I submitted is true, accurate, and complete. I am aware that there are significant penalties for submitting a false certification, including the possibility of a fine and imprisonment."
+  },
+  {
+    "id": 7,
+    "description": "Alternate Soil Std-meets std. (with listed hazardous waste only)",
+    "certification": "This contaminated soil does contain listed hazardous waste and does not exhibit a characteristic of hazardous waste and complies with the soil treatment standards as provided by 40 CFR 268.49(c) or the universal treatment standards. I certify under penalty of law that I personally have examined and am familiar with the waste through analysis and testing or through knowledge of the waste to support this certification that the waste complies with the treatment standards specified in 40 CFR part 268 subpart D. I believe that the information I submitted is true, accurate, and complete. I am aware that there are significant penalties for submitting a false certification, including the possibility of a fine and imprisonment."
+  },
+  {
+    "id": 8,
+    "description": "Alternate Soil Std-does not meet std. (with listed and characteristic hazardous waste)",
+    "certification": "I certify under penalty of law that I personally have examined this contaminated soil and it does contain listed hazardous waste and does exhibit a characteristic of hazardous waste and requires treatment to meet the soil treatment standards as provided by 268.49(c)."
+  },
+  {
+    "id": 9,
+    "description": "Alternate Soil Std-does not meet std. (with listed hazardous waste only)",
+    "certification": "I certify under penalty of law that I personally have examined this contaminated soil and it does contain listed hazardous waste and does not exhibit a characteristic of hazardous waste and requires treatment to meet the soil treatment standards as provided by 268.49(c)."
+  },
+  {
+    "id": 10,
+    "description": "Alternate Soil Std-does not meet std. (with characteristic hazardous waste only)",
+    "certification": "I certify under penalty of law that I personally have examined this contaminated soil and it does not contain listed hazardous waste and does exhibit a characteristic of hazardous waste and requires treatment to meet the soil treatment standards as provided by 268.49(c)."
+  },
+  {
+    "id": 11,
+    "description": "Labpack Alternate Standard",
+    "certification": "This labpack is subject to the treatment standards specified in 40 CFR 268 Subpart D. I certify under penalty of law that I personally have examined and am familiar with the waste and that the lab pack contains only wastes that have not been excluded under appendix IV to 40 CFR part 268 and that this lab pack will be sent to a combustion facility in compliance with the alternative treatment standards for lab packs at 40 CFR 268.42(c). I am aware that there are significant penalties for submitting a false certification, including the possibility of fine or imprisonment."
+  },
+  {
+    "id": 12,
+    "description": "Subject to a variance or exemption",
+    "certification": "This waste is not prohibited from land disposal and is subject to a deadline extension or variance described as follows (including description of the variance and applicable dates):"
+  },
+  {
+    "id": 13,
+    "description": "Partially meets LDR standards",
+    "certification": "I certify under penalty of law that I personally have examined and am familiar with the waste through analysis and testing or through knowledge of the waste to support this certification that the waste complies with the treatment standards specified in 40 CFR Part 268 Subpart D. I believe that the information I submitted is true, accurate, and complete. I am aware that there are significant penalties for submitting a false certification, including the possibiity of a fine and imprisonment. This waste partially meets treatment standards and the constituents which require further treatment are identified in the previous section:"
+  },
+  {
+    "id": 14,
+    "description": "Treatment Technology & Process certification",
+    "certification": "I certify under penalty of law that I have personally examined and am familiar with the treatment technology and operation of the treatment process used to support this certification. Based on my inquiry of those individuals immediately responsible for obtaining this information, I believe that the treatment process has been operated and maintained properly so as to comply with the treatment standards specified in 40 CFR 268.40 without impermissible dilution of the prohibited waste. I am aware there are significant penalties for submitting a false certification, including the possibility of fine and imprisonment."
+  },
+  {
+    "id": 15,
+    "description": "Contaminated Soil Treatment Tech. And Process Cert.",
+    "certification": "I certify under penalty of law that I have personally examined and am familiar with the treatment technology and operation of the treatment process used to support this certification and believe that it has been maintained and operated properly so as to comply with treatment standards specified in 40 CFR 268.49 without impermissible dilution of the prohibited wastes. I am aware there are significant penalties for submitting a false certification, including the possibility of fine and imprisonment."
+  },
+  {
+    "id": 16,
+    "description": "Concentration-based Certification for combustion residues",
+    "certification": "I certify under penalty of law that I have personally examined and am familiar with the treatment technology and operation of the treatment process used to support this certification. Based on my inquiry of those individuals immediately responsible for obtaining this information, I believe that the nonwastewater organic constituents have been treated by combustion units as specified in 268.42, Table 1. I have been unable to detect the nonwastewater organic constituents, despite having used best good-faith efforts to analyze for such constituents. I am aware there are significant penalties for submitting a false certification, including the possibility of fine and imprisonment."
+  },
+  {
+    "id": 17,
+    "description": "Waste treated to remove characteristic, but not UHCs",
+    "certification": "I certify under penalty of law that the waste has been treated in accordance with the requirements of 40 CFR 268.40 or 268.49 to remove the hazardous characteristic. This decharacterized waste contains underlying hazardous constituents that require further treatment to meet treatment standards. I am aware that there are significant penalties for submitting a false certification, including the possibility of fine and imprisonment."
+  },
+  {
+    "id": 18,
+    "description": "Waste treated to remove characteristic and UHCs",
+    "certification": "I certify under penalty of law that the waste has been treated in accordance with the requirements of 40 CFR 268.40 to remove the hazardous characteristic and that underlying hazardous constituents, as defined in 268.2(I) have been treated on-site to meet the 268.48 Universal Treatment Standards. I am aware that there are significant penalties for submitting a false certification, including the possibility of fine and imprisonment."
+  },
+  {
+    "id": 19,
+    "description": "Treated Debris under 268.45",
+    "certification": "I certify under penalty of law that the debris has been treated in accordance with the requirements of 40 CFR 268.45. I am aware that there are significant penalties for making false certification, including the possibility of fine and imprisonment."
+  },
+  {
+    "id": 20,
+    "description": "Generator chooses not to make the determination of whether the waste must be treated.",
+    "certification": "This hazardous waste may or may not be subject to the LDR treatment standards. The treatment facility must make the determination."
+  }
+]

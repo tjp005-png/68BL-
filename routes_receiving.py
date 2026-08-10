@@ -82,52 +82,52 @@ def get_profile_details(profile_number):
         ensure_profile_exists(conn, clean_profile)
         profile = conn.execute('SELECT * FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (clean_profile,)).fetchone()
     
-    if profile and profile['status'] != 'NOT FOUND':
-        p_dict = dict(profile)
-        
-        voc_raw = p_dict.get('voc_percentage')
-        if voc_raw is None or str(voc_raw).strip().upper() in ['?', '', 'NONE', 'TBD', 'NAN', 'NULL']:
-            p_dict['voc_percentage'] = 0.0
-        else:
-            try:
-                p_dict['voc_percentage'] = float(voc_raw)
-            except (ValueError, TypeError):
-                p_dict['voc_percentage'] = 0.0
+        if profile and profile['status'] != 'NOT FOUND' and 'HISTORIC' not in str(profile['generator'] or '').upper():
+            p_dict = dict(profile)
             
-        win_raw = str(p_dict.get('win_code', '') or '').strip()
-        if not win_raw or win_raw.upper() in ['NONE', 'N/A', 'NULL', '']:
-            wvi = conn.execute('SELECT unloading_instructions, handling_instruction, sample_procedures FROM profile_wvi WHERE TRIM(UPPER(profile)) = ?', (clean_profile,)).fetchone()
-            if wvi:
-                unloading = str(wvi['unloading_instructions'] or '').upper()
-                handling = str(wvi['handling_instruction'] or '').upper()
-                sample = str(wvi['sample_procedures'] or '').upper()
-                if 'ASBESTOS' in handling or 'ASBESTOS' in unloading:
-                    win_raw = 'CNIA'
-                elif 'UNIT 31' in unloading or 'COLIWASA' in sample:
-                    win_raw = 'CBPS'
-                elif 'BAYS' in unloading or 'RED FOLDER' in handling:
-                    win_raw = 'CCS'
+            voc_raw = p_dict.get('voc_percentage')
+            if voc_raw is None or str(voc_raw).strip().upper() in ['?', '', 'NONE', 'TBD', 'NAN', 'NULL']:
+                p_dict['voc_percentage'] = 0.0
+            else:
+                try:
+                    p_dict['voc_percentage'] = float(voc_raw)
+                except (ValueError, TypeError):
+                    p_dict['voc_percentage'] = 0.0
+                
+            win_raw = str(p_dict.get('win_code', '') or '').strip()
+            if not win_raw or win_raw.upper() in ['NONE', 'N/A', 'NULL', '']:
+                wvi = conn.execute('SELECT unloading_instructions, handling_instruction, sample_procedures FROM profile_wvi WHERE TRIM(UPPER(profile)) = ?', (clean_profile,)).fetchone()
+                if wvi:
+                    unloading = str(wvi['unloading_instructions'] or '').upper()
+                    handling = str(wvi['handling_instruction'] or '').upper()
+                    sample = str(wvi['sample_procedures'] or '').upper()
+                    if 'ASBESTOS' in handling or 'ASBESTOS' in unloading:
+                        win_raw = 'CNIA'
+                    elif 'UNIT 31' in unloading or 'COLIWASA' in sample:
+                        win_raw = 'CBPS'
+                    elif 'BAYS' in unloading or 'RED FOLDER' in handling:
+                        win_raw = 'CCS'
+                    else:
+                        win_raw = 'CBP'
                 else:
                     win_raw = 'CBP'
-            else:
-                win_raw = 'CBP'
-        p_dict['win_code'] = win_raw
+            p_dict['win_code'] = win_raw
 
-        exp_raw = str(p_dict.get('expiration_date', '')).strip().lower()
-        if exp_raw == 'none':
-            p_dict['expiration_date'] = ''
+            exp_raw = str(p_dict.get('expiration_date', '')).strip().lower()
+            if exp_raw == 'none':
+                p_dict['expiration_date'] = ''
+                
+            notes = p_dict.get('special_handling') or ""
+            notes = re.sub(r'(?i)\bNOT CERCLA\b', '', notes)
+            notes = re.sub(r'(?i)\bCERCLA\b', '', notes)
+            notes = re.sub(r'^[,\s]+|[,\s]+$', '', notes) 
+            p_dict['special_handling'] = notes.strip()
             
-        notes = p_dict.get('special_handling') or ""
-        notes = re.sub(r'(?i)\bNOT CERCLA\b', '', notes)
-        notes = re.sub(r'(?i)\bCERCLA\b', '', notes)
-        notes = re.sub(r'^[,\s]+|[,\s]+$', '', notes) 
-        p_dict['special_handling'] = notes.strip()
-        
-        gen = p_dict.get('generator')
-        p_dict['generator'] = str(gen).strip() if gen and str(gen).strip().lower() != 'none' else ''
+            gen = p_dict.get('generator')
+            p_dict['generator'] = str(gen).strip() if gen and str(gen).strip().lower() != 'none' else ''
+                
+            return jsonify(p_dict)
             
-        return jsonify(p_dict)
-        
     return jsonify({'error': 'Profile not found'}), 404
 
 @receiving_bp.route('/api/check_truck_duplicate')

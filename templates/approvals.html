@@ -372,7 +372,7 @@
                                 <span class="me-2">📝</span> Master Profile Management
                             </h5>
                             <div class="d-flex gap-2">
-                                <button id="formSyncExcelBtn" class="btn btn-sm btn-light text-primary py-1 fw-bold border-secondary small d-none" onclick="syncActiveProfile()">🔄 Sync Master Profile</button>
+                                <button id="profileAuditExportBtn" class="btn btn-sm btn-light text-success py-1 fw-bold border-secondary small d-none" onclick="exportProfileAuditSummary()">📑 Export Profile Audit</button>
                                 <button id="deleteProfileBtn" class="btn btn-sm btn-light text-danger py-1 fw-bold border-secondary small d-none" onclick="deleteCurrentProfile()">🗑️ Delete</button>
                                 <button id="clearFormBtn" class="btn btn-sm btn-light py-1 fw-bold border-secondary small d-none" onclick="resetEntryForm()">New Profile</button>
                             </div>
@@ -537,8 +537,11 @@
                                         <input type="text" class="form-control border-secondary text-uppercase" id="form-win" name="win_code" placeholder="e.g. CBP, CNO">
                                     </div>
                                     <div class="col-4">
-                                        <label class="form-label text-muted small fw-bold mb-1 text-danger">Total VOC (ppm)</label>
-                                        <input type="number" step="0.01" class="form-control border-danger bg-light" id="form-voc" name="voc_percentage" value="0">
+                                        <label class="form-label text-muted small fw-bold mb-1 text-danger d-flex justify-content-between">
+                                            <span>Total VOC (ppm)</span>
+                                            <a href="javascript:void(0)" onclick="document.getElementById('form-voc').value='TBD'" class="text-danger small text-decoration-none fw-bold" title="Set VOC to TBD">Set TBD</a>
+                                        </label>
+                                        <input type="text" class="form-control border-danger bg-light" id="form-voc" name="voc_percentage" placeholder="e.g. 0 or TBD" value="0">
                                     </div>
                                     <div class="col-4">
                                         <label class="form-label text-muted small fw-bold mb-1">Approval Status</label>
@@ -634,8 +637,8 @@
                             <span class="fw-bold text-muted small">Lab Number: <span id="dashLab" class="text-dark font-heading">---</span></span>
                             <span class="fw-bold text-muted small ms-auto d-flex align-items-center gap-2">
                                 <span>Master Profile Date: <span id="dashSyncTime" class="text-dark">---</span></span>
-                                <button id="btnSyncProfile" class="btn btn-xs btn-outline-primary fw-bold py-0" style="font-size: 0.75rem;" onclick="syncActiveProfile()">
-                                    🔄 Sync Master Profile
+                                <button id="btnSyncProfile" class="btn btn-xs btn-outline-primary fw-bold py-0" style="font-size: 0.75rem;" onclick="syncActiveProfile()" title="Fetch fresh profile data from master records (overwrites unsaved form edits)">
+                                    🔄 Sync from Master Profile
                                 </button>
                             </span>
                         </div>
@@ -761,12 +764,13 @@
                                                 <tr>
                                                     <th>Date</th>
                                                     <th>Manifest</th>
-                                                    <th>Load #</th>
-                                                    <th>Weight (lbs)</th>
+                                                    <th>Load / Ticket #</th>
+                                                    <th class="text-end">Weight</th>
+                                                    <th>Source</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="historyTableBody" class="small">
-                                                <tr><td colspan="4" class="text-center text-muted py-4">No historical shipments</td></tr>
+                                                <tr><td colspan="5" class="text-center text-muted py-4">No historical shipments</td></tr>
                                             </tbody>
                                         </table>
                                     </div>
@@ -1260,7 +1264,7 @@
             document.getElementById('dashColor').innerText = p.color || '---';
             document.getElementById('dashPh').innerText = p.ph_range || '---';
             document.getElementById('dashFp').innerText = p.flash_point || '---';
-            document.getElementById('dashVoc').innerText = p.voc_percentage !== undefined ? p.voc_percentage : '---';
+            document.getElementById('dashVoc').innerText = (p.voc_percentage !== null && p.voc_percentage !== undefined && String(p.voc_percentage).trim() !== '') ? p.voc_percentage : 'TBD';
             document.getElementById('dashCyanide').innerText = p.cyanide || '---';
             document.getElementById('dashSulfide').innerText = p.sulfide || '---';
             document.getElementById('dashFreeLiquids').innerText = p.free_liquids || '---';
@@ -1302,7 +1306,7 @@
             document.getElementById('form-state').value = p.physical_appearance || '';
             document.getElementById('form-ph').value = p.ph_range || '';
             document.getElementById('form-fp').value = p.flash_point || '';
-            document.getElementById('form-voc').value = p.voc_percentage || 0;
+            document.getElementById('form-voc').value = (p.voc_percentage !== null && p.voc_percentage !== undefined && String(p.voc_percentage).trim() !== '') ? p.voc_percentage : 'TBD';
             document.getElementById('form-handling').value = p.special_handling || '';
             if (document.getElementById('form-color')) { document.getElementById('form-color').value = p.color || ''; }
             if (document.getElementById('form-expiration')) { document.getElementById('form-expiration').value = p.expiration_date || ''; }
@@ -1353,11 +1357,11 @@
             toggleTreatmentRecipe();
             toggleLdrOption();
 
-            document.getElementById('form-profile').readOnly = true;
+            document.getElementById('form-profile').readOnly = false;
             document.getElementById('clearFormBtn').classList.remove('d-none');
             document.getElementById('deleteProfileBtn').classList.remove('d-none');
-            if (document.getElementById('formSyncExcelBtn')) {
-                document.getElementById('formSyncExcelBtn').classList.remove('d-none');
+            if (document.getElementById('profileAuditExportBtn')) {
+                document.getElementById('profileAuditExportBtn').classList.remove('d-none');
             }
             document.getElementById('formSubmitBtn').innerHTML = '<span>🔄 Save Changes / Update Profile</span>';
 
@@ -1402,8 +1406,8 @@
             document.getElementById('form-profile').readOnly = false;
             document.getElementById('clearFormBtn').classList.add('d-none');
             document.getElementById('deleteProfileBtn').classList.add('d-none');
-            if (document.getElementById('formSyncExcelBtn')) {
-                document.getElementById('formSyncExcelBtn').classList.add('d-none');
+            if (document.getElementById('profileAuditExportBtn')) {
+                document.getElementById('profileAuditExportBtn').classList.add('d-none');
             }
             document.getElementById('formSubmitBtn').innerHTML = '<span>💾 Save to Master Registry</span>';
             
@@ -1419,6 +1423,15 @@
                 return;
             }
             window.location.href = '/api/profile/' + encodeURIComponent(prof) + '/wvi';
+        }
+
+        function exportProfileAuditSummary() {
+            const prof = currentProfile || document.getElementById('form-profile').value.trim();
+            if(!prof) {
+                alert("Please select or save a profile first.");
+                return;
+            }
+            window.open('/api/profile/' + encodeURIComponent(prof) + '/audit_export?format=html', '_blank');
         }
 
         function deleteCurrentProfile() {
@@ -1451,22 +1464,28 @@
 
         function loadHistory() {
             const tbody = document.getElementById('historyTableBody');
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">Loading historical data...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Loading historical data...</td></tr>';
             
-            fetch(`/api/profile/${currentProfile}/history?_t=${Date.now()}`)
+            fetch(`/api/profile/${encodeURIComponent(currentProfile)}/history?_t=${Date.now()}`)
                 .then(r => r.json())
                 .then(data => {
                     if (data.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">No historical shipments found for this profile.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No historical shipments found for this profile.</td></tr>';
                         return;
                     }
                     tbody.innerHTML = '';
                     data.forEach(load => {
+                        const isYellow = (load.load_source && load.load_source.includes('Yellow'));
+                        const badge = isYellow
+                            ? `<span class="badge bg-warning text-dark me-1" title="Yellow Entry Ticket">🟨 Yellow</span>`
+                            : `<span class="badge bg-primary me-1" title="Drum Trailer Upload">📦 Drum</span>`;
+                        
                         const row = `<tr>
                             <td class="text-muted fw-bold">${load.import_date || '---'}</td>
                             <td class="fw-semibold text-dark">${load.manifest || '---'}</td>
                             <td>${load.job_id || '---'}</td>
-                            <td class="text-end fw-bold">${load.weight ? parseFloat(load.weight).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0}) : '0'}</td>
+                            <td class="text-end fw-bold">${load.weight ? parseFloat(load.weight).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2}) : '0'}</td>
+                            <td>${badge}</td>
                         </tr>`;
                         tbody.innerHTML += row;
                     });
@@ -2131,11 +2150,11 @@
 
             // 1. Verification Procedures
             let verProc = p.verification_procedures;
-            if (!verProc) {
+            if (!verProc || verProc.toUpperCase().includes('FINGER')) {
                 if (winCode === 'CNIA' || isMonolith) {
                     verProc = 'Visual';
                 } else {
-                    verProc = 'Refer to Standard Fingerprint Testing';
+                    verProc = 'VERIFY FINGERPRINT RESULTS AND PHYSICAL DESCRIPTION WITH PROFILE';
                 }
             }
             if (document.getElementById('dashVerProc')) {

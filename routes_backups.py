@@ -202,25 +202,44 @@ def run_restore_logic(filename):
         return False, str(e)
 
 def start_backup_scheduler(app):
-    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
-        def scheduler_loop():
-            # Wait 10 seconds on startup to make sure system is fully initialized, then run initial backup
-            time.sleep(10)
-            while True:
-                with app.app_context():
-                    try:
-                        success, result = run_backup_logic()
-                        if success:
-                            app.logger.info(f"Automatic startup/periodic backup created: {result}")
-                        else:
-                            app.logger.error(f"Automatic backup failed: {result}")
-                    except Exception as e:
-                        app.logger.error(f"Error running automatic backup: {e}")
-                # Sleep for 1 hour between automated periodic backups
-                time.sleep(60 * 60)
-                  
-        t = threading.Thread(target=scheduler_loop, daemon=True)
-        t.start()
+    # Prevent duplicate background threads in Flask debug auto-reloader mode
+    if app.debug and os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+        return
+    if getattr(app, '_background_scheduler_started', False):
+        return
+    app._background_scheduler_started = True
+
+    def scheduler_loop():
+        # Wait 5 seconds on startup to make sure system is fully initialized
+        time.sleep(5)
+        last_digest_date = None
+        while True:
+            with app.app_context():
+                try:
+                    success, result = run_backup_logic()
+                    if success:
+                        app.logger.info(f"Automatic startup/periodic backup created: {result}")
+                    else:
+                        app.logger.error(f"Automatic backup failed: {result}")
+                except Exception as e:
+                    app.logger.error(f"Error running automatic backup: {e}")
+
+                # Check for 4:45 PM (16:45) Daily LAS Summary Digest trigger
+                try:
+                    now = datetime.now()
+                    today_str = now.strftime('%Y-%m-%d')
+                    if now.hour == 16 and now.minute >= 45 and last_digest_date != today_str:
+                        from email_utils import generate_and_send_las_digest
+                        generate_and_send_las_digest(target_date=today_str, recipient='pereira.taylor@cleanharbors.com')
+                        last_digest_date = today_str
+                except Exception as digest_err:
+                    app.logger.error(f"Error running 4:45PM LAS digest: {digest_err}")
+
+            # Sleep for 5 minutes between checks
+            time.sleep(300)
+              
+    t = threading.Thread(target=scheduler_loop, daemon=True)
+    t.start()
 
 @backups_bp.route('/backups/login', methods=['GET', 'POST'])
 def login():
@@ -291,6 +310,29 @@ def create_backup():
     else:
         flash(f"Failed to create database backup: {result}", "danger")
     return redirect(url_for('backups_bp.backups_dashboard'))
+
+@backups_bp.route('/api/send_las_digest', methods=['POST', 'GET'])
+def api_send_las_digest():
+    target_date = request.args.get('date') or request.form.get('date')
+    recipient = request.args.get('recipient') or request.form.get('recipient') or 'pereira.taylor@cleanharbors.com'
+    from email_utils import generate_and_send_las_digest
+    res = generate_and_send_las_digest(target_date=target_date, recipient=recipient)
+    if request.is_json or request.args.get('format') == 'json':
+        return jsonify({'success': res, 'message': 'LAS summary digest sent.' if res else 'Failed or logged to fallback.'})
+    
+    msg_type = "success" if res else "info"
+    msg_text = "LAS summary digest email sent successfully." if res else "LAS summary digest logged to fallback log (email_alerts.log)."
+    flash(msg_text, msg_type)
+    
+    referrer = request.referrer
+    if referrer and '/yellow_entry' in referrer:
+        redirect_url = referrer
+    elif target_date:
+        redirect_url = url_for('chemist_bp.yellow_entry', date=target_date)
+    else:
+        redirect_url = request.referrer or url_for('backups_bp.backups_dashboard')
+        
+    return redirect(redirect_url)
 
 @backups_bp.route('/backups/download/<filename>')
 @require_auth

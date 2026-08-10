@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Yellow Entry - Post-Ticket Data Entry</title>
+    <title>Yellow Entry Log</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
     <style>
@@ -30,9 +30,47 @@
             background-color: #212529;
             color: #ffc107;
             text-transform: uppercase;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            box-shadow: inset 0 -2px 0 #ffc107;
         }
         .table-yellow td {
             text-transform: uppercase;
+        }
+        .yellow-log-scroll-container {
+            max-height: calc(100vh - 220px);
+            min-height: 420px;
+            overflow-y: auto;
+            overflow-x: auto;
+        }
+        .sticky-form-col {
+            position: sticky;
+            top: 1rem;
+        }
+        /* Custom scrollbar */
+        .yellow-log-scroll-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .yellow-log-scroll-container::-webkit-scrollbar-track {
+            background: #e9ecef;
+            border-radius: 4px;
+        }
+        .yellow-log-scroll-container::-webkit-scrollbar-thumb {
+            background: #ffc107;
+            border-radius: 4px;
+        }
+        .yellow-log-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: #e0a800;
+        }
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+        th.sortable:hover {
+            background-color: #343a40 !important;
+            color: #ffffff !important;
         }
     </style>
 </head>
@@ -44,8 +82,8 @@
         <div class="card shadow-sm mb-4 border-0">
             <div class="card-header yellow-header d-flex justify-content-between align-items-center py-3">
                 <div>
-                    <h2 class="mb-0 fw-bold">🟨 YELLOW ENTRY — Post-Ticket Data Entry Log</h2>
-                    <small class="text-light opacity-75">Data Entry Stop-Gap for Completed / Ticketed Out Trucks</small>
+                    <h2 class="mb-0 fw-bold">🟨 YELLOW ENTRY LOG</h2>
+                    <small class="text-light opacity-75">Data Entry Log for Ticketed Loads</small>
                 </div>
                 <div>
                     <a href="/" class="btn btn-outline-light me-2 fw-bold">🏠 Hub</a>
@@ -57,13 +95,22 @@
         <div class="row">
             
             <!-- Left Side: Entry Form -->
-            <div class="col-lg-5 col-xl-4 mb-4">
+            <div class="col-lg-5 col-xl-4 mb-4 sticky-form-col">
                 <div class="card shadow-sm border-0 card-yellow-border">
-                    <div class="card-header bg-dark text-white fw-bold py-2 fs-5 text-warning">
-                        ➕ Add Post-Ticket Load Entry
+                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2 fs-5 text-warning">
+                        <span>➕ Add Yellow Entry</span>
+                        <button type="button" class="btn btn-sm btn-outline-warning text-warning fw-bold py-0 px-2" style="font-size: 0.75rem;" onclick="copyPreviousTicketInfo()" title="Copy Profile, Unit, Grid from last entered ticket">
+                            📋 Copy Previous Ticket
+                        </button>
                     </div>
                     <div class="card-body p-4">
+                        {% if error_msg %}
+                            <div class="alert alert-danger py-2 px-3 small mb-3 shadow-sm fw-bold border-2 border-danger">
+                                ⚠️ {{ error_msg }}
+                            </div>
+                        {% endif %}
                         <form action="/submit_yellow_entry" method="POST" id="yellowEntryForm">
+                            <input type="hidden" name="sort_mode" value="{{ sort_mode }}">
                             
                             <div class="mb-3">
                                 <label class="form-label text-dark small fw-bold mb-1">DATE RECEIVED <span class="text-danger">*</span></label>
@@ -108,15 +155,15 @@
                                 <input type="number" step="0.001" class="form-control border-danger fw-bold" name="specific_gravity" id="specific_gravity" placeholder="e.g. 1.05">
                                 <small class="text-danger fw-bold d-block mt-1">⚠️ Required for Bulk Liquid (CBPS / CNOS) profiles</small>
                             </div>
-
+                            
                             <div class="row mb-3">
                                 <div class="col-6">
                                     <label class="form-label text-dark small fw-bold mb-1">UNIT</label>
-                                    <input type="text" class="form-control border-secondary text-uppercase fw-bold" name="cell_location" placeholder="e.g. U31">
+                                    <input type="text" class="form-control border-secondary text-uppercase fw-bold" name="cell_location" id="cell_location" placeholder="e.g. 31 or STU">
                                 </div>
                                 <div class="col-6">
-                                    <label class="form-label text-dark small fw-bold mb-1">GRID</label>
-                                    <input type="text" class="form-control border-secondary text-uppercase fw-bold" name="grid_location" placeholder="e.g. A-4">
+                                    <label class="form-label text-dark small fw-bold mb-1">GRID / BAY</label>
+                                    <input type="text" class="form-control border-secondary text-uppercase fw-bold" name="grid_location" id="grid_location" placeholder="e.g. A-4 or Bay 1">
                                 </div>
                             </div>
 
@@ -131,44 +178,91 @@
             <!-- Right Side: Today's Yellow Entries Log -->
             <div class="col-lg-7 col-xl-8">
                 <div class="card shadow-sm border-0 card-yellow-border">
-                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
+                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2 flex-wrap gap-2">
                         <div class="fw-bold fs-5 text-warning">
                             📋 Yellow Entries Log — {{ selected_date }}
+                            <span class="badge bg-warning text-dark ms-2 fs-6">{{ logs|length }} Tickets</span>
                         </div>
-                        <div class="d-flex align-items-center gap-2">
-                            <a href="/export?date={{ selected_date }}" class="btn btn-sm btn-outline-warning text-warning fw-bold me-1">📥 Export VOC Excel</a>
-                            <label class="text-light small fw-bold mb-0">Filter Date:</label>
-                            <input type="date" class="form-control form-control-sm border-warning text-dark fw-bold" value="{{ selected_date }}" onchange="location.href='/yellow_entry?date=' + this.value" style="width: 150px;">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <a href="/export?date={{ selected_date }}" class="btn btn-sm btn-outline-warning text-warning fw-bold me-1" title="Excel file outputs in sorted Ticket # order">📥 Export VOC Excel</a>
+                            <label class="text-light small fw-bold mb-0">Date:</label>
+                            <input type="date" class="form-control form-control-sm border-warning text-dark fw-bold" value="{{ selected_date }}" onchange="location.href='/yellow_entry?date=' + this.value" style="width: 135px;">
                         </div>
                     </div>
                     <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle table-yellow text-uppercase mb-0">
+                        {% set untested_list = logs | selectattr('is_untested_las') | list %}
+                        {% if untested_list | length > 0 %}
+                            <div class="alert alert-warning border-0 rounded-0 mb-0 py-2 px-3 fw-bold d-flex justify-content-between align-items-center shadow-sm">
+                                <span>⚠️ ATTENTION: {{ untested_list | length }} Untested LAS load(s) received today waiting for lab/approval updates!</span>
+                                <a href="/api/send_las_digest?date={{ selected_date }}" class="btn btn-sm btn-outline-dark fw-bold ms-2" title="Send LAS loads summary notification email to Lab Management">📧 Notify LAB Management</a>
+                            </div>
+                        {% endif %}
+                        <div class="table-responsive yellow-log-scroll-container">
+                            <table class="table table-hover align-middle table-yellow text-uppercase mb-0" id="yellowLogTable">
                                 <thead>
                                     <tr>
-                                        <th>Ticket #</th>
-                                        <th>Manifest #</th>
-                                        <th>Profile #</th>
+                                        <th class="sortable" onclick="sortYellowTable(0, true)" title="Click to sort by Ticket #">
+                                            Ticket # <span class="sort-icon small text-warning me-1">↕</span>
+                                        </th>
+                                        <th class="sortable" onclick="sortYellowTable(1, false)" title="Click to sort by Manifest #">
+                                            Manifest # <span class="sort-icon small text-warning me-1">↕</span>
+                                        </th>
+                                        <th class="sortable" onclick="sortYellowTable(2, false)" title="Click to sort by Profile #">
+                                            Profile # <span class="sort-icon small text-warning me-1">↕</span>
+                                        </th>
                                         <th>Generator</th>
-                                        <th class="text-end">Net Weight (Lbs)</th>
-                                        <th class="text-end">Tons</th>
-                                        <th class="text-center">VOC PPM</th>
+                                        <th class="text-end sortable" onclick="sortYellowTable(4, true)" title="Click to sort by Net Weight">
+                                            Net Weight <span class="sort-icon small text-warning me-1">↕</span>
+                                        </th>
+                                        <th class="text-end sortable" onclick="sortYellowTable(5, true)" title="Click to sort by Tons">
+                                            Tons <span class="sort-icon small text-warning me-1">↕</span>
+                                        </th>
+                                        <th class="text-center sortable" onclick="sortYellowTable(6, true)" title="Click to sort by VOC PPM">
+                                            VOC PPM <span class="sort-icon small text-warning me-1">↕</span>
+                                        </th>
                                         <th class="text-center">SG</th>
                                         <th class="text-center">Unit</th>
-                                        <th class="text-center">Grid</th>
+                                        <th class="text-center">Grid / Bay</th>
                                         <th class="text-center">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% if logs %}
                                         {% for log in logs %}
-                                            <tr>
-                                                <td class="fw-bold text-dark">{{ log.truck_id or 'N/A' }}</td>
-                                                <td class="fw-bold text-primary">{{ log.manifest_number }}</td>
-                                                <td class="fw-bold font-monospace">{{ log.profile_number }}</td>
+                                            <tr class="{% if log.test_status == 'VOID' %}table-secondary text-muted opacity-75{% endif %}" data-profile="{{ log.profile_number or '' }}" data-manifest="{{ log.manifest_number or '' }}" data-unit="{{ log.cell_location or '' }}" data-grid="{{ log.grid_location or '' }}">
+                                                <td class="fw-bold text-dark">
+                                                    {% if log.test_status == 'VOID' %}
+                                                        <span class="badge bg-danger text-white me-1" style="font-size: 0.7rem;">🚫 VOID</span><s>{{ log.truck_id or 'N/A' }}</s>
+                                                    {% else %}
+                                                        {{ log.truck_id or 'N/A' }}
+                                                    {% endif %}
+                                                </td>
+                                                <td class="fw-bold text-primary">
+                                                    {% if log.test_status == 'VOID' %}<s>{{ log.manifest_number }}</s>{% else %}{{ log.manifest_number }}{% endif %}
+                                                </td>
+                                                <td class="fw-bold font-monospace">
+                                                    {% if log.test_status == 'VOID' %}<s>{{ log.profile_number }}</s>{% else %}{{ log.profile_number }}{% endif %}
+                                                    {% if log.is_untested_las %}
+                                                        <span class="badge bg-warning text-dark border border-dark shadow-sm ms-1" style="font-size: 0.75rem;" title="Received at scale, but profile testing or Waste Acceptance approval update is pending!">
+                                                            ⚠️ UNTESTED LAS
+                                                        </span>
+                                                    {% endif %}
+                                                </td>
                                                 <td class="small text-truncate" style="max-width: 180px;" title="{{ log.generator or '' }}">{{ log.generator or '---' }}</td>
-                                                <td class="text-end fw-bold">{{ "{:,.0f}".format(log.gross_weight or 0) }} lbs</td>
-                                                <td class="text-end fw-bold text-success">{{ "{:,.2f}".format((log.gross_weight or 0) / 2000.0) }} T</td>
+                                                <td class="text-end fw-bold">
+                                                    {% if log.test_status == 'VOID' %}
+                                                        <span class="text-muted text-decoration-line-through">{{ "{:,.0f}".format(log.gross_weight or 0) }} lbs</span>
+                                                    {% else %}
+                                                        {{ "{:,.0f}".format(log.gross_weight or 0) }} lbs
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-end fw-bold text-success">
+                                                    {% if log.test_status == 'VOID' %}
+                                                        <span class="text-muted text-decoration-line-through">{{ "{:,.2f}".format((log.gross_weight or 0) / 2000.0) }} T</span>
+                                                    {% else %}
+                                                        {{ "{:,.2f}".format((log.gross_weight or 0) / 2000.0) }} T
+                                                    {% endif %}
+                                                </td>
                                                 <td class="text-center">
                                                     {% if log.measured_voc is not none %}
                                                         <span class="badge {% if log.measured_voc >= 50 %}bg-danger{% else %}bg-secondary{% endif %}">{{ log.measured_voc }} ppm</span>
@@ -198,9 +292,23 @@
                                                     {% endif %}
                                                 </td>
                                                 <td class="text-center text-nowrap">
-                                                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 fw-bold me-1" style="font-size: 0.75rem;" onclick='openEditYellowModal({{ log | tojson }})'>✏️ Edit</button>
-                                                    <form action="/delete_yellow_entry/{{ log.id }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete ticket {{ log.truck_id or log.manifest_number }}?');">
+                                                    {% if log.test_status == 'VOID' %}
+                                                        <form action="/void_yellow_entry/{{ log.id }}" method="POST" class="d-inline" onsubmit="return confirm('Restore/un-void ticket {{ log.truck_id or log.manifest_number }}?');">
+                                                            <input type="hidden" name="date_received" value="{{ selected_date }}">
+                                                            <input type="hidden" name="sort_mode" value="{{ sort_mode }}">
+                                                            <button type="submit" class="btn btn-xs btn-outline-success py-0 px-2 fw-bold me-1" style="font-size: 0.75rem;" title="Restore Ticket">🔄 Un-Void</button>
+                                                        </form>
+                                                    {% else %}
+                                                        <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 fw-bold me-1" style="font-size: 0.75rem;" onclick='openEditYellowModal({{ log | tojson }})'>✏️ Edit</button>
+                                                        <form action="/void_yellow_entry/{{ log.id }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to VOID ticket {{ log.truck_id or log.manifest_number }}? It will remain in the log marked as VOID.');">
+                                                            <input type="hidden" name="date_received" value="{{ selected_date }}">
+                                                            <input type="hidden" name="sort_mode" value="{{ sort_mode }}">
+                                                            <button type="submit" class="btn btn-xs btn-outline-warning text-dark py-0 px-2 fw-bold me-1" style="font-size: 0.75rem;" title="Mark Ticket as Void">🚫 Void</button>
+                                                        </form>
+                                                    {% endif %}
+                                                    <form action="/delete_yellow_entry/{{ log.id }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to permanently delete ticket {{ log.truck_id or log.manifest_number }}?');">
                                                         <input type="hidden" name="date_received" value="{{ selected_date }}">
+                                                        <input type="hidden" name="sort_mode" value="{{ sort_mode }}">
                                                         <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-2 fw-bold" style="font-size: 0.75rem;">🗑️ Delete</button>
                                                     </form>
                                                 </td>
@@ -208,7 +316,7 @@
                                         {% endfor %}
                                     {% else %}
                                         <tr>
-                                            <td colspan="8" class="text-center text-muted py-4 fs-6">
+                                            <td colspan="11" class="text-center text-muted py-4 fs-6">
                                                 No Yellow Entry tickets recorded for {{ selected_date }}. Use the form to add a ticket.
                                             </td>
                                         </tr>
@@ -227,8 +335,41 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
     <script>
+        let globalTomSelect = null;
+        let currentSortColumn = -1;
+        let isAscending = true;
+
+        function toggleGridForUnit(unitInputId, gridInputId) {
+            const unitEl = document.getElementById(unitInputId);
+            const gridEl = document.getElementById(gridInputId);
+            if (!unitEl || !gridEl) return;
+
+            const unitVal = (unitEl.value || '').toString().trim().toUpperCase();
+            if (unitVal === '31' || unitVal === 'U31') {
+                gridEl.value = '';
+                gridEl.disabled = true;
+                gridEl.placeholder = 'N/A (Unit 31 - No Grid)';
+                gridEl.classList.add('bg-light', 'text-muted');
+            } else {
+                gridEl.disabled = false;
+                gridEl.placeholder = 'e.g. A-4 or Bay 1';
+                gridEl.classList.remove('bg-light', 'text-muted');
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
-            new TomSelect('#profile-search', {
+            const cellInput = document.getElementById('cell_location');
+            if (cellInput) {
+                cellInput.addEventListener('input', () => toggleGridForUnit('cell_location', 'grid_location'));
+                toggleGridForUnit('cell_location', 'grid_location');
+            }
+
+            const editCellInput = document.getElementById('edit_cell_location');
+            if (editCellInput) {
+                editCellInput.addEventListener('input', () => toggleGridForUnit('edit_cell_location', 'edit_grid_location'));
+            }
+
+            globalTomSelect = new TomSelect('#profile-search', {
                 valueField: 'value',
                 labelField: 'text',
                 searchField: 'text',
@@ -249,7 +390,24 @@
                     fetch('/api/get_profile_details/' + encodeURIComponent(val))
                         .then(res => res.json())
                         .then(data => {
-                            if (data && !data.error) {
+                            const badge = document.getElementById('profile_info_badge');
+                            const submitBtn = document.querySelector('#yellowEntryForm button[type="submit"]');
+
+                            if (data && data.error) {
+                                if (badge) {
+                                    badge.innerHTML = `<span class="text-danger fw-bold">❌ UNAPPROVED PROFILE:</span> Profile '<strong>${val}</strong>' is not an approved profile in the Master Profile list. Entry is BLOCKED.`;
+                                    badge.className = "alert alert-danger py-2 px-3 small mb-3 shadow-sm text-uppercase fw-bold border-2 border-danger";
+                                    badge.classList.remove('d-none');
+                                }
+                                if (submitBtn) {
+                                    submitBtn.disabled = true;
+                                    submitBtn.classList.add('disabled');
+                                }
+                            } else if (data) {
+                                if (submitBtn) {
+                                    submitBtn.disabled = false;
+                                    submitBtn.classList.remove('disabled');
+                                }
                                 const winCode = (data.win_code || '').toString().trim().toUpperCase();
                                 const isLiquidBulk = ['CBPS', 'CNOS'].includes(winCode);
                                 
@@ -264,13 +422,25 @@
                                     sgInput.value = '';
                                 }
 
-                                const badge = document.getElementById('profile_info_badge');
+                                const unitInput = document.querySelector('input[name="cell_location"]');
+                                if (unitInput) {
+                                    if (['CNOS', 'CBPS'].includes(winCode) || winCode.includes('CNOS') || winCode.includes('CBPS')) {
+                                        unitInput.value = '31';
+                                    } else if (['CCS', 'CCSS'].includes(winCode) || winCode.includes('CCS')) {
+                                        unitInput.value = 'STU';
+                                    } else if (['CBP', 'CNON'].includes(winCode) || winCode.startsWith('CBP') || winCode.includes('CNON')) {
+                                        unitInput.value = '35-7';
+                                    }
+                                    toggleGridForUnit('cell_location', 'grid_location');
+                                }
+
                                 if (badge) {
                                     let masterVoc = data.voc_percentage;
                                     if (masterVoc === undefined || masterVoc === null || masterVoc === 'TBD' || masterVoc === 'None' || masterVoc === '' || masterVoc === '?') {
                                         masterVoc = 0;
                                     }
                                     badge.innerHTML = `<strong>Generator:</strong> ${data.generator || 'N/A'} &nbsp;|&nbsp; <strong>WIN:</strong> ${data.win_code || 'N/A'} &nbsp;|&nbsp; <strong>Master VOC:</strong> ${masterVoc} ppm${isLiquidBulk ? ' &nbsp;|&nbsp; <span class="text-danger fw-bold">⚠️ SPECIFIC GRAVITY REQUIRED</span>' : ''}`;
+                                    badge.className = "alert alert-warning py-2 px-3 small mb-3 shadow-sm text-uppercase";
                                     badge.classList.remove('d-none');
                                 }
                             }
@@ -278,6 +448,97 @@
                 }
             });
         });
+
+        function copyPreviousTicketInfo() {
+            const tableBody = document.querySelector('#yellowLogTable tbody');
+            if (!tableBody) return;
+            const rows = Array.from(tableBody.querySelectorAll('tr'));
+            if (!rows || rows.length === 0) {
+                alert('No previous ticket available to copy.');
+                return;
+            }
+            
+            const lastRow = rows[0];
+            let prevProfile = lastRow.dataset.profile;
+            let prevManifest = lastRow.dataset.manifest;
+            let prevUnit = lastRow.dataset.unit;
+            let prevGrid = lastRow.dataset.grid;
+
+            if (!prevProfile || prevProfile === 'None') {
+                const cells = lastRow.querySelectorAll('td');
+                if (cells.length >= 3) prevProfile = cells[2].innerText.trim();
+            }
+            if (!prevManifest || prevManifest === 'None') {
+                const cells = lastRow.querySelectorAll('td');
+                if (cells.length >= 2) prevManifest = cells[1].innerText.trim();
+            }
+            if (!prevUnit || prevUnit === 'None') {
+                const cells = lastRow.querySelectorAll('td');
+                if (cells.length >= 9) prevUnit = cells[8].innerText.trim();
+            }
+            if (!prevGrid || prevGrid === 'None') {
+                const cells = lastRow.querySelectorAll('td');
+                if (cells.length >= 10) prevGrid = cells[9].innerText.trim();
+            }
+            
+            if (prevManifest && prevManifest !== 'N/A' && prevManifest !== '---' && prevManifest !== 'None') {
+                const manifestInput = document.querySelector('input[name="manifest_number"]');
+                if (manifestInput) manifestInput.value = prevManifest;
+            }
+            
+            if (prevUnit && prevUnit !== '-' && prevUnit !== 'None') {
+                const unitInput = document.querySelector('input[name="cell_location"]');
+                if (unitInput) unitInput.value = prevUnit;
+            }
+            if (prevGrid && prevGrid !== '-' && prevGrid !== 'None') {
+                const gridInput = document.querySelector('input[name="grid_location"]');
+                if (gridInput) gridInput.value = prevGrid;
+            }
+            toggleGridForUnit('cell_location', 'grid_location');
+            
+            if (prevProfile && prevProfile !== 'N/A' && prevProfile !== 'None' && globalTomSelect) {
+                const cleanProf = prevProfile.trim().split(/\s+/)[0];
+                globalTomSelect.addOption({ value: cleanProf, text: cleanProf });
+                globalTomSelect.setValue(cleanProf);
+            }
+        }
+
+        function sortYellowTable(colIdx, isNumeric = false) {
+            const tableBody = document.querySelector('#yellowLogTable tbody');
+            if (!tableBody) return;
+            const rows = Array.from(tableBody.querySelectorAll('tr'));
+            if (rows.length <= 1) return;
+
+            if (currentSortColumn === colIdx) {
+                isAscending = !isAscending;
+            } else {
+                currentSortColumn = colIdx;
+                isAscending = true;
+            }
+
+            rows.sort((a, b) => {
+                let cellA = (a.cells[colIdx]?.innerText || '').trim();
+                let cellB = (b.cells[colIdx]?.innerText || '').trim();
+
+                if (isNumeric) {
+                    const numA = parseFloat(cellA.replace(/[^0-9.-]+/g, '')) || 0;
+                    const numB = parseFloat(cellB.replace(/[^0-9.-]+/g, '')) || 0;
+                    return isAscending ? numA - numB : numB - numA;
+                } else {
+                    return isAscending ? cellA.localeCompare(cellB) : cellB.localeCompare(cellA);
+                }
+            });
+
+            rows.forEach(row => tableBody.appendChild(row));
+
+            // Update column header visual indicators
+            document.querySelectorAll('#yellowLogTable th.sortable .sort-icon').forEach(span => span.textContent = '↕');
+            const targetTh = document.querySelectorAll('#yellowLogTable th')[colIdx];
+            if (targetTh) {
+                const sortSpan = targetTh.querySelector('.sort-icon');
+                if (sortSpan) sortSpan.textContent = isAscending ? '▲' : '▼';
+            }
+        }
     </script>
 
     <!-- Edit Ticket Modal -->
@@ -285,6 +546,7 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow">
                 <form id="editYellowForm" method="POST">
+                    <input type="hidden" name="sort_mode" value="{{ sort_mode }}">
                     <div class="modal-header bg-dark text-warning">
                         <h5 class="modal-title fw-bold">✏️ Edit Yellow Entry Ticket</h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -313,13 +575,14 @@
                                 <label class="form-label text-dark small fw-bold mb-1">NET WEIGHT (LBS)</label>
                                 <input type="number" step="0.01" class="form-control border-secondary fw-bold" name="weight" id="edit_weight" required>
                             </div>
+                        </div>
                         <div class="row mb-3">
                             <div class="col-6">
                                 <label class="form-label text-dark small fw-bold mb-1">UNIT</label>
                                 <input type="text" class="form-control border-secondary text-uppercase fw-bold" name="cell_location" id="edit_cell_location">
                             </div>
                             <div class="col-6">
-                                <label class="form-label text-dark small fw-bold mb-1">GRID</label>
+                                <label class="form-label text-dark small fw-bold mb-1">GRID / BAY</label>
                                 <input type="text" class="form-control border-secondary text-uppercase fw-bold" name="grid_location" id="edit_grid_location">
                             </div>
                         </div>
@@ -353,6 +616,8 @@
             document.getElementById('edit_weight').value = log.gross_weight || 0;
             document.getElementById('edit_cell_location').value = log.cell_location || '';
             document.getElementById('edit_grid_location').value = log.grid_location || '';
+            toggleGridForUnit('edit_cell_location', 'edit_grid_location');
+
             document.getElementById('edit_voc_percentage').value = log.measured_voc !== null && log.measured_voc !== undefined ? log.measured_voc : 0;
             document.getElementById('edit_specific_gravity').value = log.specific_gravity || '';
 

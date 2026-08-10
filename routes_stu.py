@@ -155,7 +155,7 @@ def stu_hub():
             elif t.get('voc_percentage') is not None:
                 try:
                     val = float(t['voc_percentage'])
-                    t['voc_ppm'] = val * 10000 if val < 10 else val
+                    t['voc_ppm'] = val
                 except:
                     t['voc_ppm'] = None
             else:
@@ -295,7 +295,7 @@ def generate_sampling_packet():
         df = pd.DataFrame(picklist_data)
         excel_io = BytesIO()
         with pd.ExcelWriter(excel_io, engine='openpyxl') as writer:
-            cols = ["sample_num", "drum_id", "manifest", "manifest_line", "profile", "display_profile", "waste_code", "is_sampled"]
+            cols = ["sample_num", "drum_id", "manifest", "manifest_line", "profile", "display_profile", "waste_code", "accumulation_date", "is_sampled"]
             exist_cols = [c for c in cols if c in df.columns]
             df[exist_cols].to_excel(writer, index=False, sheet_name='Data')
             ws = writer.sheets['Data']
@@ -385,7 +385,8 @@ def upload_vpi():
             else:
                 df['last_scan_date'] = None
                 
-            cleaned_data = list(zip(df['Track No'], df['Inb Prof'], df['Process Type'], df['Weight'], df['pH'], df['Age'], df['voc_ppm'], df['voc_weight'], [date.today().isoformat()]*len(df), ['FINAL CODED']*len(df), df['location'], df['last_scan_date']))
+            statuses = ['PLANT RECEIVED' if str(pt).strip().lower() == 'pending sampling' else 'FINAL CODED' for pt in df['Process Type']]
+            cleaned_data = list(zip(df['Track No'], df['Inb Prof'], df['Process Type'], df['Weight'], df['pH'], df['Age'], df['voc_ppm'], df['voc_weight'], [date.today().isoformat()]*len(df), statuses, df['location'], df['last_scan_date']))
             conn.executemany("INSERT INTO drum_inventory (track_no, inb_prof, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, status, location, last_scan_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", cleaned_data)
             
             # Re-apply preserved statuses and re-insert missing ones

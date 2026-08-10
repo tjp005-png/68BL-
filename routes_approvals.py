@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify, send_from_directory
+from flask import Blueprint, render_template, request, redirect, url_for, jsonify, send_from_directory, send_file
 import os
 from werkzeug.utils import secure_filename
 from datetime import date
@@ -90,7 +90,7 @@ def waste_acceptance_checklist(job_id):
         if lab.get('voc_ppm') is None and lab.get('p_voc_percentage') is not None:
             try:
                 val = float(lab['p_voc_percentage'])
-                lab['voc_ppm'] = val * 10000 if val < 10 else val
+                lab['voc_ppm'] = val
             except:
                 pass
         if not lab.get('sulfides') and lab.get('p_sulfide'):
@@ -253,8 +253,10 @@ def parse_profile_pdf():
         with pdfplumber.open(file) as pdf:
             full_text = "".join([page.extract_text() + "\n" for page in pdf.pages if page.extract_text()])
             
-            # Profile Number
-            prof_match = re.search(r'Profile No\.\s*([A-Z0-9]+)', full_text, re.IGNORECASE)
+            # Profile Number (supports suffixes like -B, -A, -1, etc.)
+            prof_match = re.search(r'Profile No\.\s*([A-Z0-9\-_]+)', full_text, re.IGNORECASE)
+            if not prof_match:
+                prof_match = re.search(r'(?:Profile\s+No\.|Profile\s+#|Profile\s+Number[:\.\s]*)\s*([A-Z0-9\-_]+)', full_text, re.IGNORECASE)
             if prof_match:
                 extracted_data['profile_number'] = prof_match.group(1).strip()
                 
@@ -462,14 +464,28 @@ def add_master_profile():
     color = request.form.get('color', '').strip().upper()
     shipping_container_type = request.form.get('shipping_container_type', 'Containerized').strip()
 
-    voc_pct = 0.0
-    try:
-        voc_pct = float(request.form.get('voc_percentage', 0.0) or 0.0)
-    except (ValueError, TypeError):
-        pass
+    raw_voc_input = str(request.form.get('voc_percentage', '')).strip().upper()
+    if raw_voc_input in ['TBD', '?', 'NONE', '']:
+        voc_pct = 'TBD'
+    else:
+        try:
+            voc_pct = float(raw_voc_input)
+        except (ValueError, TypeError):
+            voc_pct = 'TBD'
 
     status = request.form.get('status', 'S').strip().upper()
     treatment_recipe = request.form.get('treatment_recipe', '').strip()
+
+    import time
+    from database import MASTER_EXCEL_PATH
+    excel_mtime = None
+    try:
+        if os.path.exists(MASTER_EXCEL_PATH):
+            excel_mtime = os.path.getmtime(MASTER_EXCEL_PATH)
+    except Exception:
+        pass
+    if not excel_mtime:
+        excel_mtime = time.time()
 
     with closing(get_db_connection()) as conn:
         existing = conn.execute('SELECT profile_number FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (profile_number,)).fetchone()
@@ -481,27 +497,27 @@ def add_master_profile():
                     expiration_date = ?, epa_id = ?, ldr_required = ?, ldr_option = ?, state_waste_code = ?, 
                     federal_waste_code = ?, dot_description = ?, cyanide = ?, sulfide = ?, 
                     free_liquids = ?, status = ?, lab_number = ?, color = ?, treatment_recipe = ?,
-                    shipping_container_type = ?
+                    shipping_container_type = ?, last_synced_mtime = ?
                 WHERE TRIM(UPPER(profile_number)) = ?
             ''', (generator, waste_description, win_code, voc_pct, 
                   special_handling, ph_range, physical_appearance, flash_point, 
                   expiration_date, epa_id, ldr_required, ldr_option, state_waste_code, 
                   federal_waste_code, dot_description, cyanide, sulfide, 
                   free_liquids, status, lab_number, color, treatment_recipe,
-                  shipping_container_type, profile_number))
+                  shipping_container_type, excel_mtime, profile_number))
         else:
             conn.execute('''
                 INSERT INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, 
                                       special_handling, ph_range, physical_appearance, flash_point, expiration_date, 
                                       epa_id, status, ldr_required, ldr_option, state_waste_code, federal_waste_code, 
                                       dot_description, cyanide, sulfide, free_liquids, lab_number, color, treatment_recipe,
-                                      shipping_container_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                      shipping_container_type, last_synced_mtime)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (profile_number, generator, waste_description, win_code, voc_pct, 
                   special_handling, ph_range, physical_appearance, flash_point, expiration_date, 
                   epa_id, status, ldr_required, ldr_option, state_waste_code, federal_waste_code, 
                   dot_description, cyanide, sulfide, free_liquids, lab_number, color, treatment_recipe,
-                  shipping_container_type))
+                  shipping_container_type, excel_mtime))
         conn.commit()
         
     return redirect(url_for('approvals_bp.approvals_portal', selected_profile=profile_number))
@@ -526,10 +542,14 @@ def auto_sync_profiles():
                 ''', (prof_num,)).fetchone()
                 
                 if prof:
-                    try:
-                        val = float(prof['voc_percentage'])
-                        new_voc = str(int(val)) if val > 0 else '0'
-                    except (ValueError, TypeError):
+                    voc_raw = prof['voc_percentage']
+                    if voc_raw is not None and str(voc_raw).strip() not in ['', 'None', 'NAN', 'NULL']:
+                        try:
+                            val = float(voc_raw)
+                            new_voc = str(int(round(val)))
+                        except (ValueError, TypeError):
+                            new_voc = 'TBD'
+                    else:
                         new_voc = 'TBD'
                         
                     # CRITICAL: Only update the database IF the values are actually different
@@ -592,14 +612,42 @@ def api_profile_delete():
 
 @approvals_bp.route('/api/profile/<path:profile_number>/history')
 def api_profile_history(profile_number):
+    clean_profile = str(profile_number).strip().upper()
     with closing(get_db_connection()) as conn:
-        loads = conn.execute('''
-            SELECT manifest, job_id, import_date, weight, process_type, ph, voc_ppm
+        drum_loads = conn.execute('''
+            SELECT 
+                manifest, 
+                job_id, 
+                import_date, 
+                SUM(COALESCE(weight, 0)) AS weight, 
+                COALESCE(process_type, 'Containerized') AS process_type, 
+                MAX(ph) AS ph,
+                MAX(voc_ppm) AS voc_ppm,
+                'Drum' AS load_source
             FROM drum_inventory
-            WHERE inb_prof = ?
-            ORDER BY import_date DESC
-        ''', (profile_number,)).fetchall()
-    return jsonify([dict(l) for l in loads])
+            WHERE TRIM(UPPER(inb_prof)) = ?
+            GROUP BY COALESCE(job_id, manifest), import_date
+        ''', (clean_profile,)).fetchall()
+
+        truck_loads = conn.execute('''
+            SELECT 
+                COALESCE(manifest_number, '---') AS manifest,
+                COALESCE(truck_id, load_number, '---') AS job_id,
+                COALESCE(date_received, time_in, '---') AS import_date,
+                COALESCE(net_weight, CASE WHEN (gross_weight > 0 AND exit_weight > 0) THEN (gross_weight - exit_weight) ELSE gross_weight END, 0) AS weight,
+                COALESCE(container_type, shipping_mode, 'Yellow Entry') AS process_type,
+                measured_ph AS ph,
+                measured_voc AS voc_ppm,
+                'Yellow / Bulk' AS load_source
+            FROM truck_logs
+            WHERE TRIM(UPPER(profile_number)) = ?
+              AND UPPER(COALESCE(test_status, '')) != 'VOID'
+        ''', (clean_profile,)).fetchall()
+
+        all_loads = [dict(l) for l in drum_loads] + [dict(l) for l in truck_loads]
+        all_loads.sort(key=lambda x: str(x.get('import_date') or ''), reverse=True)
+
+    return jsonify(all_loads)
 
 @approvals_bp.route('/api/profile/<path:profile_number>/drum_history')
 def api_profile_drum_history(profile_number):
@@ -660,15 +708,24 @@ def api_profile_upload(profile_number):
                 
                 file.save(file_path)
                 
-                # Real-time backup to network I: drive if mounted
+                # Real-time backup to network I: drive if mounted (runs with retries to prevent WinError 32 file lock crashes)
                 try:
                     import shutil
-                    i_uploads_dir = os.environ.get("I_DRIVE_UPLOADS_DIR", r"I:\Buttonwillow\LAB\Operations App\uploads_backup")
-                    drive_letter = os.path.splitdrive(i_uploads_dir)[0] + "\\"
-                    if os.path.exists(drive_letter):
-                        net_dest = os.path.join(i_uploads_dir, relative_path)
-                        os.makedirs(os.path.dirname(net_dest), exist_ok=True)
-                        shutil.copy2(file_path, net_dest)
+                    import time
+                    i_dirs = [
+                        r"I:\Buttonwillow\LAB\Operations App\uploads",
+                        r"I:\Buttonwillow\LAB\Operations App\uploads_backup"
+                    ]
+                    if os.path.exists(r"I:\\"):
+                        for i_dir in i_dirs:
+                            net_dest = os.path.join(i_dir, relative_path)
+                            os.makedirs(os.path.dirname(net_dest), exist_ok=True)
+                            for attempt in range(3):
+                                try:
+                                    shutil.copy2(file_path, net_dest)
+                                    break
+                                except Exception as copy_attempt_err:
+                                    time.sleep(0.3)
                 except Exception as net_e:
                     print(f"Real-time network upload backup warning: {net_e}")
 
@@ -968,7 +1025,54 @@ def api_profile_sulfide_log_item(log_id):
 
 @approvals_bp.route('/uploads/profiles/<path:filename>')
 def serve_profile_upload(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
+    clean_fn = filename.replace('\\', '/').strip('/')
+    basename = os.path.basename(clean_fn)
+    
+    # Candidate search paths in priority order (I: Drive FIRST!)
+    i_drive_primary = os.environ.get("I_DRIVE_UPLOADS_DIR", r"I:\Buttonwillow\LAB\Operations App\uploads")
+    i_drive_backup = r"I:\Buttonwillow\LAB\Operations App\uploads_backup"
+    i_drive_base = r"I:\Buttonwillow\LAB\Operations App"
+    wvi_base = r"I:\Buttonwillow\WAP\WVI"
+    
+    from shared_state import UPLOADS_DIR, APP_DIR
+    local_dir = UPLOADS_DIR
+    fallback_local = os.path.join(APP_DIR, 'uploads', 'profiles')
+
+    candidate_paths = [
+        os.path.join(i_drive_primary, clean_fn),
+        os.path.join(i_drive_backup, clean_fn),
+        os.path.join(local_dir, clean_fn),
+        os.path.join(fallback_local, clean_fn),
+        os.path.join(i_drive_base, clean_fn),
+        
+        # Basename fallbacks in upload folders
+        os.path.join(i_drive_primary, basename),
+        os.path.join(i_drive_backup, basename),
+        os.path.join(local_dir, basename),
+        os.path.join(fallback_local, basename),
+        
+        # WVI Folder Fallbacks for profile documents
+        os.path.join(wvi_base, basename),
+        os.path.join(wvi_base, "2026 WVI", basename),
+        os.path.join(wvi_base, "2025 WVI", basename),
+        os.path.join(wvi_base, "2024 WVI", basename),
+        os.path.join(wvi_base, "2023 WVI", basename),
+    ]
+
+    for path in candidate_paths:
+        if os.path.exists(path) and os.path.isfile(path):
+            # Auto-restore/cache to local folder if missing locally
+            try:
+                local_dest = os.path.join(local_dir, clean_fn)
+                if not os.path.exists(local_dest):
+                    os.makedirs(os.path.dirname(local_dest), exist_ok=True)
+                    import shutil
+                    shutil.copy2(path, local_dest)
+            except Exception:
+                pass
+            return send_file(path)
+
+    return jsonify({'error': f'Attachment file {filename} not found on I: drive or local server.'}), 404
 
 @approvals_bp.route('/release_las_truck', methods=['POST'])
 def release_las_truck():
@@ -1113,6 +1217,7 @@ def update_waste_acceptance_log():
     notes = data.get('notes')
     generator_requestor = data.get('generator_requestor')
     profile_number = data.get('profile_number')
+    expiration_date = data.get('expiration_date')
     
     if profile_number is not None:
         profile_number = profile_number.strip().upper()
@@ -1131,10 +1236,42 @@ def update_waste_acceptance_log():
                     notes = COALESCE(?, notes),
                     generator_requestor = COALESCE(?, generator_requestor),
                     profile_number = COALESCE(?, profile_number),
+                    expiration_date = COALESCE(?, expiration_date),
                     last_updated = CURRENT_TIMESTAMP
                 WHERE id = ?
-            ''', (status, assigned_to, notes, generator_requestor, profile_number, log_id))
+            ''', (status, assigned_to, notes, generator_requestor, profile_number, expiration_date, log_id))
+            
+            row_prof = conn.execute('SELECT profile_number FROM waste_acceptance_log WHERE id = ?', (log_id,)).fetchone()
+            prof_key = str(row_prof['profile_number'] if row_prof else profile_number or '').strip().upper()
+            if prof_key:
+                excel_mtime = None
+                try:
+                    from database import MASTER_EXCEL_PATH
+                    if os.path.exists(MASTER_EXCEL_PATH):
+                        excel_mtime = os.path.getmtime(MASTER_EXCEL_PATH)
+                except Exception:
+                    pass
+                if not excel_mtime:
+                    import time
+                    excel_mtime = time.time()
+
+                conn.execute('''
+                    UPDATE profiles 
+                    SET expiration_date = CASE WHEN ? IS NOT NULL AND TRIM(?) != '' THEN ? ELSE expiration_date END,
+                        status = CASE WHEN ? IN ('Recertified', 'Complete', 'Released', 'ACTIVE') THEN 'ACTIVE' ELSE status END,
+                        last_synced_mtime = ?
+                    WHERE TRIM(UPPER(profile_number)) = ?
+                ''', (expiration_date, expiration_date, expiration_date, status, excel_mtime, prof_key))
+            
             conn.commit()
+            
+            # Emit schedule update so schedule UI refreshes LAS badges immediately
+            try:
+                from shared_state import socketio
+                socketio.emit('schedule_update', {'date': 'GLOBAL'})
+            except Exception:
+                pass
+                
             return jsonify({'success': True})
         except Exception as e:
             return jsonify({'success': False, 'error': 'Profile number must be unique in the log.'}), 400
@@ -1244,7 +1381,7 @@ def export_wvi_excel(profile_number):
             return None
         try:
             val = float(percentage)
-            return val * 10000 if val < 10 else val
+            return val
         except:
             return None
 
@@ -1261,12 +1398,12 @@ def export_wvi_excel(profile_number):
         'handling_instruction': w_row['handling_instruction'] if (w_row and w_row['handling_instruction']) else '',
         'sample_procedures': w_row['sample_procedures'] if (w_row and w_row['sample_procedures']) else '',
         'verification_procedures': (
-            w_row['verification_procedures'] if (w_row and w_row['verification_procedures'])
-            else ("Visual" if (win_code == 'CNIA' or is_monolith) else "Refer to Finger Print Testing")
+            w_row['verification_procedures'] if (w_row and w_row['verification_procedures'] and "FINGER" not in str(w_row['verification_procedures']).upper())
+            else ("Visual" if (win_code == 'CNIA' or is_monolith) else "VERIFY FINGERPRINT RESULTS AND PHYSICAL DESCRIPTION WITH PROFILE")
         ),
         'ph_min': w_row['ph_min'] if (w_row and w_row['ph_min'] is not None) else None,
         'ph_max': w_row['ph_max'] if (w_row and w_row['ph_max'] is not None) else None,
-        'sulfides': w_row['sulfides'] if (w_row and w_row['sulfides']) else (p_row['sulfide'] if p_row else ''),
+        'sulfides': p_row['sulfide'] if (p_row and p_row['sulfide'] and str(p_row['sulfide']).strip() != '') else (w_row['sulfides'] if (w_row and w_row['sulfides']) else ''),
         'cyanide': w_row['cyanide'] if (w_row and w_row['cyanide']) else (p_row['cyanide'] if p_row else ''),
         'free_liquids': w_row['free_liquids'] if (w_row and w_row['free_liquids']) else (p_row['free_liquids'] if p_row else ''),
         'flashpoint': w_row['flashpoint'] if (w_row and w_row['flashpoint']) else (p_row['flash_point'] if p_row else ''),
@@ -1308,8 +1445,38 @@ def export_wvi_excel(profile_number):
             if combined['ph_max'] is None:
                 combined['ph_max'] = ph_max_parsed
 
-    if combined['voc_ppm'] is None and p_row and p_row['voc_percentage'] is not None:
-        combined['voc_ppm'] = get_voc_ppm(p_row['voc_percentage'])
+    voc_from_profile = get_voc_ppm(p_row['voc_percentage']) if (p_row and p_row['voc_percentage'] is not None) else None
+    voc_from_log = None
+    try:
+        voc_analyzer_row = conn.execute('''
+            SELECT voc_analyzer_value FROM voc_analyzer_logs
+            WHERE TRIM(UPPER(profile_number)) = ? AND voc_analyzer_value IS NOT NULL AND voc_analyzer_value > 0
+            ORDER BY test_date DESC LIMIT 1
+        ''', (profile_clean,)).fetchone()
+        if voc_analyzer_row and voc_analyzer_row['voc_analyzer_value'] is not None:
+            voc_from_log = float(voc_analyzer_row['voc_analyzer_value'])
+        else:
+            truck_log_row = conn.execute('''
+                SELECT voc_ppm FROM truck_logs
+                WHERE TRIM(UPPER(profile_number)) = ? AND voc_ppm IS NOT NULL AND voc_ppm > 0
+                ORDER BY id DESC LIMIT 1
+            ''', (profile_clean,)).fetchone()
+            if truck_log_row and truck_log_row['voc_ppm'] is not None:
+                voc_from_log = float(truck_log_row['voc_ppm'])
+    except Exception as ex:
+        print(f"Error fetching logged VOC for profile {profile_clean}: {ex}")
+
+    if voc_from_log is not None and voc_from_log > 0:
+        combined['voc_ppm'] = voc_from_log
+    elif voc_from_profile is not None and voc_from_profile > 0:
+        combined['voc_ppm'] = voc_from_profile
+    elif combined['voc_ppm'] is None or combined['voc_ppm'] == 0:
+        if voc_from_profile is not None:
+            combined['voc_ppm'] = voc_from_profile
+        elif voc_from_log is not None:
+            combined['voc_ppm'] = voc_from_log
+        elif w_row and w_row['voc_ppm'] is not None:
+            combined['voc_ppm'] = w_row['voc_ppm']
 
     # Format Sulfides/Cyanide/Free Liquids to NEG/POS style or YES/NO style
     def to_neg_pos(val):
@@ -1628,4 +1795,498 @@ def export_wvi_excel(profile_number):
         as_attachment=True,
         download_name=filename
     )
+
+
+@approvals_bp.route('/api/profile/<path:profile_number>/audit_export')
+def export_profile_audit(profile_number):
+    import io
+    import datetime
+    from flask import request, render_template_string, send_file, Response
+    import openpyxl
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+
+    profile_clean = str(profile_number).strip().upper()
+    export_format = request.args.get('format', 'html').lower()
+
+    with closing(get_db_connection()) as conn:
+        p_row = conn.execute('SELECT * FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (profile_clean,)).fetchone()
+        w_row = conn.execute('SELECT * FROM profile_wvi WHERE TRIM(UPPER(profile)) = ?', (profile_clean,)).fetchone()
+        
+        # Load shipment history from drum_inventory and truck_logs
+        drum_loads = conn.execute('''
+            SELECT 
+                manifest, 
+                job_id, 
+                import_date, 
+                SUM(COALESCE(weight, 0)) AS weight, 
+                COALESCE(process_type, 'Containerized') AS process_type, 
+                MAX(location) AS cell_location,
+                '' AS grid_location,
+                'Drum' AS load_source
+            FROM drum_inventory
+            WHERE TRIM(UPPER(inb_prof)) = ?
+            GROUP BY COALESCE(job_id, manifest), import_date
+        ''', (profile_clean,)).fetchall()
+
+        truck_loads = conn.execute('''
+            SELECT 
+                COALESCE(manifest_number, '---') AS manifest,
+                COALESCE(truck_id, load_number, '---') AS job_id,
+                COALESCE(date_received, time_in, '---') AS import_date,
+                COALESCE(net_weight, CASE WHEN (gross_weight > 0 AND exit_weight > 0) THEN (gross_weight - exit_weight) ELSE gross_weight END, 0) AS weight,
+                COALESCE(container_type, shipping_mode, 'Yellow Entry') AS process_type,
+                cell_location,
+                grid_location,
+                'Yellow / Bulk' AS load_source
+            FROM truck_logs
+            WHERE TRIM(UPPER(profile_number)) = ?
+              AND UPPER(COALESCE(test_status, '')) != 'VOID'
+        ''', (profile_clean,)).fetchall()
+
+        def format_location(cell, grid):
+            c_str = str(cell).strip() if cell and str(cell).strip().upper() not in ['NONE', 'NULL', ''] else ''
+            g_str = str(grid).strip() if grid and str(grid).strip().upper() not in ['NONE', 'NULL', ''] else ''
+            if c_str and g_str:
+                return f"Cell {c_str} | Grid {g_str}"
+            elif c_str:
+                return f"Cell {c_str}"
+            elif g_str:
+                return f"Grid {g_str}"
+            return "---"
+
+        history_rows = []
+        for l in list(drum_loads) + list(truck_loads):
+            d = dict(l)
+            d['location_fmt'] = format_location(d.get('cell_location'), d.get('grid_location'))
+            history_rows.append(d)
+        history_rows.sort(key=lambda x: str(x.get('import_date') or ''), reverse=True)
+
+        # Load drum QA queue history
+        drum_rows_raw = conn.execute('''
+            SELECT q.drum_id, q.job_id, q.manifest, q.tests_required, q.status, MAX(i.import_date) AS import_date
+            FROM drum_lab_queue q
+            LEFT JOIN drum_inventory i ON TRIM(UPPER(q.drum_id)) = TRIM(UPPER(i.track_no))
+            WHERE TRIM(UPPER(q.profile)) = ?
+            GROUP BY q.id
+            ORDER BY import_date DESC, q.id DESC
+        ''', (profile_clean,)).fetchall()
+        drum_rows = [dict(d) for d in drum_rows_raw]
+
+    if not p_row and not w_row:
+        return "Profile not found in database", 404
+
+    # Build combined data dict
+    p = dict(p_row) if p_row else {}
+    w = dict(w_row) if w_row else {}
+    
+    profile_num = p.get('profile_number') or w.get('profile') or profile_clean
+    generator = p.get('generator') or p.get('generator_name') or w.get('generator_name') or '---'
+    epa_id = p.get('epa_id') or '---'
+    customer = p.get('customer_name') or '---'
+    status = p.get('status') or 'UNKNOWN'
+    exp_date = p.get('expiration_date') or w.get('expiration_date') or '---'
+    app_date = w.get('approved_date') or '---'
+    win_code = p.get('win_code') or '---'
+    lab_num = p.get('lab_number') or w.get('lab_num') or '---'
+    container_type = p.get('shipping_container_type') or '---'
+    waste_desc = p.get('waste_description') or p.get('waste_name') or w.get('waste_name') or '---'
+
+    # Chemical / Physical specs
+    phys_state = p.get('physical_appearance') or w.get('physical_description') or '---'
+    color = p.get('color') or w.get('color') or '---'
+    ph_range = p.get('ph_range') or (f"{w.get('ph_min', '')} - {w.get('ph_max', '')}".strip(" -") if (w.get('ph_min') or w.get('ph_max')) else '---')
+    flash_point = p.get('flash_point') or w.get('flashpoint') or '---'
+    cyanide = p.get('cyanide') or w.get('cyanide') or 'NEG'
+    sulfide = p.get('sulfide') or w.get('sulfides') or 'NEG'
+    free_liquids = p.get('free_liquids') or w.get('free_liquids') or 'NO'
+    voc_ppm = p.get('voc_percentage') or w.get('voc_ppm') or '0'
+
+    # Regulatory
+    fed_codes = p.get('federal_waste_code') or w.get('federal_waste_codes') or '---'
+    state_codes = p.get('state_waste_code') or w.get('state_waste_codes') or '---'
+    dot_desc = p.get('dot_description') or w.get('dot_description') or '---'
+    ldr_req = p.get('ldr_required') or w.get('ldr') or '---'
+    ldr_opt = p.get('ldr_option') or '---'
+    recipe = p.get('treatment_recipe') or w.get('treatment_information') or '---'
+    special_handling = p.get('special_handling') or w.get('handling_instruction') or '---'
+
+    if export_format in ['excel', 'xlsx']:
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Profile Audit Summary"
+        ws.views.sheetView[0].showGridLines = True
+
+        header_fill = PatternFill(start_color="8B0000", end_color="8B0000", fill_type="solid") # Dark Crimson
+        subheader_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid") # Dark Slate
+
+        header_font = Font(color="FFFFFF", bold=True, size=14)
+        subheader_font = Font(color="FFFFFF", bold=True, size=11)
+        label_font = Font(bold=True, color="334155")
+        data_font = Font(color="000000")
+        thin_border = Border(left=Side(style='thin', color='CBD5E1'), right=Side(style='thin', color='CBD5E1'),
+                             top=Side(style='thin', color='CBD5E1'), bottom=Side(style='thin', color='CBD5E1'))
+
+        # Title Banner
+        ws.merge_cells('A1:F2')
+        title_cell = ws['A1']
+        title_cell.value = f"CLEAN HARBORS BUTTONWILLOW — PROFILE AUDIT EXPORT ({profile_num})"
+        title_cell.font = header_font
+        title_cell.fill = header_fill
+        title_cell.alignment = Alignment(horizontal='center', vertical='center')
+
+        curr_row = 4
+        def write_section(title):
+            nonlocal curr_row
+            ws.merge_cells(start_row=curr_row, start_column=1, end_row=curr_row, end_column=6)
+            c = ws.cell(row=curr_row, column=1, value=title)
+            c.font = subheader_font
+            c.fill = subheader_fill
+            c.alignment = Alignment(horizontal='left', vertical='center')
+            curr_row += 1
+
+        def write_kv(label, value, label2="", value2=""):
+            nonlocal curr_row
+            ws.cell(row=curr_row, column=1, value=label).font = label_font
+            ws.cell(row=curr_row, column=2, value=str(value)).font = data_font
+            if label2:
+                ws.cell(row=curr_row, column=4, value=label2).font = label_font
+                ws.cell(row=curr_row, column=5, value=str(value2)).font = data_font
+            for col in range(1, 7):
+                ws.cell(row=curr_row, column=col).border = thin_border
+            curr_row += 1
+
+        write_section("1. GENERAL PROFILE IDENTIFICATION")
+        write_kv("Profile Number:", profile_num, "Status:", status)
+        write_kv("Generator Name:", generator, "EPA ID:", epa_id)
+        write_kv("Shipping Container Type:", container_type, "WIN Code:", win_code)
+        write_kv("Lab Tracking #:", lab_num, "Approved Date:", app_date)
+        write_kv("Expiration Date:", exp_date)
+        write_kv("Waste Description:", waste_desc)
+
+        curr_row += 1
+        write_section("2. PHYSICAL & CHEMICAL CHARACTERISTICS")
+        write_kv("Physical Appearance:", phys_state, "Color:", color)
+        write_kv("pH Range:", ph_range, "Flash Point (°F):", flash_point)
+        write_kv("Cyanide:", cyanide, "Sulfide:", sulfide)
+        write_kv("Free Liquids:", free_liquids, "VOC Level (PPM):", voc_ppm)
+
+        curr_row += 1
+        write_section("3. REGULATORY CODES & LAND DISPOSAL RESTRICTIONS (LDR)")
+        write_kv("Federal Waste Codes:", fed_codes, "State Waste Codes:", state_codes)
+        write_kv("LDR Status:", ldr_req, "LDR Option:", ldr_opt)
+        write_kv("DOT Description:", dot_desc)
+        write_kv("Treatment Recipe:", recipe)
+        write_kv("Special Handling:", special_handling)
+
+        curr_row += 1
+        write_section("4. RECENT SHIPMENT LOG SUMMARY")
+        ws.cell(row=curr_row, column=1, value="Import Date").font = label_font
+        ws.cell(row=curr_row, column=2, value="Manifest").font = label_font
+        ws.cell(row=curr_row, column=3, value="Job ID").font = label_font
+        ws.cell(row=curr_row, column=4, value="Net Weight (Lbs)").font = label_font
+        ws.cell(row=curr_row, column=5, value="Cell / Grid Location").font = label_font
+        ws.cell(row=curr_row, column=6, value="Source").font = label_font
+        curr_row += 1
+        for h in history_rows[:15]:
+            ws.cell(row=curr_row, column=1, value=h.get('import_date', '')).font = data_font
+            ws.cell(row=curr_row, column=2, value=h.get('manifest', '')).font = data_font
+            ws.cell(row=curr_row, column=3, value=h.get('job_id', '')).font = data_font
+            ws.cell(row=curr_row, column=4, value=h.get('weight', 0)).font = data_font
+            ws.cell(row=curr_row, column=5, value=h.get('location_fmt', '---')).font = data_font
+            ws.cell(row=curr_row, column=6, value=h.get('load_source', '')).font = data_font
+            for col in range(1, 7):
+                ws.cell(row=curr_row, column=col).border = thin_border
+            curr_row += 1
+
+        ws.column_dimensions['A'].width = 24
+        ws.column_dimensions['B'].width = 35
+        ws.column_dimensions['C'].width = 18
+        ws.column_dimensions['D'].width = 24
+        ws.column_dimensions['E'].width = 28
+        ws.column_dimensions['F'].width = 20
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        filename = f"Profile_{profile_num}_Audit_Report.xlsx"
+        return send_file(
+            output,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=filename
+        )
+
+    # HTML format (default)
+    html_template = '''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile Audit Certificate - {{ profile_num }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; color: #1e293b; }
+        .audit-container { max-width: 1000px; margin: 20px auto; background: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        .audit-header { border-bottom: 3px solid #8b0000; padding-bottom: 15px; margin-bottom: 25px; }
+        .banner-title { color: #8b0000; font-weight: 800; font-size: 1.6rem; letter-spacing: 0.5px; }
+        .badge-status { font-size: 0.9rem; padding: 6px 14px; border-radius: 20px; font-weight: 700; }
+        .section-header { background: #1e293b; color: #ffffff; padding: 8px 15px; font-weight: 700; border-radius: 6px; font-size: 1rem; margin-top: 25px; margin-bottom: 15px; }
+        .info-label { font-weight: 700; color: #475569; font-size: 0.85rem; text-transform: uppercase; }
+        .info-value { font-weight: 600; color: #0f172a; font-size: 0.95rem; }
+        .table-custom { font-size: 0.88rem; }
+        .table-custom th { background-color: #f1f5f9; font-weight: 700; color: #334155; }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: #ffffff; }
+            .audit-container { box-shadow: none; padding: 0; max-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container no-print mt-3 max-w-1000" style="max-width: 1000px;">
+        <div class="d-flex justify-content-between align-items-center bg-white p-3 rounded shadow-sm border">
+            <div>
+                <span class="fw-bold text-dark me-2">📄 Regulatory Audit Document View</span>
+                <span class="badge bg-secondary">Profile: {{ profile_num }}</span>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-primary fw-bold px-3" onclick="window.print()">🖨️ Print / Save as PDF</button>
+                <a class="btn btn-sm btn-success fw-bold px-3" href="?format=excel">📊 Export to Excel (.xlsx)</a>
+                <button class="btn btn-sm btn-outline-secondary fw-bold px-3" onclick="window.close()">❌ Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="audit-container">
+        <!-- Header -->
+        <div class="audit-header d-flex justify-content-between align-items-start">
+            <div>
+                <div class="banner-title">CLEAN HARBORS BUTTONWILLOW</div>
+                <div class="fw-bold text-muted small">FACILITY WASTE ACCEPTANCE & REGULATORY PROFILE AUDIT SHEET</div>
+                <div class="text-secondary small mt-1">Generated: {{ current_time }}</div>
+            </div>
+            <div class="text-end">
+                <div class="fs-4 fw-bold text-dark">{{ profile_num }}</div>
+                <span class="badge badge-status {% if status == 'APPROVED' %}bg-success{% elif status == 'REJECTED' or status == 'EXPIRED' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                    {{ status }}
+                </span>
+            </div>
+        </div>
+
+        <!-- 1. Profile Identification -->
+        <div class="section-header">1. GENERAL PROFILE IDENTIFICATION</div>
+        <div class="row g-3 px-2">
+            <div class="col-md-6">
+                <div class="info-label">Generator Name</div>
+                <div class="info-value">{{ generator }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="info-label">Generator EPA ID</div>
+                <div class="info-value">{{ epa_id }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="info-label">Shipping Container Type</div>
+                <div class="info-value">{{ container_type }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="info-label">BL Waste Code (WIN)</div>
+                <div class="info-value">{{ win_code }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="info-label">Lab Tracking Number</div>
+                <div class="info-value">{{ lab_num }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="info-label">Approved Date</div>
+                <div class="info-value">{{ app_date }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="info-label">Expiration Date</div>
+                <div class="info-value">{{ exp_date }}</div>
+            </div>
+            <div class="col-md-12">
+                <div class="info-label">Waste Description</div>
+                <div class="info-value">{{ waste_desc }}</div>
+            </div>
+        </div>
+
+        <!-- 2. Physical & Chemical Characteristics -->
+        <div class="section-header">2. PHYSICAL & CHEMICAL CHARACTERISTICS</div>
+        <div class="row g-3 px-2">
+            <div class="col-md-3">
+                <div class="info-label">Physical State / Appearance</div>
+                <div class="info-value">{{ phys_state }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="info-label">Color</div>
+                <div class="info-value">{{ color }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="info-label">pH Range</div>
+                <div class="info-value">{{ ph_range }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="info-label">Flash Point (°F)</div>
+                <div class="info-value">{{ flash_point }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="info-label">Cyanide</div>
+                <div class="info-value">{{ cyanide }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="info-label">Reactive Sulfide</div>
+                <div class="info-value">{{ sulfide }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="info-label">Free Liquids</div>
+                <div class="info-value">{{ free_liquids }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="info-label">VOC Level (PPM)</div>
+                <div class="info-value">{{ voc_ppm }}</div>
+            </div>
+        </div>
+
+        <!-- 3. Regulatory & LDR -->
+        <div class="section-header">3. REGULATORY CODES & LAND DISPOSAL RESTRICTIONS (LDR)</div>
+        <div class="row g-3 px-2">
+            <div class="col-md-6">
+                <div class="info-label">Federal RCRA Waste Codes</div>
+                <div class="info-value">{{ fed_codes }}</div>
+            </div>
+            <div class="col-md-6">
+                <div class="info-label">State Waste Codes</div>
+                <div class="info-value">{{ state_codes }}</div>
+            </div>
+            <div class="col-md-4">
+                <div class="info-label">LDR Determination Status</div>
+                <div class="info-value">{{ ldr_req }}</div>
+            </div>
+            <div class="col-md-4">
+                <div class="info-label">LDR Category / Option</div>
+                <div class="info-value">{{ ldr_opt }}</div>
+            </div>
+            <div class="col-md-4">
+                <div class="info-label">Assigned Treatment Recipe</div>
+                <div class="info-value">{{ recipe }}</div>
+            </div>
+            <div class="col-md-12">
+                <div class="info-label">DOT Proper Shipping Name & Description</div>
+                <div class="info-value">{{ dot_desc }}</div>
+            </div>
+            <div class="col-md-12">
+                <div class="info-label">Special Handling & Operating Instructions</div>
+                <div class="info-value">{{ special_handling }}</div>
+            </div>
+        </div>
+
+        <!-- 4. Shipment History Summary -->
+        <div class="section-header">4. SHIPMENT & QA VERIFICATION LOG (RECENT 50)</div>
+        {% if history_rows %}
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm table-custom mt-2">
+                <thead>
+                    <tr>
+                        <th>Import Date</th>
+                        <th>Manifest #</th>
+                        <th>Job ID</th>
+                        <th class="text-end">Weight (Lbs)</th>
+                        <th>Cell / Grid Location</th>
+                        <th>Entry Source</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for h in history_rows %}
+                    <tr>
+                        <td>{{ h.import_date or '---' }}</td>
+                        <td class="fw-bold">{{ h.manifest or '---' }}</td>
+                        <td>{{ h.job_id or '---' }}</td>
+                        <td class="text-end">{{ h.weight or '0' }}</td>
+                        <td><span class="badge bg-light text-dark border font-monospace">{{ h.location_fmt or '---' }}</span></td>
+                        <td><span class="badge bg-light text-dark border">{{ h.load_source or 'Log' }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-muted small px-2 py-2">No recorded shipment history found for this profile.</div>
+        {% endif %}
+
+        {% if drum_rows %}
+        <div class="fw-bold text-dark mt-3 mb-2 small">DRUM TESTING & QA/QC LOGS</div>
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm table-custom">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Drum ID</th>
+                        <th>Manifest</th>
+                        <th>Job ID</th>
+                        <th>Tests Required</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in drum_rows %}
+                    <tr>
+                        <td>{{ d.import_date or '---' }}</td>
+                        <td class="font-monospace fw-bold">{{ d.drum_id or '---' }}</td>
+                        <td>{{ d.manifest or '---' }}</td>
+                        <td>{{ d.job_id or '---' }}</td>
+                        <td>{{ d.tests_required or '---' }}</td>
+                        <td><span class="badge bg-secondary">{{ d.status or 'PENDING' }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <div class="border-top pt-3 mt-4 text-center text-muted small">
+            <div>Clean Harbors Environmental Services — Buttonwillow Facility Compliance Portal</div>
+            <div>This document is generated for regulatory inspection, audit, and waste analysis plan (WAP) compliance review.</div>
+        </div>
+    </div>
+</body>
+</html>'''
+
+    current_time_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    rendered_html = render_template_string(
+        html_template,
+        profile_num=profile_num,
+        generator=generator,
+        epa_id=epa_id,
+        customer=customer,
+        status=status,
+        exp_date=exp_date,
+        app_date=app_date,
+        win_code=win_code,
+        lab_num=lab_num,
+        container_type=container_type,
+        waste_desc=waste_desc,
+        phys_state=phys_state,
+        color=color,
+        ph_range=ph_range,
+        flash_point=flash_point,
+        cyanide=cyanide,
+        sulfide=sulfide,
+        free_liquids=free_liquids,
+        voc_ppm=voc_ppm,
+        fed_codes=fed_codes,
+        state_codes=state_codes,
+        ldr_req=ldr_req,
+        ldr_opt=ldr_opt,
+        recipe=recipe,
+        dot_desc=dot_desc,
+        special_handling=special_handling,
+        history_rows=history_rows,
+        drum_rows=drum_rows,
+        current_time=current_time_str
+    )
+
+    return Response(rendered_html, mimetype='text/html')
+
 

@@ -10,7 +10,20 @@ def get_app_dir():
     return os.path.dirname(os.path.abspath(__file__))
 
 APP_DIR = get_app_dir()
-DB_PATH = os.path.join(APP_DIR, 'database.db')
+
+# Store live database in local AppData to prevent OneDrive sync lock collisions & cloud file reverts
+app_data_dir = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'Truck_Log_App')
+os.makedirs(app_data_dir, exist_ok=True)
+DB_PATH = os.environ.get('DB_PATH', os.path.join(app_data_dir, 'database.db'))
+
+# Fallback migration if new location does not exist
+old_db = os.path.join(APP_DIR, 'database.db')
+if not os.path.exists(DB_PATH) and os.path.exists(old_db):
+    try:
+        import shutil
+        shutil.copy2(old_db, DB_PATH)
+    except Exception:
+        pass
 
 i_drive_uploads = os.environ.get("I_DRIVE_UPLOADS_DIR", r"I:\Buttonwillow\LAB\Operations App\uploads")
 drive_letter = os.path.splitdrive(i_drive_uploads)[0] + "\\"
