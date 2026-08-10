@@ -213,6 +213,13 @@ def waste_acceptance_finalize_load():
 
 @approvals_bp.route('/api/parse_profile_pdf', methods=['POST'])
 def parse_profile_pdf():
+    """Extract profile data fields from an uploaded WVI PDF using spatial coordinate matching.
+
+    Uses pdfplumber bounding-box geometry to locate and extract field values based
+    on their approximate x/y positions on the WVI form layout. Coordinate bounds
+    are calibrated against the standard Clean Harbors WVI PDF template.
+    Returns a JSON dict of extracted field values for pre-population of the profile form.
+    """
     if 'pdf_file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
     file = request.files['pdf_file']
@@ -477,7 +484,7 @@ def add_master_profile():
     treatment_recipe = request.form.get('treatment_recipe', '').strip()
 
     import time
-    from database import MASTER_EXCEL_PATH
+    from shared_state import MASTER_EXCEL_PATH
     excel_mtime = None
     try:
         if os.path.exists(MASTER_EXCEL_PATH):
@@ -834,6 +841,18 @@ def api_profile_voc_analyzer(profile_number):
 
 
 def calculate_sulfide_summary_stats(logs):
+    """Compute 90% confidence interval statistics for sulfide test results.
+
+    Aggregates total and reactive sulfide samples from individual log entries
+    (or legacy bulk JSON arrays). Calculates mean, sample standard deviation,
+    and upper 90% CI bound using a one-sided t-test:
+
+        CI_90 = mean + (s * t_{df, 0.90})
+
+    where t values are looked up from T_TABLE_90_CONFIDENCE keyed by degrees
+    of freedom (df = n - 1). Approval requires n >= 5 samples and reactive
+    sulfide CI_90 <= 500.0 mg/kg.
+    """
     import math
     tot_samples = []
     react_samples = []
@@ -1248,7 +1267,7 @@ def update_waste_acceptance_log():
             if prof_key:
                 excel_mtime = None
                 try:
-                    from database import MASTER_EXCEL_PATH
+                    from shared_state import MASTER_EXCEL_PATH
                     if os.path.exists(MASTER_EXCEL_PATH):
                         excel_mtime = os.path.getmtime(MASTER_EXCEL_PATH)
                 except Exception:
@@ -1556,7 +1575,7 @@ def export_wvi_excel(profile_number):
             except Exception:
                 pass
 
-    # ------------------ OPTION C REDESIGN ------------------
+    # Build the formatted WVI Excel workbook for export.
     wb = openpyxl.Workbook()
     if "Sheet" in wb.sheetnames:
         wb.remove(wb["Sheet"])

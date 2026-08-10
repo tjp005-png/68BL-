@@ -215,7 +215,13 @@ def determine_wap_parameters(profile_number, received_date, conn):
 
 @receiving_bp.route('/submit_truck', methods=['POST'])
 def submit_truck():
-    # We removed truck_id from the UI, so we default it to empty string to prevent errors
+    """Handle truck weigh-in submission.
+
+    Evaluates LAS status, assigns WAP sample type based on shipping mode,
+    container type, job type, and load count. Applies VOC force-test override
+    for profiles with VOC >= 50 ppm every 10 loads.
+    """
+    # truck_id field was removed from the UI; default to empty string for backward compatibility.
     truck_id = request.form.get('truck_id', '') 
     profile_number = request.form.get('profile_number', '').strip().upper()
     manifest_number = request.form.get('manifest_number')
@@ -305,25 +311,25 @@ def submit_truck():
             if 'CNIA' in win_code or 'CNIA' in profile_number:
                 is_asbestos = True
                 
-            # --- PURE EXPIRATION DATE & STATUS LAS LOGIC ---
+            # Evaluate expiration date and status to determine LAS requirement.
             raw_exp = str(p_dict.get('expiration_date') or '').strip().lower()
             clean_exp = re.sub(r'[^a-z0-9]', '', raw_exp)
             prof_status = str(p_dict.get('status') or '').strip().upper()
             
             is_las_profile = False
             
-            # 1. No Date -> Check the Status!
+            # No expiration date present: LAS required unless profile is explicitly ACTIVE.
             if clean_exp in ['nodate', '', 'blank']:
                 if prof_status.startswith('A') or 'HISTORICAL' in prof_status or prof_status == 'ACTIVE':
                     is_las_profile = False  # Active + No Date = Safe
                 else:
                     is_las_profile = True   # Not Active + No Date = LAS
                     
-            # 2. "None" -> Safe, never expires
+            # Sentinel values ('None', 'TBD', etc.) indicate no expiration: treat as safe.
             elif clean_exp in ['none', 'nan', 'nat', 'null', 'na', 'tbd', '0', 'false']:
                 is_las_profile = False
                 
-            # 3. Has a Date -> Expired Date ALWAYS triggers LAS
+            # A numeric date is present: flag LAS if the date has passed.
             else:
                 if any(char.isdigit() for char in raw_exp):
                     try:
@@ -437,7 +443,7 @@ def checkout_truck():
     extra_fees_list = request.form.getlist('extra_fees')
     extra_fees = ", ".join(extra_fees_list) if extra_fees_list else "None"
     
-    # NEW: Capture the exact check-out time
+    # Record check-out timestamp at the moment of submission.
     time_out = datetime.now().strftime('%H:%M')
     
     try:
@@ -456,13 +462,12 @@ def checkout_truck():
         gross_weight = float(truck['gross_weight']) if truck and truck['gross_weight'] else 0.0
         received_date = truck['date_received'] if truck else date.today().isoformat()
         
-        # Keeps your critical weight validation!
+        # Tare weight must be less than gross weight to produce a valid net tonnage.
         if exit_weight >= gross_weight and exit_weight > 0: 
             return "Critical Error: Tare weight cannot be greater than or equal to Gross weight.", 400
             
         net_weight_tons = (gross_weight - exit_weight) / 2000.0
         
-        # NEW: Added time_out to the UPDATE statement
         conn.execute('''
             UPDATE truck_logs 
             SET exit_weight = ?, net_weight = ?, cell_location = ?, grid_location = ?,

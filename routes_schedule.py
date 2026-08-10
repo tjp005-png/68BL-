@@ -23,10 +23,15 @@ from shared_state import SCHEDULE_UPDATES, socketio
 
 @schedule_bp.route('/schedule')
 def schedule_portal():
+    """Render the daily schedule board for a given date.
+
+    Joins daily_schedule with profiles and waste_acceptance_log in a single
+    query so that WA-overridden expiration dates and statuses are applied
+    without additional per-row lookups.
+    """
     selected_date = request.args.get('date', date.today().isoformat())
     with closing(get_db_connection()) as conn:
-        
-        # ONE Database Trip!
+        # Single query joins profile and WA log so WA status overrides MASTERPROFILE data.
         daily_loads_raw = conn.execute('''
             SELECT ds.*, 
                    COALESCE(NULLIF(TRIM(w.expiration_date), ''), p.expiration_date) AS expiration_date, 
@@ -51,7 +56,7 @@ def schedule_portal():
     for row in daily_loads_raw:
         load = dict(row)
         
-        # --- EFFICIENCY: Add to total_loads in memory ---
+        # Accumulate load count totals in memory to avoid a separate COUNT query.
         try: 
             count = int(load.get('load_count') or 1)
         except: 
@@ -67,7 +72,7 @@ def schedule_portal():
         if not is_stu and not is_u31:
             unit35_loads += count
         
-        # --- Clean Logic ---
+        # Resolve VOC level: use the schedule entry value if present, otherwise fall back to profile voc_percentage.
         voc_val = str(load.get('voc_level', '')).strip().upper()
         p_voc = load.get('profile_voc_percentage')
         p_voc_str = str(p_voc).strip().upper() if p_voc is not None else ''
@@ -110,7 +115,7 @@ def schedule_portal():
         else:
             standard_loads.append(load)
 
-    # --- BULLETPROOF SORT SEQUENCE ---
+    # Sort loads into display order: inbox rows first, then by LAS flag, pin status, load count, and ID.
     standard_loads.sort(key=lambda x: (
         x['order_index'] != 0,  # 1. Inbox rows (0) stay locked on top
         not x.get('is_las', False) if x['order_index'] == 0 else x['order_index'], # 2. Inbox defaults to LAS first
@@ -154,7 +159,7 @@ def toggle_pin(schedule_id):
     with closing(get_db_connection()) as conn:
         row = conn.execute('SELECT is_pinned FROM daily_schedule WHERE id = ?', (schedule_id,)).fetchone()
         if row:
-            # Flip it: if 1 make it 0, if 0 make it 1
+            # Toggle pin state.
             new_status = 0 if row['is_pinned'] == 1 else 1
             conn.execute('UPDATE daily_schedule SET is_pinned = ? WHERE id = ?', (new_status, schedule_id))
             conn.commit()
@@ -171,7 +176,7 @@ def clear_all_pins():
     date_str = request.form.get('schedule_date')
     if date_str:
         with closing(get_db_connection()) as conn:
-            # Set everyone back to Unpinned (0) for the day
+            # Clear all pins for the selected date.
             conn.execute('UPDATE daily_schedule SET is_pinned = 0 WHERE schedule_date = ?', (date_str,))
             conn.commit()
             

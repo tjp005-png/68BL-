@@ -7,6 +7,7 @@ _excel_cache = None
 _excel_cache_mtime = None
 
 import shared_state
+from shared_state import MASTER_EXCEL_PATH
 
 def get_db_connection(db_path=None):
     target_db = db_path or shared_state.DB_PATH

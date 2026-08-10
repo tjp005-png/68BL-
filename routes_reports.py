@@ -1197,8 +1197,8 @@ def reports():
                                 'test_status': 'VOID'
                             })
                     elif gap > 20:
-                        # DANGER: Huge gap detected (likely a test, typo, or late entry). 
-                        # Print ONE summary row to prevent crashing the server.
+                        # Safeguard: a gap of more than 20 load numbers is likely a data entry error
+                        # or test entry. Emit a single summary row to avoid rendering hundreds of empty rows.
                         filled_trucks.append({
                             'load_number': f"{current_num + 1} ➔ {next_num - 1}",
                             'manifest_number': '⚠️ LARGE GAP',

@@ -258,7 +258,7 @@ def chemist_dashboard():
                     # Mark in memory so we don't query again during this page load
                     truck['is_synced'] = 1
                     
-            # --- FALLBACK TO MASTER PROFILE REGISTRY (EXTRACTED PDF DATA) ---
+            # Fall back to MASTERPROFILE values if WVI-sourced fields are empty.
             if not truck.get('generator_name') and truck.get('p_generator'):
                 truck['generator_name'] = truck['p_generator']
             if not truck.get('waste_name') and truck.get('p_waste_description'):
@@ -266,7 +266,7 @@ def chemist_dashboard():
             if not truck.get('flashpoint') and truck.get('p_flash_point'):
                 truck['flashpoint'] = truck['p_flash_point']
             
-            # Set color
+            # Resolve color: WVI data takes priority over MASTERPROFILE.
             truck['color'] = truck.get('w_color') or truck.get('p_color') or ''
             
             if truck.get('ph_min') is None and truck.get('ph_max') is None and truck.get('p_ph_range'):
@@ -423,7 +423,7 @@ def api_chemist_check_in_drum():
         ''', (drum['id'],))
         conn.commit()
         
-        # Emit socket update
+        # Notify all connected clients that this drum job has been updated.
         socketio.emit('drum_update', {'job_id': drum['job_id']})
         
     return jsonify({'success': True, 'job_id': drum['job_id']})

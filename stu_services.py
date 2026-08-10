@@ -125,7 +125,7 @@ def process_drums(conn, drums):
     other_drums = [d for d in processed_drums if not d.get('is_asbestos')]
 
     for d in asbestos_drums:
-        # SURFACES ASBESTOS IN THE REPORTS
+        # Asbestos drums are surfaced at the top of the picklist and excluded from sampling.
         picklist.append({**d, "reason_not_sampled": "Asbestos - DO NOT SAMPLE", "is_sampled": "No", "sample_num": "ASBESTOS"})
 
     groups = defaultdict(list)
@@ -164,7 +164,7 @@ def parse_drum_labels_from_pdf(file_stream):
                 
                 header_text = text[:800].upper()
                 
-                # UPGRADED: Allows CNIA through even if the routing code isn't BL, and supports 68BL style routing codes
+                # Accept pages with the facility routing code OR CNIA designation (supports routing codes like 68BL).
                 has_bl = re.search(rf'\b\d*{TARGET_ROUTING_CODE}\b', header_text)
                 has_cnia = 'CNIA' in header_text
                 if not has_bl and not has_cnia: 
@@ -495,7 +495,7 @@ def create_pdf_report(output_buffer, title_text, picklist_data, total_samples):
     story, styles = [], getSampleStyleSheet()
     total_items_in_load = len(picklist_data) 
     
-    # REVERTED: Only include items that are marked as "Yes" for sampling (ignores Asbestos)
+    # Filter to sampled rows only; asbestos drums are excluded from the PDF report.
     pdf_rows = [row for row in picklist_data if row['is_sampled'] == "Yes"]
     
     # Sorts regular samples numerically by their Sample ID (#1, #2, etc.)
