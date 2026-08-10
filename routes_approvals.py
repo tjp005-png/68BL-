@@ -477,7 +477,7 @@ def add_master_profile():
     treatment_recipe = request.form.get('treatment_recipe', '').strip()
 
     import time
-    from database import MASTER_EXCEL_PATH
+    from shared_state import MASTER_EXCEL_PATH
     excel_mtime = None
     try:
         if os.path.exists(MASTER_EXCEL_PATH):
@@ -1249,7 +1249,7 @@ def update_waste_acceptance_log():
             if prof_key:
                 excel_mtime = None
                 try:
-                    from database import MASTER_EXCEL_PATH
+                    from shared_state import MASTER_EXCEL_PATH
                     if os.path.exists(MASTER_EXCEL_PATH):
                         excel_mtime = os.path.getmtime(MASTER_EXCEL_PATH)
                 except Exception:
