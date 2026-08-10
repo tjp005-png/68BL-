@@ -145,24 +145,20 @@ def upgrade_db():
             cursor.execute('ALTER TABLE profiles ADD COLUMN ldr_option INTEGER')
         if not column_exists(cursor, 'profiles', 'shipping_container_type'):
             cursor.execute('ALTER TABLE profiles ADD COLUMN shipping_container_type TEXT')
+            cursor.execute('''
+                UPDATE profiles 
+                SET shipping_container_type = CASE 
+                    WHEN UPPER(COALESCE(comments, '')) LIKE '%SIP%' OR UPPER(COALESCE(comments, '')) LIKE '%TREA%' THEN 'Containerized'
+                    WHEN UPPER(COALESCE(win_code, '')) IN ('CNOS', 'CBPS') OR UPPER(COALESCE(physical_appearance, '')) LIKE '%LIQUID%' THEN 'Bulk Liquid'
+                    ELSE 'Bulk Solid'
+                END
+                WHERE shipping_container_type IS NULL OR shipping_container_type = '';
+            ''')
             
-        cursor.execute('''
-            UPDATE profiles 
-            SET shipping_container_type = CASE 
-                WHEN UPPER(COALESCE(comments, '')) LIKE '%SIP%' OR UPPER(COALESCE(comments, '')) LIKE '%TREA%' THEN 'Containerized'
-                WHEN UPPER(COALESCE(win_code, '')) IN ('CNOS', 'CBPS') OR UPPER(COALESCE(physical_appearance, '')) LIKE '%LIQUID%' THEN 'Bulk Liquid'
-                ELSE 'Bulk Solid'
-            END;
-        ''')
         cursor.execute('''
             UPDATE profiles 
             SET win_code = 'CBP'
             WHERE win_code IS NULL OR win_code = '' OR UPPER(win_code) = 'NONE';
-        ''')
-        cursor.execute('''
-            UPDATE truck_logs 
-            SET net_weight = net_weight / 2000.0 
-            WHERE net_weight > 500;
         ''')
         if not column_exists(cursor, 'profiles', 'state_waste_code'):
             cursor.execute('ALTER TABLE profiles ADD COLUMN state_waste_code TEXT')
