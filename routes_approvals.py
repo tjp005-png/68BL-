@@ -534,7 +534,10 @@ def auto_sync_profiles():
             for s in schedules:
                 prof_num = str(s['profile_number']).strip().upper()
                 from database import ensure_profile_exists
-                ensure_profile_exists(conn, prof_num)
+                try:
+                    ensure_profile_exists(conn, prof_num)
+                except Exception as sync_err:
+                    pass
                 prof = conn.execute('''
                     SELECT voc_percentage, generator, win_code 
                     FROM profiles 
