@@ -39,21 +39,41 @@ if not os.path.exists(UPLOADS_DIR):
     except Exception:
         pass
 
-local_excel = os.path.join(APP_DIR, 'MASTERPROFILE.xlsx')
+# Master Profile Excel File Path Resolution with multi-level fallback chain:
+# 1. Environment Variable override: OS env 'MASTER_EXCEL_PATH'
+# 2. User OneDrive variants (cleanharbors.com, Clean Harbors Inc, standard OneDrive)
+# 3. Local App directory & Desktop fallbacks
+# 4. Shared network drives (I: drive)
+candidate_paths = []
 
-# Resolve OneDrive path dynamically for the currently logged-in user.
-# OneDrive automatically synchronizes the cloud file locally in the background.
+env_excel = os.environ.get("MASTER_EXCEL_PATH", "").strip()
+if env_excel:
+    candidate_paths.append(env_excel)
+
 user_profile = os.environ.get("USERPROFILE", "")
-dynamic_excel = ""
 if user_profile:
-    dynamic_excel = os.path.join(user_profile, "OneDrive - cleanharbors.com", "O365 Facilities Schedule - BL - WAP", "MASTERPROFILE.xlsx")
+    sub_folder = os.path.join("O365 Facilities Schedule - BL - WAP", "MASTERPROFILE.xlsx")
+    candidate_paths.extend([
+        os.path.join(user_profile, "OneDrive - cleanharbors.com", sub_folder),
+        os.path.join(user_profile, "OneDrive - Clean Harbors, Inc", sub_folder),
+        os.path.join(user_profile, "OneDrive - Clean Harbors", sub_folder),
+        os.path.join(user_profile, "OneDrive", sub_folder),
+        os.path.join(user_profile, "Desktop", "MASTERPROFILE.xlsx"),
+    ])
 
-if dynamic_excel and os.path.exists(dynamic_excel):
-    MASTER_EXCEL_PATH = dynamic_excel
-elif os.path.exists(local_excel):
-    MASTER_EXCEL_PATH = local_excel
-else:
-    MASTER_EXCEL_PATH = local_excel
+local_excel = os.path.join(APP_DIR, 'MASTERPROFILE.xlsx')
+candidate_paths.extend([
+    local_excel,
+    r"I:\Buttonwillow\LAB\Operations App\MASTERPROFILE.xlsx",
+    r"I:\Buttonwillow\WAP\MASTERPROFILE.xlsx",
+    r"I:\Buttonwillow\LAB\MASTERPROFILE.xlsx",
+])
+
+MASTER_EXCEL_PATH = local_excel
+for path in candidate_paths:
+    if path and os.path.exists(path):
+        MASTER_EXCEL_PATH = path
+        break
 
 # Multi-user sync tracker dictionary for scheduling and UI refreshes
 SCHEDULE_UPDATES = {'GLOBAL': 0}
