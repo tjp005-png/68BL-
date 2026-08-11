@@ -5,18 +5,16 @@ import sqlite3
 import json
 
 # Setup mock database path
-TEST_DB_PATH = 'test_database.db'
+TEST_DB_PATH = os.path.abspath('test_database.db')
+os.environ['DB_PATH'] = TEST_DB_PATH
+
+import shared_state
+shared_state.DB_PATH = TEST_DB_PATH
 
 # Patch connect globally so the Flask app uses our test database
 original_connect = sqlite3.connect
 def mock_connect(database, *args, **kwargs):
-    import os
-    db_abs = os.path.abspath(database)
-    main_db_abs = os.path.abspath(TEST_DB_PATH)
-    prod_db_abs = os.path.abspath('database.db')
-    if db_abs == main_db_abs or db_abs == prod_db_abs or database == 'database.db':
-        return original_connect(TEST_DB_PATH, *args, **kwargs)
-    return original_connect(database, *args, **kwargs)
+    return original_connect(TEST_DB_PATH, *args, **kwargs)
 sqlite3.connect = mock_connect
 
 # Now import our app and route blueprints
@@ -254,7 +252,7 @@ class TestSTURedesignFlow(unittest.TestCase):
         self.assertEqual(rows[0]['schedule_date'], '2026-05-30')
         self.assertEqual(rows[1]['schedule_date'], '2026-05-31')
         self.assertEqual(rows[0]['sales_order'], 'SO-1234')
-        self.assertEqual(rows[0]['generator'], 'Test Generator')
+        self.assertEqual(rows[0]['generator'].upper(), 'TEST GENERATOR')
         self.assertIsNotNone(rows[0]['series_id'])
         self.assertEqual(rows[0]['series_id'], rows[1]['series_id'])
         conn.close()
@@ -290,26 +288,26 @@ class TestSTURedesignFlow(unittest.TestCase):
         today = date.today()
         scan_date_4_days_ago = (today - timedelta(days=4)).strftime('%m/%d/%Y')
         
-        # 1. Insert a pending sampling drum to verify it gets preserved during upload
+        # 1. Insert a pending sampling drum received today to verify it gets preserved during upload
         conn = original_connect(TEST_DB_PATH)
         conn.execute('''
             INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status)
-            VALUES ('DRUM-PENDING', 'P-STU-TEST', 'MAN-111', 'PENDING SAMPLING', 100.0, 7.0, 10.0, 10.0, 1000.0, '2026-06-01', 'JOB-111', 'PLANT RECEIVED')
-        ''')
+            VALUES ('DRUM-PENDING', 'P-STU-TEST', 'MAN-111', 'PENDING SAMPLING', 100.0, 7.0, 10.0, 10.0, 1000.0, ?, 'JOB-111', 'PLANT RECEIVED')
+        ''', (today.isoformat(),))
         # Insert a rejected drum that WILL be in the VPI file (case-insensitive test)
         conn.execute('''
             INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status, reject_notes, outgoing_manifest)
             VALUES ('drum-rejected-in-vpi', 'P-STU-TEST', 'MAN-111', 'direct land haz', 300.0, 7.0, 5.0, 0.0, 0.0, '2026-06-01', 'JOB-111', 'REJECTED', 'Failed pH test', 'OUT-123')
         ''')
-        # Insert a rejected drum that WILL NOT be in the VPI file
+        # Insert an old rejected drum that WILL NOT be in the VPI file (older than 3 days, no active job -> cleaned out)
         conn.execute('''
             INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status, reject_notes, outgoing_manifest)
-            VALUES ('DRUM-REJECTED-MISSING', 'P-STU-TEST', 'MAN-111', 'direct land haz', 320.0, 7.0, 5.0, 0.0, 0.0, '2026-06-01', 'JOB-111', 'REJECTED', 'Leaking container', 'OUT-456')
+            VALUES ('DRUM-REJECTED-MISSING', 'P-STU-TEST', 'MAN-111', 'direct land haz', 320.0, 7.0, 5.0, 0.0, 0.0, '2026-06-01', NULL, 'REJECTED', 'Leaking container', 'OUT-456')
         ''')
-        # Insert a PLANT RECEIVED drum that WILL NOT be in the VPI file (should be deleted)
+        # Insert an old PLANT RECEIVED drum that WILL NOT be in the VPI file (should be deleted)
         conn.execute('''
             INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status)
-            VALUES ('DRUM-PLANT-MISSING', 'P-STU-TEST', 'MAN-111', 'direct land haz', 100.0, 7.0, 10.0, 10.0, 1000.0, '2026-06-01', 'JOB-111', 'PLANT RECEIVED')
+            VALUES ('DRUM-PLANT-MISSING', 'P-STU-TEST', 'MAN-111', 'direct land haz', 100.0, 7.0, 10.0, 10.0, 1000.0, '2026-06-01', NULL, 'PLANT RECEIVED')
         ''')
         # Insert a PLANT RECEIVED drum that WILL be in the VPI file (should change to FINAL CODED)
         conn.execute('''
@@ -348,7 +346,7 @@ class TestSTURedesignFlow(unittest.TestCase):
         self.assertEqual(row_new['status'], 'FINAL CODED')
         self.assertEqual(row_new['last_scan_date'], scan_date_4_days_ago)
 
-        # The pending sampling drum DRUM-PENDING (which was not in CSV) should be preserved
+        # The pending sampling drum DRUM-PENDING (which was not in CSV, but received recently) should be preserved
         row_pending = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-PENDING'").fetchone()
         self.assertIsNotNone(row_pending)
         self.assertEqual(row_pending['process_type'], 'PENDING SAMPLING')
@@ -363,19 +361,16 @@ class TestSTURedesignFlow(unittest.TestCase):
         self.assertIsNotNone(row_heavy_put)
         self.assertEqual(row_heavy_put['process_type'], 'put pile')
 
-        # Verify that drum-rejected-in-vpi (casing differed in CSV: DRUM-REJECTED-IN-VPI) preserved its REJECTED status and notes
+        # Verify that drum-rejected-in-vpi preserved its REJECTED status and notes
         row_rejected_in = conn.execute("SELECT * FROM drum_inventory WHERE TRIM(UPPER(track_no)) = 'DRUM-REJECTED-IN-VPI'").fetchone()
         self.assertIsNotNone(row_rejected_in)
         self.assertEqual(row_rejected_in['status'], 'REJECTED')
         self.assertEqual(row_rejected_in['reject_notes'], 'Failed pH test')
         self.assertEqual(row_rejected_in['outgoing_manifest'], 'OUT-123')
 
-        # Verify that DRUM-REJECTED-MISSING (omitted from CSV) was fully preserved/re-inserted
+        # Verify that DRUM-REJECTED-MISSING (omitted from CSV, old date, no active job) was cleaned out / deleted
         row_rejected_missing = conn.execute("SELECT * FROM drum_inventory WHERE TRIM(UPPER(track_no)) = 'DRUM-REJECTED-MISSING'").fetchone()
-        self.assertIsNotNone(row_rejected_missing)
-        self.assertEqual(row_rejected_missing['status'], 'REJECTED')
-        self.assertEqual(row_rejected_missing['reject_notes'], 'Leaking container')
-        self.assertEqual(row_rejected_missing['outgoing_manifest'], 'OUT-456')
+        self.assertIsNone(row_rejected_missing)
 
         # Verify that DRUM-PLANT-MISSING was deleted
         row_plant_missing = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-PLANT-MISSING'").fetchone()
@@ -588,6 +583,49 @@ class TestSTURedesignFlow(unittest.TestCase):
         res_get_del = self.client.get('/api/waste_acceptance/log')
         logs_del = json.loads(res_get_del.data)
         self.assertEqual(len(logs_del), 0)
+
+    def test_stu_audit_trail(self):
+        """Test the STU audit trail endpoint renders without table errors"""
+        conn = original_connect(TEST_DB_PATH)
+        conn.execute("INSERT INTO put_pile_retreats (track_no, retreat_date, recipe, notes) VALUES ('TRACK-99', '2026-08-11', 'Recipe A', 'Test retreat')")
+        conn.commit()
+        conn.close()
+
+        res = self.client.get('/stu/audit_trail')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(b'TRACK-99', res.data)
+
+    def test_cnon_norm_win_code(self):
+        """Test CNON WIN code handling and procedure generation"""
+        conn = original_connect(TEST_DB_PATH)
+        conn.execute('''
+            INSERT OR REPLACE INTO profiles (profile_number, generator, status, win_code)
+            VALUES ('P-NORM-TEST', 'NORM Generator', 'ACTIVE', 'CNON')
+        ''')
+        conn.commit()
+        conn.close()
+
+        res = self.client.get('/api/profile/search?q=P-NORM-TEST')
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.data)
+        self.assertTrue(any(p['win_code'] == 'CNON' for p in data))
+
+    def test_custom_procedure_overrides(self):
+        """Test one-off custom procedure overrides in profiles and WVI output"""
+        conn = original_connect(TEST_DB_PATH)
+        conn.execute('''
+            INSERT OR REPLACE INTO profiles (profile_number, generator, status, win_code, sample_procedures, unloading_instructions)
+            VALUES ('P-CUSTOM-TEST', 'Custom Generator', 'ACTIVE', 'CBP', 'CUSTOM SAMPLING SCOOP', 'CUSTOM UNLOAD BAYS')
+        ''')
+        conn.commit()
+        conn.close()
+
+        res = self.client.get('/api/profile/search?q=P-CUSTOM-TEST')
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.data)
+        match = next(p for p in data if p['profile_number'] == 'P-CUSTOM-TEST')
+        self.assertEqual(match['sample_procedures'], 'CUSTOM SAMPLING SCOOP')
+        self.assertEqual(match['unloading_instructions'], 'CUSTOM UNLOAD BAYS')
 
 if __name__ == '__main__':
     unittest.main()

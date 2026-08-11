@@ -350,19 +350,21 @@ def upload_vpi():
             
             df = df.drop_duplicates(subset=['Track No'], keep='last')
             
-            # Preserve existing statuses, pending sampling, and rejected/failed/resample drums
+            # Determine active pipeline jobs (loads that are not yet final coded)
+            active_jobs_rows = conn.execute('''
+                SELECT DISTINCT job_id FROM drum_lab_queue WHERE status != 'FINAL CODED' AND job_id IS NOT NULL
+                UNION
+                SELECT DISTINCT job_id FROM drum_inventory WHERE process_type = 'PENDING SAMPLING' AND job_id IS NOT NULL
+            ''').fetchall()
+            active_job_ids = {row[0] for row in active_jobs_rows if row[0]}
+
+            # Fetch existing drums from inventory prior to wiping
             try:
-                preserved_drums_raw = conn.execute("""
-                    SELECT * FROM drum_inventory 
-                    WHERE status NOT IN ('FINAL CODED', 'ACTIVE', 'PLANT RECEIVED') 
-                       OR reject_notes IS NOT NULL 
-                       OR outgoing_manifest IS NOT NULL
-                       OR process_type = 'PENDING SAMPLING'
-                """).fetchall()
-                preserved_drums = [dict(d) for d in preserved_drums_raw]
+                existing_drums_raw = conn.execute("SELECT * FROM drum_inventory").fetchall()
+                existing_drums = [dict(d) for d in existing_drums_raw]
             except Exception as ex:
-                print(f"Error fetching preserved drums: {ex}")
-                preserved_drums = []
+                print(f"Error fetching existing drums: {ex}")
+                existing_drums = []
                 
             conn.execute('DELETE FROM drum_inventory')
             
@@ -389,34 +391,60 @@ def upload_vpi():
             cleaned_data = list(zip(df['Track No'], df['Inb Prof'], df['Process Type'], df['Weight'], df['pH'], df['Age'], df['voc_ppm'], df['voc_weight'], [date.today().isoformat()]*len(df), statuses, df['location'], df['last_scan_date']))
             conn.executemany("INSERT INTO drum_inventory (track_no, inb_prof, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, status, location, last_scan_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", cleaned_data)
             
-            # Re-apply preserved statuses and re-insert missing ones
+            # Re-apply preserved statuses and re-insert missing ones (if recent or active in pipeline)
             imported_tracks_upper = {str(t).strip().upper() for t in df['Track No']}
+            today = date.today()
+
+            def is_recent_import(import_date_str):
+                if not import_date_str:
+                    return True
+                import_date_str = str(import_date_str).strip()
+                for fmt in ('%Y-%m-%d', '%m/%d/%Y', '%Y/%m/%d', '%m/%d/%y'):
+                    try:
+                        dt = datetime.strptime(import_date_str, fmt).date()
+                        return (today - dt).days <= 3
+                    except ValueError:
+                        continue
+                return True
             
-            for p in preserved_drums:
+            for p in existing_drums:
                 track_upper = str(p['track_no']).strip().upper()
                 if track_upper in imported_tracks_upper:
-                    # Update status, reject_notes, outgoing_manifest for the imported drum case-insensitively
-                    conn.execute("""
-                        UPDATE drum_inventory 
-                        SET status = ?, reject_notes = ?, outgoing_manifest = ? 
-                        WHERE TRIM(UPPER(track_no)) = ?
-                    """, (p['status'], p['reject_notes'], p['outgoing_manifest'], track_upper))
+                    # Update reject_notes and outgoing_manifest.
+                    if p.get('status') == 'REJECTED':
+                        conn.execute("""
+                            UPDATE drum_inventory 
+                            SET status = 'REJECTED', reject_notes = ?, outgoing_manifest = ? 
+                            WHERE TRIM(UPPER(track_no)) = ?
+                        """, (p.get('reject_notes'), p.get('outgoing_manifest'), track_upper))
+                    elif p.get('status') in ('RESAMPLE', 'MISSING'):
+                        curr_pt = conn.execute("SELECT process_type FROM drum_inventory WHERE TRIM(UPPER(track_no)) = ?", (track_upper,)).fetchone()
+                        if curr_pt and str(curr_pt[0]).strip().lower() == 'pending sampling':
+                            conn.execute("""
+                                UPDATE drum_inventory SET status = ? WHERE TRIM(UPPER(track_no)) = ?
+                            """, (p['status'], track_upper))
                 else:
-                    # Re-insert the full row because it was not in the new VPI feed
-                    loc_val = p['location']
-                    status_val = p['status'] if p['status'] is not None else 'PLANT RECEIVED'
-                    conn.execute("""
-                        INSERT INTO drum_inventory (
-                            track_no, inb_prof, manifest, process_type, weight, ph, age, 
-                            voc_ppm, voc_weight, import_date, job_id, status, reject_notes, 
-                            outgoing_manifest, location, last_scan_date
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        p['track_no'], p['inb_prof'], p['manifest'], p['process_type'], 
-                        p['weight'], p['ph'], p['age'], p['voc_ppm'], p['voc_weight'], 
-                        p['import_date'], p['job_id'], status_val, p['reject_notes'], 
-                        p['outgoing_manifest'], loc_val, p.get('last_scan_date')
-                    ))
+                    # Drum was NOT in the newly uploaded VPI feed
+                    job_id = p.get('job_id')
+                    is_active_pipeline = bool(job_id and job_id in active_job_ids)
+                    is_recent = is_recent_import(p.get('import_date'))
+                    
+                    # Preserve drum if it is recent OR belongs to an active pipeline job
+                    if is_recent or is_active_pipeline:
+                        loc_val = p.get('location')
+                        status_val = p.get('status') if p.get('status') is not None else 'PLANT RECEIVED'
+                        conn.execute("""
+                            INSERT INTO drum_inventory (
+                                track_no, inb_prof, manifest, process_type, weight, ph, age, 
+                                voc_ppm, voc_weight, import_date, job_id, status, reject_notes, 
+                                outgoing_manifest, location, last_scan_date
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            p['track_no'], p['inb_prof'], p.get('manifest'), p['process_type'], 
+                            p['weight'], p['ph'], p['age'], p['voc_ppm'], p['voc_weight'], 
+                            p['import_date'], p.get('job_id'), status_val, p.get('reject_notes'), 
+                            p.get('outgoing_manifest'), loc_val, p.get('last_scan_date')
+                        ))
                 
             conn.commit()
     except Exception as e: 

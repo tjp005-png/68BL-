@@ -475,6 +475,10 @@ def add_master_profile():
 
     status = request.form.get('status', 'S').strip().upper()
     treatment_recipe = request.form.get('treatment_recipe', '').strip()
+    sample_procedures = request.form.get('sample_procedures', '').strip()
+    verification_procedures = request.form.get('verification_procedures', '').strip()
+    unloading_instructions = request.form.get('unloading_instructions', '').strip()
+    special_instructions = request.form.get('special_instructions', '').strip()
 
     import time
     from shared_state import MASTER_EXCEL_PATH
@@ -497,27 +501,31 @@ def add_master_profile():
                     expiration_date = ?, epa_id = ?, ldr_required = ?, ldr_option = ?, state_waste_code = ?, 
                     federal_waste_code = ?, dot_description = ?, cyanide = ?, sulfide = ?, 
                     free_liquids = ?, status = ?, lab_number = ?, color = ?, treatment_recipe = ?,
-                    shipping_container_type = ?, last_synced_mtime = ?
+                    shipping_container_type = ?, sample_procedures = ?, verification_procedures = ?,
+                    unloading_instructions = ?, special_instructions = ?, last_synced_mtime = ?
                 WHERE TRIM(UPPER(profile_number)) = ?
             ''', (generator, waste_description, win_code, voc_pct, 
                   special_handling, ph_range, physical_appearance, flash_point, 
                   expiration_date, epa_id, ldr_required, ldr_option, state_waste_code, 
                   federal_waste_code, dot_description, cyanide, sulfide, 
                   free_liquids, status, lab_number, color, treatment_recipe,
-                  shipping_container_type, excel_mtime, profile_number))
+                  shipping_container_type, sample_procedures, verification_procedures,
+                  unloading_instructions, special_instructions, excel_mtime, profile_number))
         else:
             conn.execute('''
                 INSERT INTO profiles (profile_number, generator, waste_description, win_code, voc_percentage, 
                                       special_handling, ph_range, physical_appearance, flash_point, expiration_date, 
                                       epa_id, status, ldr_required, ldr_option, state_waste_code, federal_waste_code, 
                                       dot_description, cyanide, sulfide, free_liquids, lab_number, color, treatment_recipe,
-                                      shipping_container_type, last_synced_mtime)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                      shipping_container_type, sample_procedures, verification_procedures,
+                                      unloading_instructions, special_instructions, last_synced_mtime)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (profile_number, generator, waste_description, win_code, voc_pct, 
                   special_handling, ph_range, physical_appearance, flash_point, expiration_date, 
                   epa_id, status, ldr_required, ldr_option, state_waste_code, federal_waste_code, 
                   dot_description, cyanide, sulfide, free_liquids, lab_number, color, treatment_recipe,
-                  shipping_container_type, excel_mtime))
+                  shipping_container_type, sample_procedures, verification_procedures,
+                  unloading_instructions, special_instructions, excel_mtime))
         conn.commit()
         
     return redirect(url_for('approvals_bp.approvals_portal', selected_profile=profile_number))
@@ -1398,11 +1406,18 @@ def export_wvi_excel(profile_number):
         'state_waste_codes': w_row['state_waste_codes'] if (w_row and w_row['state_waste_codes']) else (p_row['state_waste_code'] if p_row else ''),
         'federal_waste_codes': w_row['federal_waste_codes'] if (w_row and w_row['federal_waste_codes']) else (p_row['federal_waste_code'] if p_row else ''),
         'dot_description': w_row['dot_description'] if (w_row and w_row['dot_description']) else (p_row['dot_description'] if p_row else ''),
-        'handling_instruction': w_row['handling_instruction'] if (w_row and w_row['handling_instruction']) else '',
-        'sample_procedures': w_row['sample_procedures'] if (w_row and w_row['sample_procedures']) else '',
+        'handling_instruction': (
+            str(p_row['special_handling']).strip() if (p_row and 'special_handling' in p_row.keys() and p_row['special_handling'] and str(p_row['special_handling']).strip() != '')
+            else (w_row['handling_instruction'] if (w_row and w_row['handling_instruction']) else '')
+        ),
+        'sample_procedures': (
+            str(p_row['sample_procedures']).strip() if (p_row and 'sample_procedures' in p_row.keys() and p_row['sample_procedures'] and str(p_row['sample_procedures']).strip() != '')
+            else (w_row['sample_procedures'] if (w_row and w_row['sample_procedures']) else '')
+        ),
         'verification_procedures': (
-            w_row['verification_procedures'] if (w_row and w_row['verification_procedures'] and "FINGER" not in str(w_row['verification_procedures']).upper())
-            else ("Visual" if (win_code == 'CNIA' or is_monolith) else "VERIFY FINGERPRINT RESULTS AND PHYSICAL DESCRIPTION WITH PROFILE")
+            str(p_row['verification_procedures']).strip() if (p_row and 'verification_procedures' in p_row.keys() and p_row['verification_procedures'] and str(p_row['verification_procedures']).strip() != '')
+            else (w_row['verification_procedures'] if (w_row and w_row['verification_procedures'] and "FINGER" not in str(w_row['verification_procedures']).upper())
+            else ("Visual" if (win_code == 'CNIA' or is_monolith) else "VERIFY FINGERPRINT RESULTS AND PHYSICAL DESCRIPTION WITH PROFILE"))
         ),
         'ph_min': w_row['ph_min'] if (w_row and w_row['ph_min'] is not None) else None,
         'ph_max': w_row['ph_max'] if (w_row and w_row['ph_max'] is not None) else None,
@@ -1411,9 +1426,16 @@ def export_wvi_excel(profile_number):
         'free_liquids': w_row['free_liquids'] if (w_row and w_row['free_liquids']) else (p_row['free_liquids'] if p_row else ''),
         'flashpoint': w_row['flashpoint'] if (w_row and w_row['flashpoint']) else (p_row['flash_point'] if p_row else ''),
         'unloading_instructions': (
-            str(w_row['unloading_instructions']).strip() if (w_row and w_row['unloading_instructions'] is not None and str(w_row['unloading_instructions']).strip() != "")
+            str(p_row['unloading_instructions']).strip() if (p_row and 'unloading_instructions' in p_row.keys() and p_row['unloading_instructions'] and str(p_row['unloading_instructions']).strip() != '')
+            else (str(w_row['unloading_instructions']).strip() if (w_row and w_row['unloading_instructions'] is not None and str(w_row['unloading_instructions']).strip() != "")
             else (str(p_row['special_handling']).strip() if (p_row and p_row['special_handling'] is not None and str(p_row['special_handling']).strip() != "")
-            else ("Follow Red Folder" if (win_code in ['CCS', 'CCSM'] or win_code.startswith('CCS')) else "NO SPECIAL HANDLING REQUIRED UNLOAD TO LANDFILL NORMALLY"))
+            else ("Follow Red Folder" if (win_code in ['CCS', 'CCSM'] or win_code.startswith('CCS'))
+            else ("NO SPECIAL HANDLING REQUIRED UNLOAD TO LANDFILL NORMALLY - FOLLOW NORM PROTOCOL" if win_code == 'CNON'
+            else "NO SPECIAL HANDLING REQUIRED UNLOAD TO LANDFILL NORMALLY"))))
+        ),
+        'special_instructions': (
+            str(p_row['special_instructions']).strip() if (p_row and 'special_instructions' in p_row.keys() and p_row['special_instructions'] and str(p_row['special_instructions']).strip() != '')
+            else ("FOLLOW NORM PROTOCOL - TR TO ATTACH RAD READING TO WEIGHT TICKET" if win_code == 'CNON' else '')
         ),
         'reactivity_codes': w_row['reactivity_codes'] if (w_row and w_row['reactivity_codes']) else 'NONE',
         'approved_date': w_row['approved_date'] if (w_row and w_row['approved_date']) else '',
@@ -1711,7 +1733,7 @@ def export_wvi_excel(profile_number):
     
     win_code = str(p_row['win_code'] if p_row else '').strip().upper()
     
-    if win_code in ['CBP', 'CNIA', 'CBPR']:
+    if win_code in ['CBP', 'CNIA', 'CBPR', 'CNON']:
         disposal_loc = "DIRECT TO LANDFILL / ACTIVE CELL"
     elif win_code in ['CBPS', 'CNOS']:
         disposal_loc = "UNIT 31"
@@ -1721,9 +1743,11 @@ def export_wvi_excel(profile_number):
         disposal_loc = f"DISPOSAL LOCATION DETERMINED BY WIN ID: {win_code}" if win_code else "TBD"
         
     handling_inst = str(combined.get('handling_instruction') or '').strip().upper()
-    if not handling_inst:
+    if not handling_inst or win_code == 'CNON':
         if win_code == 'CNIA':
             handling_inst = "CONTAINS ASBESTOS DO NOT SAMPLE"
+        elif win_code == 'CNON':
+            handling_inst = "FOLLOW NORM PROTOCOL (TR TO ATTACH RAD READING TO WEIGHT TICKET)"
         else:
             handling_inst = "A MINIMUM OF SAFETY GLASSES, GLOVES, BOOTS, TYVEK, & RESPIRATOR"
             
@@ -1751,6 +1775,7 @@ def export_wvi_excel(profile_number):
         ("Sample Procedures:", sample_proc),
         ("Handling Instructions:", handling_inst),
         ("Unloading Instructions:", combined['unloading_instructions']),
+        ("Special Instructions:", combined.get('special_instructions') or 'NONE'),
         ("Treatment Information:", treatment_info),
         ("Verification Procedures:", combined['verification_procedures']),
         ("Notes / Revisions:", combined['notes_revisions'])
