@@ -145,15 +145,14 @@ def upgrade_db():
             cursor.execute('ALTER TABLE profiles ADD COLUMN ldr_option INTEGER')
         if not column_exists(cursor, 'profiles', 'shipping_container_type'):
             cursor.execute('ALTER TABLE profiles ADD COLUMN shipping_container_type TEXT')
-            cursor.execute('''
-                UPDATE profiles 
-                SET shipping_container_type = CASE 
-                    WHEN UPPER(COALESCE(comments, '')) LIKE '%SIP%' OR UPPER(COALESCE(comments, '')) LIKE '%TREA%' THEN 'Containerized'
-                    WHEN UPPER(COALESCE(win_code, '')) IN ('CNOS', 'CBPS') OR UPPER(COALESCE(physical_appearance, '')) LIKE '%LIQUID%' THEN 'Bulk Liquid'
-                    ELSE 'Bulk Solid'
-                END
-                WHERE shipping_container_type IS NULL OR shipping_container_type = '';
-            ''')
+        if not column_exists(cursor, 'profiles', 'sample_procedures'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN sample_procedures TEXT')
+        if not column_exists(cursor, 'profiles', 'verification_procedures'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN verification_procedures TEXT')
+        if not column_exists(cursor, 'profiles', 'unloading_instructions'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN unloading_instructions TEXT')
+        if not column_exists(cursor, 'profiles', 'special_instructions'):
+            cursor.execute('ALTER TABLE profiles ADD COLUMN special_instructions TEXT')
             
         cursor.execute('''
             UPDATE profiles 
@@ -240,6 +239,15 @@ def upgrade_db():
                 trigger_reason TEXT,
                 chemist_name TEXT,
                 voc_result REAL
+            );
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS put_pile_retreats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                track_no TEXT,
+                retreat_date TEXT,
+                recipe TEXT,
+                notes TEXT
             );
         ''')
 

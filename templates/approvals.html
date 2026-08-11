@@ -534,7 +534,18 @@
                                 <div class="row mb-3">
                                     <div class="col-4">
                                         <label class="form-label text-muted small fw-bold mb-1">BL Waste Code</label>
-                                        <input type="text" class="form-control border-secondary text-uppercase" id="form-win" name="win_code" placeholder="e.g. CBP, CNO">
+                                        <input type="text" class="form-control border-secondary text-uppercase" id="form-win" name="win_code" placeholder="e.g. CBP, CNON, CNO" list="win-codes-list">
+                                        <datalist id="win-codes-list">
+                                            <option value="CBP">CBP - Bulk Solid (Landfill)</option>
+                                            <option value="CNON">CNON - NORM Solid (Landfill - Attach Rad Reading)</option>
+                                            <option value="CBPS">CBPS - Bulk Liquid (Stabilization)</option>
+                                            <option value="CNO">CNO - Non-Haz Solid</option>
+                                            <option value="CNOS">CNOS - Non-Haz Liquid</option>
+                                            <option value="CCS">CCS - Characteristic Haz Solid</option>
+                                            <option value="CCSM">CCSM - Monolith Haz Solid</option>
+                                            <option value="CBPR">CBPR - Recycled Solid</option>
+                                            <option value="CNIA">CNIA - Non-Inspect Asbestos</option>
+                                        </datalist>
                                     </div>
                                     <div class="col-4">
                                         <label class="form-label text-muted small fw-bold mb-1 text-danger d-flex justify-content-between">
@@ -587,9 +598,41 @@
                                     <input type="text" class="form-control border-secondary" id="form-dot" name="dot_description" placeholder="e.g. UN3082, Environmentally hazardous substance...">
                                 </div>
 
-                                <div class="mb-4">
+                                <div class="mb-3">
                                     <label class="form-label text-muted small fw-bold mb-1">Facility Handling Notes</label>
                                     <input type="text" class="form-control border-secondary" id="form-handling" name="special_handling" placeholder="e.g. Reactive, LAS Required, Dust Control...">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label text-muted small fw-bold mb-1">Special Instructions</label>
+                                    <input type="text" class="form-control border-secondary" id="form-special-instructions" name="special_instructions" placeholder="e.g. FOLLOW NORM PROTOCOL - TR TO ATTACH RAD READING TO WEIGHT TICKET">
+                                </div>
+
+                                <div class="mb-4">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary text-decoration-none fw-bold w-100 text-start d-flex justify-content-between align-items-center py-2 px-3 rounded-3" 
+                                            data-bs-toggle="collapse" 
+                                            data-bs-target="#customProceduresCollapse" 
+                                            aria-expanded="false" 
+                                            aria-controls="customProceduresCollapse">
+                                        <span>⚙️ Custom Procedure Overrides (Optional)</span>
+                                        <span class="small text-muted">▼</span>
+                                    </button>
+                                    <div class="collapse mt-2" id="customProceduresCollapse">
+                                        <div class="card border border-secondary-subtle bg-light p-3 rounded-3 shadow-sm">
+                                            <div class="mb-2">
+                                                <label class="form-label text-muted small mb-1 fw-bold">Sampling Procedures</label>
+                                                <input type="text" class="form-control form-control-sm border-secondary" id="form-sample-procedures" name="sample_procedures" placeholder="Leave blank for automatic default (e.g. Collect Sample With Scoop)">
+                                            </div>
+                                            <div class="mb-2">
+                                                <label class="form-label text-muted small mb-1 fw-bold">Verification Procedures</label>
+                                                <input type="text" class="form-control form-control-sm border-secondary" id="form-verification-procedures" name="verification_procedures" placeholder="Leave blank for automatic default (e.g. Verify Fingerprint Results...)">
+                                            </div>
+                                            <div>
+                                                <label class="form-label text-muted small mb-1 fw-bold">Unloading Instructions</label>
+                                                <input type="text" class="form-control form-control-sm border-secondary" id="form-unloading-instructions" name="unloading_instructions" placeholder="Leave blank for automatic default (e.g. Direct Waste to Landfill)">
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <button type="submit" id="formSubmitBtn" class="btn btn-crimson w-100 py-3 shadow-sm rounded-3 fs-5 d-flex align-items-center justify-content-center">
@@ -709,15 +752,19 @@
                             <div class="row g-2">
                                 <div class="col-12 col-md-6">
                                     <div class="small text-muted fw-bold text-primary">🧪 VERIFICATION PROCEDURES</div>
-                                    <div id="dashVerProc" class="fw-semibold text-dark small">---</div>
+                                    <div id="dashVerProc" class="fw-semibold text-dark small text-uppercase">---</div>
                                 </div>
                                 <div class="col-12 col-md-6">
                                     <div class="small text-muted fw-bold text-primary">🧫 SAMPLING PROCEDURES</div>
-                                    <div id="dashSampleProc" class="fw-semibold text-dark small">---</div>
+                                    <div id="dashSampleProc" class="fw-semibold text-dark small text-uppercase">---</div>
                                 </div>
-                                <div class="col-12">
-                                    <div class="small text-muted fw-bold text-dark">🚚 UNLOADING & HANDLING INSTRUCTIONS</div>
-                                    <div id="dashUnloading" class="fw-semibold text-dark small">---</div>
+                                <div class="col-12 col-md-6">
+                                    <div class="small text-muted fw-bold text-primary">🚚 UNLOADING & HANDLING INSTRUCTIONS</div>
+                                    <div id="dashUnloading" class="fw-semibold text-dark small text-uppercase">---</div>
+                                </div>
+                                <div class="col-12 col-md-6" id="dashSpecialInstContainer">
+                                    <div class="small text-muted fw-bold text-primary">⚠️ SPECIAL INSTRUCTIONS</div>
+                                    <div id="dashSpecialInstructions" class="fw-semibold text-dark small text-uppercase">---</div>
                                 </div>
                                 <div class="col-12 d-none" id="dashNotesContainer">
                                     <div class="small text-muted fw-bold text-secondary">📝 WVI REVISIONS & LAB NOTES</div>
@@ -1324,6 +1371,16 @@
             
             if (document.getElementById('form-treatment-recipe')) { 
                 document.getElementById('form-treatment-recipe').value = p.treatment_recipe || ''; 
+            }
+            if (document.getElementById('form-sample-procedures')) { document.getElementById('form-sample-procedures').value = p.sample_procedures || ''; }
+            if (document.getElementById('form-verification-procedures')) { document.getElementById('form-verification-procedures').value = p.verification_procedures || ''; }
+            if (document.getElementById('form-unloading-instructions')) { document.getElementById('form-unloading-instructions').value = p.unloading_instructions || ''; }
+            if (document.getElementById('form-special-instructions')) { document.getElementById('form-special-instructions').value = p.special_instructions || ''; }
+            
+            const hasCustomProc = !!(p.sample_procedures || p.verification_procedures || p.unloading_instructions);
+            const procElem = document.getElementById('customProceduresCollapse');
+            if (procElem) {
+                if (hasCustomProc) { procElem.classList.add('show'); } else { procElem.classList.remove('show'); }
             }
             // Helper to get Container Type with fallback to comments (SIP / TREA)
             const cType = getProfileContainerType(p);
@@ -2158,7 +2215,7 @@
             let verProc = p.verification_procedures;
             if (!verProc || verProc.toUpperCase().includes('FINGER')) {
                 if (winCode === 'CNIA' || isMonolith) {
-                    verProc = 'Visual';
+                    verProc = 'VISUAL';
                 } else {
                     verProc = 'VERIFY FINGERPRINT RESULTS AND PHYSICAL DESCRIPTION WITH PROFILE';
                 }
@@ -2175,7 +2232,7 @@
                 } else if (['CBPS', 'CNOS'].includes(winCode)) {
                     sampleProc = 'COLLECT SAMPLE WITH COLIWASA';
                 } else {
-                    sampleProc = 'Collect Sample With Scoop';
+                    sampleProc = 'COLLECT SAMPLE WITH SCOOP';
                 }
             }
             if (document.getElementById('dashSampleProc')) {
@@ -2187,15 +2244,25 @@
             if (!unloadingInst) {
                 if (winCode === 'CNIA') {
                     unloadingInst = 'CONTAINS ASBESTOS DO NOT SAMPLE';
+                } else if (winCode === 'CNON') {
+                    unloadingInst = 'DIRECT WASTE TO LANDFILL - FOLLOW NORM PROTOCOL';
                 } else if (['CCS', 'CCSM'].includes(winCode) || winCode.startsWith('CCS')) {
-                    unloadingInst = 'Follow Red Folder';
+                    unloadingInst = 'FOLLOW RED FOLDER';
                 } else {
-                    unloadingInst = 'Direct Waste to Landfill';
+                    unloadingInst = 'DIRECT WASTE TO LANDFILL';
                 }
             }
             if (document.getElementById('dashUnloading')) {
                 document.getElementById('dashUnloading').innerText = unloadingInst;
             }
+
+            // 4. Special Instructions
+            const dashSpecInst = document.getElementById('dashSpecialInstructions');
+            let specText = p.special_instructions;
+            if (!specText && winCode === 'CNON') {
+                specText = 'FOLLOW NORM PROTOCOL - TR TO ATTACH RAD READING TO WEIGHT TICKET';
+            }
+            if (dashSpecInst) dashSpecInst.innerText = specText || 'NONE';
         }
 
         document.getElementById('form-win').addEventListener('input', () => {

@@ -44,7 +44,7 @@ routes_reports.get_voc_file_counts = lambda force_refresh=False: {}
 
 # Import Flask app and components
 from app import app, upgrade_db
-from database import get_db_connection, auto_sanitize_expired_profiles, ensure_profile_exists
+from database import get_db_connection, auto_sanitize_expired_profiles, ensure_profile_exists, sync_profile_from_wvi_file
 from email_utils import generate_and_send_las_digest
 import routes_backups
 
