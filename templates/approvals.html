@@ -2157,13 +2157,14 @@
             }
         }
         
-        // Toggle LDR Certification Option when LDR Required is Yes
+        // Toggle LDR Certification Option when LDR Required is Yes or WIN Code is CBPR
         function toggleLdrOption() {
             const ldrSelect = document.getElementById('form-ldr');
             const container = document.getElementById('ldrOptionContainer');
             if (!ldrSelect || !container) return;
             const ldrVal = ldrSelect.value.trim();
-            if (ldrVal === 'Yes') {
+            const winVal = (document.getElementById('form-win')?.value || '').trim().toUpperCase();
+            if (ldrVal === 'Yes' || winVal === 'CBPR') {
                 container.classList.remove('d-none');
             } else {
                 container.classList.add('d-none');
@@ -2266,6 +2267,14 @@
         }
 
         document.getElementById('form-win').addEventListener('input', () => {
+            const winVal = document.getElementById('form-win').value.trim().toUpperCase();
+            if (winVal === 'CBPR') {
+                const ldrSelect = document.getElementById('form-ldr');
+                if (ldrSelect) {
+                    ldrSelect.value = 'Yes';
+                }
+            }
+            toggleLdrOption();
             toggleTreatmentRecipe();
             updateWviDashboardProcedures();
         });
@@ -2320,6 +2329,25 @@
 
         // Form Submission Validation
         document.getElementById('profileEntryForm').addEventListener('submit', function(e) {
+            const winVal = (document.getElementById('form-win')?.value || '').trim().toUpperCase();
+            const ldrSelect = document.getElementById('form-ldr');
+            const ldrOptInput = document.getElementById('form-ldr-option');
+
+            if (winVal === 'CBPR') {
+                if (!ldrSelect || ldrSelect.value.trim() !== 'Yes') {
+                    alert('For WIN Code CBPR, LDR Required must be set to "Yes".');
+                    if (ldrSelect) ldrSelect.focus();
+                    e.preventDefault();
+                    return;
+                }
+                if (!ldrOptInput || !ldrOptInput.value.trim()) {
+                    alert('For WIN Code CBPR, an LDR Option must be selected.');
+                    if (ldrOptInput) ldrOptInput.focus();
+                    e.preventDefault();
+                    return;
+                }
+            }
+
             const state = document.getElementById('form-state').value;
             const fpInput = document.getElementById('form-fp');
             const fpVal = fpInput.value.trim();

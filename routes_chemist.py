@@ -484,7 +484,7 @@ LAS Tags: {', '.join(las_tags)}
 
 Note: This truck requires Load Acceptance Sampling / profile recertification / approval verification before processing.
 """
-                    send_email_alert(subj, body, recipients=['pereira.taylor@cleanharbors.com'])
+                    send_email_alert(subj, body, recipients=['pereira.taylor@cleanharbors.com', 'pruett.jacob@cleanharbors.com'])
     except Exception as alert_err:
         print(f"Error checking instant LAS alert: {alert_err}")
         
