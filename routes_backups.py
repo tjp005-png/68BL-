@@ -202,8 +202,10 @@ def run_restore_logic(filename):
         return False, str(e)
 
 def start_backup_scheduler(app):
+    import sys
     # Prevent duplicate background threads in Flask debug auto-reloader mode
-    if app.debug and os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+    # When running from source (not frozen), app.py forces socketio.run(debug=True)
+    if not getattr(sys, 'frozen', False) and os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
         return
     if getattr(app, '_background_scheduler_started', False):
         return
@@ -230,7 +232,7 @@ def start_backup_scheduler(app):
                     today_str = now.strftime('%Y-%m-%d')
                     if now.hour == 16 and now.minute >= 45 and last_digest_date != today_str:
                         from email_utils import generate_and_send_las_digest
-                        generate_and_send_las_digest(target_date=today_str, recipient='pereira.taylor@cleanharbors.com')
+                        generate_and_send_las_digest(target_date=today_str, recipient='pereira.taylor@cleanharbors.com, pruett.jacob@cleanharbors.com')
                         last_digest_date = today_str
                 except Exception as digest_err:
                     app.logger.error(f"Error running 4:45PM LAS digest: {digest_err}")
@@ -314,7 +316,7 @@ def create_backup():
 @backups_bp.route('/api/send_las_digest', methods=['POST', 'GET'])
 def api_send_las_digest():
     target_date = request.args.get('date') or request.form.get('date')
-    recipient = request.args.get('recipient') or request.form.get('recipient') or 'pereira.taylor@cleanharbors.com'
+    recipient = request.args.get('recipient') or request.form.get('recipient') or 'pereira.taylor@cleanharbors.com, pruett.jacob@cleanharbors.com'
     from email_utils import generate_and_send_las_digest
     res = generate_and_send_las_digest(target_date=target_date, recipient=recipient)
     if request.is_json or request.args.get('format') == 'json':

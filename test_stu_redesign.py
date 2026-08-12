@@ -220,13 +220,15 @@ class TestSTURedesignFlow(unittest.TestCase):
         conn.close()
 
     def test_permitted_codes(self):
-        """Test that D80L and LLF are part of the permitted STU WIN codes"""
+        """Test that D80L, LLF, and CBPR are part of the permitted STU WIN codes"""
         from stu_services import PERMITTED_CODES as pc_services
         from app import PERMITTED_CODES as pc_app
         self.assertIn('D80L', pc_services)
         self.assertIn('D80L', pc_app)
         self.assertIn('LLF', pc_services)
         self.assertIn('LLF', pc_app)
+        self.assertIn('CBPR', pc_services)
+        self.assertIn('CBPR', pc_app)
 
     def test_add_schedule_dates(self):
         """Test that scheduling a profile via /add_schedule correctly parses dates and inserts them"""
@@ -626,6 +628,43 @@ class TestSTURedesignFlow(unittest.TestCase):
         match = next(p for p in data if p['profile_number'] == 'P-CUSTOM-TEST')
         self.assertEqual(match['sample_procedures'], 'CUSTOM SAMPLING SCOOP')
         self.assertEqual(match['unloading_instructions'], 'CUSTOM UNLOAD BAYS')
+
+    def test_cbpr_win_code_ldr_validation(self):
+        """Test that saving a master profile with WIN code CBPR requires LDR Required = Yes and an LDR option"""
+        # Case 1: LDR Required = No -> Fail 400
+        res = self.client.post('/add_master_profile', data={
+            'profile_number': 'P-CBPR-FAIL1',
+            'generator': 'Test Gen',
+            'win_code': 'CBPR',
+            'ldr_required': 'No',
+            'ldr_option': '2',
+            'status': 'ACTIVE'
+        })
+        self.assertEqual(res.status_code, 400)
+        self.assertIn(b"LDR Required must be set to 'Yes'", res.data)
+
+        # Case 2: LDR Option missing -> Fail 400
+        res = self.client.post('/add_master_profile', data={
+            'profile_number': 'P-CBPR-FAIL2',
+            'generator': 'Test Gen',
+            'win_code': 'CBPR',
+            'ldr_required': 'Yes',
+            'ldr_option': '',
+            'status': 'ACTIVE'
+        })
+        self.assertEqual(res.status_code, 400)
+        self.assertIn(b"an LDR Option must be selected", res.data)
+
+        # Case 3: LDR Required = Yes & LDR Option = 2 -> Success 200/302
+        res = self.client.post('/add_master_profile', data={
+            'profile_number': 'P-CBPR-PASS',
+            'generator': 'Test Gen',
+            'win_code': 'CBPR',
+            'ldr_required': 'Yes',
+            'ldr_option': '2',
+            'status': 'ACTIVE'
+        })
+        self.assertIn(res.status_code, [200, 302])
 
 if __name__ == '__main__':
     unittest.main()

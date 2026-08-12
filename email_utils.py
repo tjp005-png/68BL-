@@ -242,4 +242,13 @@ def generate_and_send_las_digest(target_date=None, recipient=None):
     html_body = "".join(html_lines)
     subj = f"[LAS DIGEST] Daily LAS Summary Digest - {target_date} ({len(received_untested)} Untested Received | {len(scheduled_unreceived)} Unreceived Scheduled)"
 
-    return send_email_alert(subj, html_body, recipients=[recipient], is_html=True)
+    # Handle if recipient is a string with multiple emails
+    if isinstance(recipient, str):
+        # Replace commas with semicolons for uniform splitting
+        recipients_list = [r.strip() for r in recipient.replace(',', ';').split(';') if r.strip()]
+    elif isinstance(recipient, list):
+        recipients_list = recipient
+    else:
+        recipients_list = None
+
+    return send_email_alert(subj, html_body, recipients=recipients_list, is_html=True)

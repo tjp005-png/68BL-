@@ -15,7 +15,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from pypdf import PdfWriter, PdfReader
 
 TARGET_ROUTING_CODE = "BL"
-PERMITTED_CODES = {'CBP', 'CNO', 'CBPS', 'CNOS', 'CNIA', 'CCS', 'CCSS', 'D23', 'D80L', 'LLF'}
+PERMITTED_CODES = {'CBP', 'CNO', 'CBPS', 'CNOS', 'CNIA', 'CCS', 'CCSS', 'D23', 'D80L', 'LLF', 'CBPR'}
 
 def safe_xml(text):
     return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")

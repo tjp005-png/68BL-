@@ -454,6 +454,12 @@ def add_master_profile():
     ldr_required = request.form.get('ldr_required', 'No').strip()
     ldr_option_str = request.form.get('ldr_option', '').strip()
     ldr_option = int(ldr_option_str) if ldr_option_str.isdigit() else None
+
+    if win_code == 'CBPR':
+        if ldr_required != 'Yes':
+            return "For WIN Code CBPR, LDR Required must be set to 'Yes'", 400
+        if ldr_option is None:
+            return "For WIN Code CBPR, an LDR Option must be selected", 400
     state_waste_code = request.form.get('state_waste_code', '').strip().upper()
     federal_waste_code = request.form.get('federal_waste_code', '').strip().upper()
     dot_description = request.form.get('dot_description', '').strip().upper()

@@ -61,7 +61,7 @@ app.register_blueprint(backups_bp)
 #        CONFIGURATION & HELPER VARS
 # ==========================================
 TARGET_ROUTING_CODE = "BL"
-PERMITTED_CODES = {'CBP', 'CNO', 'CBPS', 'CNOS', 'CNIA', 'CCS', 'CCSS', 'D23', 'D80L', 'LLF'}
+PERMITTED_CODES = {'CBP', 'CNO', 'CBPS', 'CNOS', 'CNIA', 'CCS', 'CCSS', 'D23', 'D80L', 'LLF', 'CBPR'}
 
 from shared_state import socketio, DB_PATH
 from database import get_db_connection
