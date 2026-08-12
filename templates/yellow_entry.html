@@ -292,25 +292,22 @@
                                                     {% endif %}
                                                 </td>
                                                 <td class="text-center text-nowrap">
+                                                    <button type="button" class="btn btn-xs btn-outline-info py-0 px-2 fw-bold me-1" style="font-size: 0.75rem;" onclick='copyTicketData({{ log | tojson }})' title="Copy Profile, Manifest, Unit & Grid to entry form">📋 Copy</button>
                                                     {% if log.test_status == 'VOID' %}
+                                                        <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 fw-bold me-1" style="font-size: 0.75rem;" onclick='openEditYellowModal({{ log | tojson }})'>✏️ Edit</button>
                                                         <form action="/void_yellow_entry/{{ log.id }}" method="POST" class="d-inline" onsubmit="return confirm('Restore/un-void ticket {{ log.truck_id or log.manifest_number }}?');">
                                                             <input type="hidden" name="date_received" value="{{ selected_date }}">
                                                             <input type="hidden" name="sort_mode" value="{{ sort_mode }}">
-                                                            <button type="submit" class="btn btn-xs btn-outline-success py-0 px-2 fw-bold me-1" style="font-size: 0.75rem;" title="Restore Ticket">🔄 Un-Void</button>
+                                                            <button type="submit" class="btn btn-xs btn-outline-success py-0 px-2 fw-bold" style="font-size: 0.75rem;" title="Restore Ticket">🔄 Un-Void</button>
                                                         </form>
                                                     {% else %}
                                                         <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 fw-bold me-1" style="font-size: 0.75rem;" onclick='openEditYellowModal({{ log | tojson }})'>✏️ Edit</button>
                                                         <form action="/void_yellow_entry/{{ log.id }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to VOID ticket {{ log.truck_id or log.manifest_number }}? It will remain in the log marked as VOID.');">
                                                             <input type="hidden" name="date_received" value="{{ selected_date }}">
                                                             <input type="hidden" name="sort_mode" value="{{ sort_mode }}">
-                                                            <button type="submit" class="btn btn-xs btn-outline-warning text-dark py-0 px-2 fw-bold me-1" style="font-size: 0.75rem;" title="Mark Ticket as Void">🚫 Void</button>
+                                                            <button type="submit" class="btn btn-xs btn-outline-warning text-dark py-0 px-2 fw-bold" style="font-size: 0.75rem;" title="Mark Ticket as Void">🚫 Void</button>
                                                         </form>
                                                     {% endif %}
-                                                    <form action="/delete_yellow_entry/{{ log.id }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to permanently delete ticket {{ log.truck_id or log.manifest_number }}?');">
-                                                        <input type="hidden" name="date_received" value="{{ selected_date }}">
-                                                        <input type="hidden" name="sort_mode" value="{{ sort_mode }}">
-                                                        <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-2 fw-bold" style="font-size: 0.75rem;">🗑️ Delete</button>
-                                                    </form>
                                                 </td>
                                             </tr>
                                         {% endfor %}
@@ -597,9 +594,14 @@
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer bg-light">
-                        <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-warning text-dark fw-bold">💾 Save Changes</button>
+                    <div class="modal-footer bg-light d-flex justify-content-between">
+                        <div>
+                            <button type="button" class="btn btn-outline-danger fw-bold btn-sm" onclick="confirmDeleteFromEditModal()">🗑️ Delete Ticket</button>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-secondary fw-bold me-1" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-warning text-dark fw-bold">💾 Save Changes</button>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -607,7 +609,47 @@
     </div>
 
     <script>
+        let currentEditLog = null;
+
+        function copyTicketData(log) {
+            if (!log) return;
+            
+            if (log.manifest_number && log.manifest_number !== 'N/A' && log.manifest_number !== '---') {
+                const manifestInput = document.querySelector('input[name="manifest_number"]');
+                if (manifestInput) manifestInput.value = log.manifest_number;
+            }
+            if (log.cell_location) {
+                const unitInput = document.querySelector('input[name="cell_location"]');
+                if (unitInput) unitInput.value = log.cell_location;
+            }
+            if (log.grid_location) {
+                const gridInput = document.querySelector('input[name="grid_location"]');
+                if (gridInput) gridInput.value = log.grid_location;
+            }
+            if (log.specific_gravity) {
+                const sgInput = document.querySelector('input[name="specific_gravity"]');
+                if (sgInput) sgInput.value = log.specific_gravity;
+            }
+            toggleGridForUnit('cell_location', 'grid_location');
+            
+            if (log.profile_number && globalTomSelect) {
+                const cleanProf = log.profile_number.trim().split(/\s+/)[0];
+                globalTomSelect.addOption({ value: cleanProf, text: cleanProf });
+                globalTomSelect.setValue(cleanProf);
+            }
+            
+            const formCard = document.getElementById('yellowEntryCard');
+            if (formCard) {
+                formCard.scrollIntoView({ behavior: 'smooth' });
+                formCard.classList.add('border-warning', 'shadow');
+                setTimeout(() => {
+                    formCard.classList.remove('border-warning', 'shadow');
+                }, 1500);
+            }
+        }
+
         function openEditYellowModal(log) {
+            currentEditLog = log;
             document.getElementById('editYellowForm').action = '/edit_yellow_entry/' + log.id;
             document.getElementById('edit_date_received').value = log.date_received || '';
             document.getElementById('edit_ticket_number').value = log.truck_id || '';
@@ -623,6 +665,31 @@
 
             const editModal = new bootstrap.Modal(document.getElementById('editYellowModal'));
             editModal.show();
+        }
+
+        function confirmDeleteFromEditModal() {
+            if (!currentEditLog) return;
+            const ticketIdStr = currentEditLog.truck_id || currentEditLog.manifest_number || '';
+            if (confirm(`Are you sure you want to permanently delete ticket ${ticketIdStr}?`)) {
+                const deleteForm = document.createElement('form');
+                deleteForm.method = 'POST';
+                deleteForm.action = '/delete_yellow_entry/' + currentEditLog.id;
+
+                const dateInput = document.createElement('input');
+                dateInput.type = 'hidden';
+                dateInput.name = 'date_received';
+                dateInput.value = '{{ selected_date }}';
+                deleteForm.appendChild(dateInput);
+
+                const sortInput = document.createElement('input');
+                sortInput.type = 'hidden';
+                sortInput.name = 'sort_mode';
+                sortInput.value = '{{ sort_mode }}';
+                deleteForm.appendChild(sortInput);
+
+                document.body.appendChild(deleteForm);
+                deleteForm.submit();
+            }
         }
     </script>
 </body>
