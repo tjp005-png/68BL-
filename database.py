@@ -85,7 +85,7 @@ def extract_color_from_text(text):
     return "/".join(matched) if matched else None
 
 def sync_profile_from_wvi_file(conn, profile_number):
-    """
+    r"""
     On-demand WVI File Sync (Per-Profile).
     Reads from I:\Buttonwillow\WAP\WVI\<PROFILE>.xls / .xlsx
     Caches parsed specs in SQLite profile_wvi table.
@@ -454,7 +454,7 @@ def ensure_profile_exists(conn, profile_number, excel_path=None):
         return None
         
     clean_profile = str(profile_number).strip().upper()
-    excel_path = excel_path or shared_state.MASTER_EXCEL_PATH
+    excel_path = excel_path or (shared_state.get_master_excel_path() if hasattr(shared_state, 'get_master_excel_path') else shared_state.MASTER_EXCEL_PATH)
     
     row = conn.execute('SELECT * FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (clean_profile,)).fetchone()
     

@@ -493,11 +493,12 @@ def add_master_profile():
     unloading_instructions = request.form.get('unloading_instructions', '').strip()
 
     import time
-    from shared_state import MASTER_EXCEL_PATH
+    from shared_state import get_master_excel_path, MASTER_EXCEL_PATH
+    excel_path = get_master_excel_path() if 'get_master_excel_path' in dir(shared_state) else MASTER_EXCEL_PATH
     excel_mtime = None
     try:
-        if os.path.exists(MASTER_EXCEL_PATH):
-            excel_mtime = os.path.getmtime(MASTER_EXCEL_PATH)
+        if os.path.exists(excel_path):
+            excel_mtime = os.path.getmtime(excel_path)
     except Exception:
         pass
     if not excel_mtime:
@@ -1280,9 +1281,10 @@ def update_waste_acceptance_log():
             if prof_key:
                 excel_mtime = None
                 try:
-                    from shared_state import MASTER_EXCEL_PATH
-                    if os.path.exists(MASTER_EXCEL_PATH):
-                        excel_mtime = os.path.getmtime(MASTER_EXCEL_PATH)
+                    from shared_state import get_master_excel_path, MASTER_EXCEL_PATH
+                    excel_path = get_master_excel_path() if 'get_master_excel_path' in dir(shared_state) else MASTER_EXCEL_PATH
+                    if os.path.exists(excel_path):
+                        excel_mtime = os.path.getmtime(excel_path)
                 except Exception:
                     pass
                 if not excel_mtime:

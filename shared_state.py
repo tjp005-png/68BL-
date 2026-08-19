@@ -40,39 +40,97 @@ if not os.path.exists(UPLOADS_DIR):
 
 # Master Profile Excel File Path Resolution with multi-level fallback chain:
 # 1. Environment Variable override: OS env 'MASTER_EXCEL_PATH'
-# 2. User OneDrive variants (cleanharbors.com, Clean Harbors Inc, standard OneDrive)
-# 3. Local App directory & Desktop fallbacks
+# 2. Current logged-in user's OneDrive & Desktop
+# 3. All other user profiles on the workstation with OneDrive (e.g., C:\Users\*\OneDrive*\...)
 # 4. Shared network drives (I: drive)
-candidate_paths = []
+# 5. Local App directory (last resort static fallback)
 
-env_excel = os.environ.get("MASTER_EXCEL_PATH", "").strip()
-if env_excel:
-    candidate_paths.append(env_excel)
+def resolve_master_excel_path():
+    env_excel = os.environ.get("MASTER_EXCEL_PATH", "").strip()
+    if env_excel and os.path.exists(env_excel):
+        try:
+            if os.path.getsize(env_excel) > 0:
+                return env_excel
+        except Exception:
+            return env_excel
 
-user_profile = os.environ.get("USERPROFILE", "")
-if user_profile:
     sub_folder = os.path.join("O365 Facilities Schedule - BL - WAP", "MASTERPROFILE.xlsx")
-    candidate_paths.extend([
-        os.path.join(user_profile, "OneDrive - cleanharbors.com", sub_folder),
-        os.path.join(user_profile, "OneDrive - Clean Harbors, Inc", sub_folder),
-        os.path.join(user_profile, "OneDrive - Clean Harbors", sub_folder),
-        os.path.join(user_profile, "OneDrive", sub_folder),
-        os.path.join(user_profile, "Desktop", "MASTERPROFILE.xlsx"),
-    ])
+    
+    # Check current user's profile
+    user_profile = os.environ.get("USERPROFILE", "")
+    if user_profile:
+        for od in [
+            "OneDrive - cleanharbors.com",
+            "OneDrive - Clean Harbors, Inc",
+            "OneDrive - Clean Harbors",
+            "OneDrive",
+        ]:
+            p = os.path.join(user_profile, od, sub_folder)
+            if os.path.exists(p):
+                try:
+                    if os.path.getsize(p) > 0:
+                        return p
+                except Exception:
+                    return p
+        
+        desktop_p = os.path.join(user_profile, "Desktop", "MASTERPROFILE.xlsx")
+        if os.path.exists(desktop_p):
+            try:
+                if os.path.getsize(desktop_p) > 0:
+                    return desktop_p
+            except Exception:
+                return desktop_p
 
-local_excel = os.path.join(APP_DIR, 'MASTERPROFILE.xlsx')
-candidate_paths.extend([
-    local_excel,
-    r"I:\Buttonwillow\LAB\Operations App\MASTERPROFILE.xlsx",
-    r"I:\Buttonwillow\WAP\MASTERPROFILE.xlsx",
-    r"I:\Buttonwillow\LAB\MASTERPROFILE.xlsx",
-])
+    # Check other user profiles on the workstation (solves C:\Users\Public running when another user synced OneDrive)
+    try:
+        import glob
+        for p in glob.glob(r"C:\Users\*\OneDrive*\O365 Facilities Schedule - BL - WAP\MASTERPROFILE.xlsx"):
+            if os.path.exists(p):
+                try:
+                    if os.path.getsize(p) > 0:
+                        return p
+                except Exception:
+                    return p
+        for p in glob.glob(r"C:\Users\*\Desktop\MASTERPROFILE.xlsx"):
+            if os.path.exists(p):
+                try:
+                    if os.path.getsize(p) > 0:
+                        return p
+                except Exception:
+                    return p
+    except Exception:
+        pass
 
-MASTER_EXCEL_PATH = local_excel
-for path in candidate_paths:
-    if path and os.path.exists(path):
-        MASTER_EXCEL_PATH = path
-        break
+    # Check shared network drives (I: drive)
+    network_paths = [
+        r"I:\Buttonwillow\LAB\Operations App\MASTERPROFILE.xlsx",
+        r"I:\Buttonwillow\WAP\MASTERPROFILE.xlsx",
+        r"I:\Buttonwillow\LAB\MASTERPROFILE.xlsx",
+    ]
+    for p in network_paths:
+        drive_letter = os.path.splitdrive(p)[0] + "\\"
+        if os.path.exists(drive_letter) and os.path.exists(p):
+            try:
+                if os.path.getsize(p) > 0:
+                    return p
+            except Exception:
+                return p
+
+    # Local App directory (LAST RESORT FALLBACK)
+    local_excel = os.path.join(APP_DIR, 'MASTERPROFILE.xlsx')
+    return local_excel
+
+def get_master_excel_path():
+    global MASTER_EXCEL_PATH
+    local_excel = os.path.join(APP_DIR, 'MASTERPROFILE.xlsx')
+    # If currently pointing to local fallback or non-existent file, re-check if a live file is available
+    if not MASTER_EXCEL_PATH or MASTER_EXCEL_PATH == local_excel or not os.path.exists(MASTER_EXCEL_PATH):
+        resolved = resolve_master_excel_path()
+        if resolved and os.path.exists(resolved):
+            MASTER_EXCEL_PATH = resolved
+    return MASTER_EXCEL_PATH
+
+MASTER_EXCEL_PATH = resolve_master_excel_path()
 
 # Multi-user sync tracker dictionary for scheduling and UI refreshes
 SCHEDULE_UPDATES = {'GLOBAL': 0}
