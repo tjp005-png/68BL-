@@ -11,19 +11,18 @@ def get_app_dir():
 
 APP_DIR = get_app_dir()
 
-# Store live database in local AppData to prevent OneDrive sync lock collisions & cloud file reverts
-app_data_dir = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'Truck_Log_App')
-os.makedirs(app_data_dir, exist_ok=True)
-DB_PATH = os.environ.get('DB_PATH', os.path.join(app_data_dir, 'database.db'))
+# Default database to APP_DIR (e.g., C:\Users\Public\Truck_Log_App) so all workstation users share the same DB
+DB_PATH = os.environ.get('DB_PATH', os.path.join(APP_DIR, 'database.db'))
 
-# Fallback migration if new location does not exist
-old_db = os.path.join(APP_DIR, 'database.db')
-if not os.path.exists(DB_PATH) and os.path.exists(old_db):
-    try:
-        import shutil
-        shutil.copy2(old_db, DB_PATH)
-    except Exception:
-        pass
+# Migration fallback: If DB does not exist in APP_DIR, check legacy AppData location
+if not os.path.exists(DB_PATH):
+    local_app_data_path = os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Truck_Log_App', 'database.db')
+    if local_app_data_path and os.path.exists(local_app_data_path):
+        try:
+            import shutil
+            shutil.copy2(local_app_data_path, DB_PATH)
+        except Exception:
+            pass
 
 i_drive_uploads = os.environ.get("I_DRIVE_UPLOADS_DIR", r"I:\Buttonwillow\LAB\Operations App\uploads")
 drive_letter = os.path.splitdrive(i_drive_uploads)[0] + "\\"
