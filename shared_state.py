@@ -42,8 +42,7 @@ if not os.path.exists(UPLOADS_DIR):
 # 1. Environment Variable override: OS env 'MASTER_EXCEL_PATH'
 # 2. Current logged-in user's OneDrive & Desktop
 # 3. All other user profiles on the workstation with OneDrive (e.g., C:\Users\*\OneDrive*\...)
-# 4. Shared network drives (I: drive)
-# 5. Local App directory (last resort static fallback)
+# 4. Local App directory (last resort static fallback)
 
 def resolve_master_excel_path():
     env_excel = os.environ.get("MASTER_EXCEL_PATH", "").strip()
@@ -100,21 +99,6 @@ def resolve_master_excel_path():
                     return p
     except Exception:
         pass
-
-    # Check shared network drives (I: drive)
-    network_paths = [
-        r"I:\Buttonwillow\LAB\Operations App\MASTERPROFILE.xlsx",
-        r"I:\Buttonwillow\WAP\MASTERPROFILE.xlsx",
-        r"I:\Buttonwillow\LAB\MASTERPROFILE.xlsx",
-    ]
-    for p in network_paths:
-        drive_letter = os.path.splitdrive(p)[0] + "\\"
-        if os.path.exists(drive_letter) and os.path.exists(p):
-            try:
-                if os.path.getsize(p) > 0:
-                    return p
-            except Exception:
-                return p
 
     # Local App directory (LAST RESORT FALLBACK)
     local_excel = os.path.join(APP_DIR, 'MASTERPROFILE.xlsx')
