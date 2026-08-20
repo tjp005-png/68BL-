@@ -40,74 +40,113 @@ if not os.path.exists(UPLOADS_DIR):
 
 # Master Profile Excel File Path Resolution with multi-level fallback chain:
 # 1. Environment Variable override: OS env 'MASTER_EXCEL_PATH'
-# 2. Current logged-in user's OneDrive & Desktop
-# 3. All other user profiles on the workstation with OneDrive (e.g., C:\Users\*\OneDrive*\...)
-# 4. Local App directory (last resort static fallback)
+# 2. Explicit known workstation paths (pruettj1, PEREIRT446445, etc.) with standard hyphens and unicode en-dashes
+# 3. Current logged-in user's OneDrive & Desktop
+# 4. All other user profiles on the workstation with OneDrive (e.g., C:\Users\*\OneDrive*\...)
+# 5. Local App directory (last resort static fallback)
 
 def resolve_master_excel_path():
+    # 1. Environment variable override
     env_excel = os.environ.get("MASTER_EXCEL_PATH", "").strip()
     if env_excel and os.path.exists(env_excel):
         try:
             if os.path.getsize(env_excel) > 0:
+                print(f"[MASTER PROFILE] Found via MASTER_EXCEL_PATH env: {env_excel}")
                 return env_excel
         except Exception:
             return env_excel
 
-    sub_folder = os.path.join("O365 Facilities Schedule - BL - WAP", "MASTERPROFILE.xlsx")
-    
-    # Check current user's profile
+    # 2. Explicit known workstation paths (handles en-dashes \u2013 and regular hyphens)
+    explicit_candidates = [
+        r"C:\Users\pruettj1\OneDrive – cleanharbors.com\O365 Facilities Schedule - BL - WAP\MASTERPROFILE.xlsx",
+        r"C:\Users\pruettj1\OneDrive - cleanharbors.com\O365 Facilities Schedule - BL - WAP\MASTERPROFILE.xlsx",
+        r"C:\Users\pruettj1\OneDrive – cleanharbors.com\O365 Facilities Schedule – BL – WAP\MASTERPROFILE.xlsx",
+        r"C:\Users\pruettj1\OneDrive - cleanharbors.com\O365 Facilities Schedule – BL – WAP\MASTERPROFILE.xlsx",
+        r"C:\Users\PEREIRT446445\OneDrive - cleanharbors.com\O365 Facilities Schedule - BL - WAP\MASTERPROFILE.xlsx",
+        r"C:\Users\PEREIRT446445\OneDrive – cleanharbors.com\O365 Facilities Schedule - BL - WAP\MASTERPROFILE.xlsx",
+        r"C:\Users\PEREIRT446445\OneDrive - cleanharbors.com\O365 Facilities Schedule – BL – WAP\MASTERPROFILE.xlsx",
+        r"C:\Users\PEREIRT446445\OneDrive – cleanharbors.com\O365 Facilities Schedule – BL – WAP\MASTERPROFILE.xlsx",
+    ]
+    for p in explicit_candidates:
+        if os.path.exists(p):
+            try:
+                if os.path.getsize(p) > 0:
+                    print(f"[MASTER PROFILE] Found via explicit candidate: {p}")
+                    return p
+            except Exception:
+                return p
+
+    # 3. Current logged-in user profile variants
+    sub_folders = [
+        os.path.join("O365 Facilities Schedule - BL - WAP", "MASTERPROFILE.xlsx"),
+        os.path.join("O365 Facilities Schedule – BL – WAP", "MASTERPROFILE.xlsx"),
+        os.path.join("O365 Facilities Schedule - BL – WAP", "MASTERPROFILE.xlsx"),
+        os.path.join("O365 Facilities Schedule – BL - WAP", "MASTERPROFILE.xlsx"),
+    ]
+    onedrive_folders = [
+        "OneDrive – cleanharbors.com",   # with unicode en-dash \u2013
+        "OneDrive - cleanharbors.com",   # with standard hyphen \u002D
+        "OneDrive – Clean Harbors, Inc",
+        "OneDrive - Clean Harbors, Inc",
+        "OneDrive – Clean Harbors",
+        "OneDrive - Clean Harbors",
+        "OneDrive",
+    ]
+
     user_profile = os.environ.get("USERPROFILE", "")
     if user_profile:
-        for od in [
-            "OneDrive - cleanharbors.com",
-            "OneDrive - Clean Harbors, Inc",
-            "OneDrive - Clean Harbors",
-            "OneDrive",
-        ]:
-            p = os.path.join(user_profile, od, sub_folder)
-            if os.path.exists(p):
-                try:
-                    if os.path.getsize(p) > 0:
+        for od in onedrive_folders:
+            for sub in sub_folders:
+                p = os.path.join(user_profile, od, sub)
+                if os.path.exists(p):
+                    try:
+                        if os.path.getsize(p) > 0:
+                            print(f"[MASTER PROFILE] Found in user profile OneDrive: {p}")
+                            return p
+                    except Exception:
                         return p
-                except Exception:
-                    return p
         
         desktop_p = os.path.join(user_profile, "Desktop", "MASTERPROFILE.xlsx")
         if os.path.exists(desktop_p):
             try:
                 if os.path.getsize(desktop_p) > 0:
+                    print(f"[MASTER PROFILE] Found on Desktop: {desktop_p}")
                     return desktop_p
             except Exception:
                 return desktop_p
 
-    # Check other user profiles on the workstation (solves C:\Users\Public running when another user synced OneDrive)
+    # 4. Multi-user workstation dynamic search (searches all C:\Users\*\ directories)
     try:
         import glob
-        for p in glob.glob(r"C:\Users\*\OneDrive*\O365 Facilities Schedule - BL - WAP\MASTERPROFILE.xlsx"):
-            if os.path.exists(p):
-                try:
-                    if os.path.getsize(p) > 0:
+        search_patterns = [
+            r"C:\Users\*\OneDrive*\O365 Facilities Schedule*\MASTERPROFILE.xlsx",
+            r"C:\Users\*\OneDrive*\*Schedule*\MASTERPROFILE.xlsx",
+            r"C:\Users\*\OneDrive*\*WAP*\MASTERPROFILE.xlsx",
+            r"C:\Users\*\OneDrive*\*\MASTERPROFILE.xlsx",
+            r"C:\Users\*\*\O365 Facilities Schedule*\MASTERPROFILE.xlsx",
+            r"C:\Users\*\Desktop\MASTERPROFILE.xlsx",
+        ]
+        for pat in search_patterns:
+            matches = glob.glob(pat)
+            for p in matches:
+                if os.path.exists(p):
+                    try:
+                        if os.path.getsize(p) > 0:
+                            print(f"[MASTER PROFILE] Found via workstation pattern '{pat}': {p}")
+                            return p
+                    except Exception:
                         return p
-                except Exception:
-                    return p
-        for p in glob.glob(r"C:\Users\*\Desktop\MASTERPROFILE.xlsx"):
-            if os.path.exists(p):
-                try:
-                    if os.path.getsize(p) > 0:
-                        return p
-                except Exception:
-                    return p
-    except Exception:
-        pass
+    except Exception as glob_err:
+        print(f"[MASTER PROFILE] Workstation scan warning: {glob_err}")
 
-    # Local App directory (LAST RESORT FALLBACK)
+    # 5. Local App directory (LAST RESORT FALLBACK)
     local_excel = os.path.join(APP_DIR, 'MASTERPROFILE.xlsx')
     return local_excel
 
 def get_master_excel_path():
     global MASTER_EXCEL_PATH
     local_excel = os.path.join(APP_DIR, 'MASTERPROFILE.xlsx')
-    # If currently pointing to local fallback or non-existent file, re-check if a live file is available
+    # If currently uninitialized, pointing to local fallback, or pointing to a non-existent file, re-check live paths
     if not MASTER_EXCEL_PATH or MASTER_EXCEL_PATH == local_excel or not os.path.exists(MASTER_EXCEL_PATH):
         resolved = resolve_master_excel_path()
         if resolved and os.path.exists(resolved):

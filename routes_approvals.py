@@ -702,6 +702,22 @@ def api_profile_sync(profile_number):
             
     return jsonify(dict(row))
 
+@approvals_bp.route('/api/master_profile/status')
+def api_master_profile_status():
+    import shared_state
+    excel_path = shared_state.get_master_excel_path() if hasattr(shared_state, 'get_master_excel_path') else shared_state.MASTER_EXCEL_PATH
+    exists = os.path.exists(excel_path) if excel_path else False
+    size = os.path.getsize(excel_path) if exists else 0
+    mtime = os.path.getmtime(excel_path) if exists else 0
+    import datetime
+    mtime_str = datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S') if mtime else 'N/A'
+    return jsonify({
+        'path': excel_path,
+        'exists': exists,
+        'size_bytes': size,
+        'last_modified': mtime_str
+    })
+
 @approvals_bp.route('/api/profile/<path:profile_number>/upload', methods=['POST'])
 def api_profile_upload(profile_number):
     if 'file' not in request.files:
