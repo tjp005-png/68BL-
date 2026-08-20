@@ -627,15 +627,43 @@ if __name__ == '__main__':
     # Dev runs on 5002, Live/Production runs on 5000
     port = 5002 if 'Truck_Log_App_Dev' in os.getcwd() else 5000
     
+    # -------------------------------------------------------------
+    # MASTER PROFILE & DATABASE STARTUP DIAGNOSTICS BANNER
+    # -------------------------------------------------------------
+    import shared_state
+    from datetime import datetime
+    excel_path = shared_state.get_master_excel_path()
+    local_app_excel = os.path.join(shared_state.APP_DIR, 'MASTERPROFILE.xlsx')
+    
+    print("\n" + "=" * 70)
+    print("  TRUCK LOG OPERATIONS PORTAL - STARTUP SYSTEM CHECK")
+    print("=" * 70)
+    print(f"  [DATABASE]       Active DB: {shared_state.DB_PATH}")
+    
+    if excel_path and os.path.exists(excel_path):
+        size_kb = round(os.path.getsize(excel_path) / 1024, 1)
+        mtime = datetime.fromtimestamp(os.path.getmtime(excel_path)).strftime('%Y-%m-%d %H:%M:%S')
+        is_live_onedrive = (os.path.abspath(excel_path) != os.path.abspath(local_app_excel))
+        
+        if is_live_onedrive:
+            print("  [MASTER PROFILE] Status:    CONNECTED TO LIVE ONEDRIVE")
+        else:
+            print("  [MASTER PROFILE] Status:    USING LOCAL FALLBACK COPY")
+            
+        print(f"  [MASTER PROFILE] Path:      {excel_path}")
+        print(f"  [MASTER PROFILE] Metadata:  {size_kb} KB | Last Modified: {mtime}")
+    else:
+        print("  [MASTER PROFILE] Status:    WARNING: MASTERPROFILE.xlsx not found")
+        
+    print("=" * 70)
+    print(f"  Production Server Running on: http://localhost:{port}")
+    print("  Keep this window open. Press Ctrl+C to stop the server.")
+    print("=" * 70 + "\n")
+    
     if getattr(sys, 'frozen', False):
         import logging
         log = logging.getLogger('werkzeug')
         log.setLevel(logging.ERROR)
-        print("=========================================================")
-        print("  Truck Log Production Server is now Running!")
-        print(f"  Please navigate to: http://localhost:{port} in your browser")
-        print("  Keep this window open. Press Ctrl+C to stop the server.")
-        print("=========================================================")
         
     print("[DEBUG] 7. Starting socketio.run()...")
     if getattr(sys, 'frozen', False):
