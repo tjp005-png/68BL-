@@ -139,8 +139,39 @@ def resolve_master_excel_path():
     except Exception as glob_err:
         print(f"[MASTER PROFILE] Workstation scan warning: {glob_err}")
 
-    # 5. Local App directory (LAST RESORT FALLBACK)
+    # 5. Dynamic directory crawler across C:\Users\ (finds any OneDrive folder regardless of dash characters or spaces)
+    try:
+        users_root = r"C:\Users"
+        if os.path.exists(users_root):
+            for u_entry in os.listdir(users_root):
+                u_dir = os.path.join(users_root, u_entry)
+                if not os.path.isdir(u_dir) or u_entry.lower() in ['public', 'default', 'default user', 'all users']:
+                    continue
+                for item in os.listdir(u_dir):
+                    if 'onedrive' in item.lower():
+                        od_dir = os.path.join(u_dir, item)
+                        if os.path.isdir(od_dir):
+                            for root, dirs, files in os.walk(od_dir):
+                                depth = root[len(od_dir):].count(os.sep)
+                                if depth > 3:
+                                    dirs.clear()
+                                    continue
+                                for f in files:
+                                    if f.strip().upper() == 'MASTERPROFILE.XLSX':
+                                        found_p = os.path.join(root, f)
+                                        if os.path.exists(found_p):
+                                            try:
+                                                if os.path.getsize(found_p) > 0:
+                                                    print(f"[MASTER PROFILE] Found via recursive OneDrive scan: {found_p}")
+                                                    return found_p
+                                            except Exception:
+                                                return found_p
+    except Exception as crawl_err:
+        print(f"[MASTER PROFILE] OneDrive directory crawl warning: {crawl_err}")
+
+    # 6. Local App directory (LAST RESORT FALLBACK)
     local_excel = os.path.join(APP_DIR, 'MASTERPROFILE.xlsx')
+    print(f"[MASTER PROFILE] Defaulting to local app directory copy: {local_excel}")
     return local_excel
 
 def get_master_excel_path():
