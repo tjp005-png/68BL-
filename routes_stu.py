@@ -426,13 +426,18 @@ def upload_vpi():
                 else:
                     # Drum was NOT in the newly uploaded VPI feed
                     job_id = p.get('job_id')
-                    is_active_pipeline = bool(job_id and job_id in active_job_ids)
-                    is_recent = is_recent_import(p.get('import_date'))
+                    status_val = p.get('status')
+                    is_pending_sampling = str(p.get('process_type', '')).strip().lower() == 'pending sampling'
+                    is_active_pipeline = bool(is_pending_sampling or (job_id and job_id in active_job_ids))
+                    is_flagged_status = status_val in ('MISSING', 'RESAMPLE')
                     
-                    # Preserve drum if it is recent OR belongs to an active pipeline job
-                    if is_recent or is_active_pipeline:
+                    # Only preserve drums that are:
+                    # 1. Part of an active sampling pipeline load (pending lab/WIN coding)
+                    # 2. Explicitly flagged as MISSING or RESAMPLE by operators
+                    # Regular inventory / FINAL CODED drums that dropped off the VPI feed are cleanly removed.
+                    if is_active_pipeline or is_flagged_status:
                         loc_val = p.get('location')
-                        status_val = p.get('status') if p.get('status') is not None else 'PLANT RECEIVED'
+                        final_status = status_val if status_val is not None else 'PLANT RECEIVED'
                         conn.execute("""
                             INSERT INTO drum_inventory (
                                 track_no, inb_prof, manifest, process_type, weight, ph, age, 
@@ -442,7 +447,7 @@ def upload_vpi():
                         """, (
                             p['track_no'], p['inb_prof'], p.get('manifest'), p['process_type'], 
                             p['weight'], p['ph'], p['age'], p['voc_ppm'], p['voc_weight'], 
-                            p['import_date'], p.get('job_id'), status_val, p.get('reject_notes'), 
+                            p['import_date'], p.get('job_id'), final_status, p.get('reject_notes'), 
                             p.get('outgoing_manifest'), loc_val, p.get('last_scan_date')
                         ))
                 

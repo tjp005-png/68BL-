@@ -311,6 +311,11 @@ class TestSTURedesignFlow(unittest.TestCase):
             INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status)
             VALUES ('DRUM-PLANT-MISSING', 'P-STU-TEST', 'MAN-111', 'direct land haz', 100.0, 7.0, 10.0, 10.0, 1000.0, '2026-06-01', NULL, 'PLANT RECEIVED')
         ''')
+        # Insert a FINAL CODED drum imported today that WILL NOT be in the VPI file (should be deleted upon fresh upload)
+        conn.execute('''
+            INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status)
+            VALUES ('DRUM-FINAL-CODED-MISSING', 'P-STU-TEST', 'MAN-111', 'direct land haz', 100.0, 7.0, 10.0, 10.0, 1000.0, ?, NULL, 'FINAL CODED')
+        ''', (today.isoformat(),))
         # Insert a PLANT RECEIVED drum that WILL be in the VPI file (should change to FINAL CODED)
         conn.execute('''
             INSERT INTO drum_inventory (track_no, inb_prof, manifest, process_type, weight, ph, age, voc_ppm, voc_weight, import_date, job_id, status)
@@ -377,6 +382,10 @@ class TestSTURedesignFlow(unittest.TestCase):
         # Verify that DRUM-PLANT-MISSING was deleted
         row_plant_missing = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-PLANT-MISSING'").fetchone()
         self.assertIsNone(row_plant_missing)
+
+        # Verify that DRUM-FINAL-CODED-MISSING was deleted (even though imported today, it dropped off VPI)
+        row_final_missing = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-FINAL-CODED-MISSING'").fetchone()
+        self.assertIsNone(row_final_missing)
 
         # Verify that DRUM-PLANT-FOUND was changed to FINAL CODED
         row_plant_found = conn.execute("SELECT * FROM drum_inventory WHERE track_no = 'DRUM-PLANT-FOUND'").fetchone()
