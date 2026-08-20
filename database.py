@@ -104,8 +104,15 @@ def sync_profile_from_wvi_file(conn, profile_number):
     except Exception:
         w_row = None
         
-    wvi_dir = r"I:\Buttonwillow\WAP\WVI"
+    wvi_dir = os.environ.get("WVI_DIR", r"I:\Buttonwillow\WAP\WVI")
     if not os.path.exists(wvi_dir):
+        # Cache that no WVI file was found on network so we don't repeat network searches
+        try:
+            conn.execute("INSERT OR IGNORE INTO profile_wvi (profile, is_synced) VALUES (?, 1)", (profile_clean,))
+            conn.execute("UPDATE profile_wvi SET is_synced = 1 WHERE TRIM(UPPER(profile)) = ?", (profile_clean,))
+            conn.commit()
+        except Exception as ex:
+            print(f"Error caching missing WVI for profile {profile_clean}: {ex}")
         return dict(w_row) if w_row else None
         
     # Search for files matching the profile number

@@ -13,9 +13,10 @@ backups_bp = Blueprint('backups_bp', __name__)
 DEFAULT_PASSWORD = "CleanHarbors2026!"
 I_DRIVE_DIR = os.environ.get("I_DRIVE_DIR", r"I:\Buttonwillow\LAB\Operations App")
 i_drive_backup_dir = os.path.join(I_DRIVE_DIR, "backups")
-drive_letter = os.path.splitdrive(I_DRIVE_DIR)[0] + "\\"
+drive_part = os.path.splitdrive(I_DRIVE_DIR)[0]
+drive_exists = os.path.exists(drive_part + "\\") if drive_part else os.path.exists(os.path.dirname(os.path.abspath(I_DRIVE_DIR)))
 
-if os.path.exists(drive_letter):
+if drive_exists:
     BACKUP_DIR = os.environ.get("BACKUP_DIR", i_drive_backup_dir)
 else:
     BACKUP_DIR = os.environ.get("BACKUP_DIR", os.path.join(APP_DIR, "backups"))
@@ -48,8 +49,9 @@ def sync_uploads_with_network():
     synced_to_net = 0
     restored_from_net = 0
     
-    drive_letter = os.path.splitdrive(I_DRIVE_UPLOADS_DIR)[0] + "\\"
-    if not os.path.exists(drive_letter):
+    drive_part = os.path.splitdrive(I_DRIVE_UPLOADS_DIR)[0]
+    drive_exists = os.path.exists(drive_part + "\\") if drive_part else os.path.exists(os.path.dirname(os.path.abspath(I_DRIVE_UPLOADS_DIR)))
+    if not drive_exists:
         return synced_to_net, restored_from_net
         
     try:
@@ -127,8 +129,9 @@ def run_backup_logic():
                 
         # Attempt I: drive sync (if the drive of I_DRIVE_DIR is mounted and we are not running directly from it)
         i_db_path = os.path.join(I_DRIVE_DIR, "database.db")
-        drive_letter = os.path.splitdrive(I_DRIVE_DIR)[0] + "\\"
-        if os.path.exists(drive_letter) and os.path.abspath(DB_PATH) != os.path.abspath(i_db_path):
+        drive_part = os.path.splitdrive(I_DRIVE_DIR)[0]
+        drive_exists = os.path.exists(drive_part + "\\") if drive_part else os.path.exists(os.path.dirname(os.path.abspath(I_DRIVE_DIR)))
+        if drive_exists and os.path.abspath(DB_PATH) != os.path.abspath(i_db_path):
             try:
                 os.makedirs(I_DRIVE_DIR, exist_ok=True)
                 
