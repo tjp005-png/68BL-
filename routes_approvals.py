@@ -641,6 +641,26 @@ def api_profile_search():
             LIMIT 50
         ''', (like_query, like_query, like_query, like_query, like_query)).fetchall()
         
+        # If no direct match in SQLite and query looks like a profile number, attempt lazy-load from Master Excel
+        if not rows and len(query) >= 3:
+            try:
+                from database import ensure_profile_exists
+                lazy_row = ensure_profile_exists(conn, query.upper())
+                if lazy_row:
+                    rows = conn.execute('''
+                        SELECT p.*, 
+                               w.verification_procedures, 
+                               w.sample_procedures, 
+                               w.unloading_instructions, 
+                               w.notes_revisions, 
+                               w.treatment_information
+                        FROM profiles p
+                        LEFT JOIN profile_wvi w ON TRIM(UPPER(p.profile_number)) = TRIM(UPPER(w.profile))
+                        WHERE TRIM(UPPER(p.profile_number)) = ?
+                    ''', (query.strip().upper(),)).fetchall()
+            except Exception:
+                pass
+        
     return jsonify([dict(r) for r in rows])
 
 @approvals_bp.route('/api/profile/delete', methods=['POST'])
