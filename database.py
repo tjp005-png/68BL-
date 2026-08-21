@@ -396,6 +396,11 @@ def enrich_profile_from_wvi(conn, clean_profile):
     except Exception as e:
         print(f"Error enriching profile {clean_profile} from WVI: {e}")
 
+def clear_excel_cache():
+    global _excel_cache, _excel_cache_mtime
+    _excel_cache = None
+    _excel_cache_mtime = None
+
 def _load_excel_dataframe(excel_path):
     global _excel_cache, _excel_cache_mtime
     import pandas as pd
@@ -456,10 +461,14 @@ def _load_excel_dataframe(excel_path):
             return _excel_cache
         raise e
 
-def ensure_profile_exists(conn, profile_number, excel_path=None):
+def ensure_profile_exists(conn, profile_number, excel_path=None, force_refresh=False):
     if not profile_number or not str(profile_number).strip():
         return None
         
+    import pandas as pd
+    from datetime import datetime
+    import re
+    
     clean_profile = str(profile_number).strip().upper()
     excel_path = excel_path or (shared_state.get_master_excel_path() if hasattr(shared_state, 'get_master_excel_path') else shared_state.MASTER_EXCEL_PATH)
     
@@ -472,7 +481,7 @@ def ensure_profile_exists(conn, profile_number, excel_path=None):
     except:
         pass
         
-    if row and row['last_synced_mtime'] and excel_mtime and row['last_synced_mtime'] == excel_mtime:
+    if not force_refresh and row and row['last_synced_mtime'] and excel_mtime and row['last_synced_mtime'] == excel_mtime:
         enrich_profile_from_wvi(conn, clean_profile)
         return conn.execute('SELECT * FROM profiles WHERE TRIM(UPPER(profile_number)) = ?', (clean_profile,)).fetchone()
 
@@ -510,27 +519,42 @@ def ensure_profile_exists(conn, profile_number, excel_path=None):
         else:
             row_data = matching.iloc[0]
         
-        generator = str(row_data.get('GENERATOR', '')).strip()
-        status_val = str(row_data.get('STATUS', 'ACTIVE')).strip()
+        # Flexible case-insensitive column map
+        col_map = {str(c).strip().upper(): c for c in df.columns}
+        
+        def get_col_val(candidate_keys, default=''):
+            for key in candidate_keys:
+                k_upper = key.strip().upper()
+                if k_upper in col_map:
+                    val = row_data.get(col_map[k_upper])
+                    if pd.notna(val):
+                        s_val = str(val).strip()
+                        if s_val not in ['', 'nan', 'None', 'NAN', 'NULL', '<NA>']:
+                            return val
+            return default
+
+        generator = str(get_col_val(['GENERATOR', 'GENERATOR NAME', 'GENERATOR_NAME', 'GEN NAME', 'GEN'])).strip()
+        status_val = str(get_col_val(['STATUS', 'PROFILE STATUS', 'PROFILE_STATUS', 'ACTIVE/INACTIVE', 'STATE'], 'ACTIVE')).strip()
         if not status_val or status_val.lower() in ['nan', 'none']:
             status_val = 'ACTIVE'
-        elif status_val.upper() in ['A', 'ACTIVE']:
+        elif status_val.upper() in ['A', 'ACTIVE', 'ACT']:
             status_val = 'ACTIVE'
-        elif status_val.upper() in ['E', 'EXP', 'EXPIRED']:
+        elif status_val.upper() in ['E', 'EXP', 'EXPIRED', 'INACTIVE', 'INACT']:
             status_val = 'EXPIRED'
             
         exp_date = 'No Date'
-        if 'EXP DATE' in df.columns:
-            val = row_data.get('EXP DATE')
+        val_exp = get_col_val(['EXP DATE', 'EXP_DATE', 'EXPIRATION DATE', 'EXPIRATION_DATE', 'EXPIRES', 'EXPIRE DATE'], None)
+        if val_exp is not None:
             import pandas as pd
             from datetime import datetime
-            if not pd.isna(val):
-                try:
-                    exp_date = pd.to_datetime(val, errors='coerce').strftime('%Y-%m-%d')
-                    if not exp_date or pd.isna(exp_date):
-                        exp_date = str(val)
-                except:
-                    exp_date = str(val)
+            try:
+                dt_parsed = pd.to_datetime(val_exp, errors='coerce')
+                if pd.notna(dt_parsed):
+                    exp_date = dt_parsed.strftime('%Y-%m-%d')
+                else:
+                    exp_date = str(val_exp).strip()
+            except Exception:
+                exp_date = str(val_exp).strip()
 
         # PRIORITY RULE: Expiration date in the past automatically overrides status to 'EXPIRED'
         if exp_date and exp_date != 'No Date':
@@ -543,12 +567,13 @@ def ensure_profile_exists(conn, profile_number, excel_path=None):
             except Exception:
                 pass
                     
-        waste_name = str(row_data.get('WASTE NAME', '')).strip()
+        waste_name = str(get_col_val(['WASTE NAME', 'WASTE_NAME', 'WASTE DESCRIPTION', 'WASTE_DESCRIPTION', 'DESCRIPTION', 'COMMON NAME'])).strip()
         
+        voc_val = get_col_val(['VOC #', 'VOC', 'VOC %', 'VOC_PERCENTAGE', 'VOC PERCENTAGE', 'VOC LEVEL', 'VOC_LEVEL', 'VOC PPM'], None)
         voc_percentage = 0.0
-        if 'VOC #' in df.columns:
-            voc_str = str(row_data.get('VOC #', '')).strip()
-            if voc_str.upper() in ['TBD', '?']:
+        if voc_val is not None:
+            voc_str = str(voc_val).strip()
+            if voc_str.upper() in ['TBD', '?', 'NAN', 'NONE']:
                 voc_percentage = None
             else:
                 voc_match = re.search(r'(\d+\.?\d*)', voc_str)
@@ -560,13 +585,13 @@ def ensure_profile_exists(conn, profile_number, excel_path=None):
                 else:
                     voc_percentage = 0.0
                     
-        win_code = str(row_data.get('WIN CODE', '')).strip()
-        lab_number = str(row_data.get('LAB #', '')).strip()
+        win_code = str(get_col_val(['WIN CODE', 'WIN_CODE', 'WIN', 'ROUTING CODE', 'ROUTING_CODE', 'DISPOSAL CODE'])).strip()
+        lab_number = str(get_col_val(['LAB #', 'LAB NUMBER', 'LAB_NUMBER', 'LAB NO', 'CP1', 'LAB'])).strip()
         if lab_number.lower() in ['nan', 'none']:
             lab_number = ''
-        haz = str(row_data.get('HAZ', '')).strip()
-        rcra = str(row_data.get('RCRA', '')).strip()
-        comments = str(row_data.get('COMMENTS', '')).strip()
+        haz = str(get_col_val(['HAZ', 'HAZARDOUS', 'HAZ / NON-HAZ', 'HAZ/NON-HAZ'])).strip()
+        rcra = str(get_col_val(['RCRA', 'RCRA / NON-RCRA', 'RCRA/NON-RCRA'])).strip()
+        comments = str(get_col_val(['COMMENTS', 'SPECIAL INSTRUCTIONS', 'NOTES', 'HANDLING', 'SPECIAL_HANDLING'])).strip()
         
         # Preserve user-edited CP1/lab_number in SQLite if Excel lab_number is blank
         if row and row['lab_number'] and str(row['lab_number']).strip() and not lab_number:
@@ -576,11 +601,7 @@ def ensure_profile_exists(conn, profile_number, excel_path=None):
         if row and row['status'] and str(row['status']).strip() and status_val.lower() in ['', 'nan', 'none']:
             status_val = str(row['status']).strip()
 
-        epa_id = ''
-        if 'EPA ID' in df.columns:
-            epa_id = str(row_data.get('EPA ID', '')).strip()
-        elif 'EPA_ID' in df.columns:
-            epa_id = str(row_data.get('EPA_ID', '')).strip()
+        epa_id = str(get_col_val(['EPA ID', 'EPA_ID', 'EPA NUMBER', 'EPA NO', 'EPA'])).strip()
             
         c_upper = str(comments or '').upper()
         w_upper = str(win_code or '').strip().upper()

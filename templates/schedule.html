@@ -1049,11 +1049,12 @@
             .then(data => {
                 btn.disabled = false;
                 btn.innerHTML = origHtml;
+                const sourceMsg = data.is_live_onedrive ? "Live OneDrive Excel" : "Local Backup Excel";
                 if (data.updated) {
-                    alert('Successfully updated scheduled loads for {{ selected_date }} with the latest Master Profile records!');
+                    alert(`✅ Sync Complete!\n\nSource: ${sourceMsg}\nFile: ${data.excel_path}\n\nUpdated ${data.synced_count} scheduled load(s) for {{ selected_date }} with the latest Master Profile records!`);
                     window.location.reload();
                 } else {
-                    alert('All scheduled loads for {{ selected_date }} are already up to date with Master Profile records!');
+                    alert(`ℹ️ All scheduled loads for {{ selected_date }} are already up to date with ${sourceMsg}.\n\nFile: ${data.excel_path}`);
                 }
             })
             .catch(err => {

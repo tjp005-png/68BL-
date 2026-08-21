@@ -547,6 +547,16 @@ def add_master_profile():
 def auto_sync_profiles():
     date_str = request.form.get('schedule_date')
     updates_made = False
+    synced_count = 0
+    
+    import shared_state
+    from database import ensure_profile_exists, clear_excel_cache
+    
+    # Force re-read the live Excel file
+    clear_excel_cache()
+    excel_path = shared_state.get_master_excel_path()
+    local_app_excel = os.path.join(shared_state.APP_DIR, 'MASTERPROFILE.xlsx')
+    is_live = bool(excel_path and os.path.exists(excel_path) and os.path.abspath(excel_path) != os.path.abspath(local_app_excel))
     
     if date_str:
         with closing(get_db_connection()) as conn:
@@ -554,9 +564,8 @@ def auto_sync_profiles():
             
             for s in schedules:
                 prof_num = str(s['profile_number']).strip().upper()
-                from database import ensure_profile_exists
                 try:
-                    ensure_profile_exists(conn, prof_num)
+                    ensure_profile_exists(conn, prof_num, force_refresh=True)
                 except Exception as sync_err:
                     pass
                 prof = conn.execute('''
@@ -576,7 +585,7 @@ def auto_sync_profiles():
                     else:
                         new_voc = 'TBD'
                         
-                    # CRITICAL: Only update the database IF the values are actually different
+                    # Only update the database IF the values are actually different
                     if new_voc != str(s['voc_level']) or str(prof['generator']) != str(s['generator']):
                         conn.execute('''
                             UPDATE daily_schedule 
@@ -584,6 +593,7 @@ def auto_sync_profiles():
                             WHERE id = ?
                         ''', (new_voc, prof['generator'], prof['win_code'], s['id']))
                         updates_made = True
+                        synced_count += 1
                         
             if updates_made:
                 conn.commit()
@@ -592,7 +602,12 @@ def auto_sync_profiles():
         if updates_made:
             SCHEDULE_UPDATES[date_str] = time.time()
             
-    return jsonify({'updated': updates_made})
+    return jsonify({
+        'updated': updates_made,
+        'synced_count': synced_count,
+        'excel_path': excel_path,
+        'is_live_onedrive': is_live
+    })
 
 from shared_state import UPLOADS_DIR
 UPLOAD_FOLDER = UPLOADS_DIR
