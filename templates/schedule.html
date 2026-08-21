@@ -911,13 +911,20 @@
         });
 
 
-        // 8. Auto-Sync Master Profiles (Background Sync)
+        // 8. Auto-Sync Master Profiles (Background Sync every 2 minutes)
         setInterval(() => {
             if (isDragging) return; 
             let formData = new FormData();
             formData.append('schedule_date', '{{ selected_date }}');
-            fetch('/api/auto_sync_profiles', { method: 'POST', body: formData });
-        }, 300000);
+            fetch('/api/auto_sync_profiles', { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.updated && !isDragging) {
+                        window.location.reload();
+                    }
+                })
+                .catch(err => {});
+        }, 120000);
 
         // 9. Edit Modal Population
         function populateEditModal(row) {

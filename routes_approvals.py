@@ -598,9 +598,16 @@ def auto_sync_profiles():
             if updates_made:
                 conn.commit()
                 
-        # Only ping the connected users if we actually changed something
+        # Broadcast real-time update to all connected users
         if updates_made:
-            SCHEDULE_UPDATES[date_str] = time.time()
+            now_ts = time.time()
+            SCHEDULE_UPDATES[date_str] = now_ts
+            SCHEDULE_UPDATES['GLOBAL'] = now_ts
+            try:
+                from shared_state import socketio
+                socketio.emit('schedule_update', {'date': date_str})
+            except Exception:
+                pass
             
     return jsonify({
         'updated': updates_made,
